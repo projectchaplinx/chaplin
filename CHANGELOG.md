@@ -3,6 +3,13 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.19 - 2026-07-28 - One "Talk to", not two
+
+- Removed the "Talk to <name>" card added to the left column in v0.2.18. The
+  Live character room below the hero already is the way to talk to an actor,
+  so the card was a second invitation to the same thing on the same screen.
+- `(pending)`
+
 ## v0.2.18 - 2026-07-27 - Nothing sits on the actor's face
 
 - Scene mix, the voice/theme/effects track buttons and Sound details move off
@@ -16,7 +23,7 @@ provider integrations, and the validation boundary for each major Chaplin update
   than only described.
 - User-facing: the actor's face is completely unobstructed. Every sound control
   is still one click away, on the left.
-- `(pending)`
+- `(41af553)`
 
 ## v0.2.17 - 2026-07-27 - Stop cropping the actor on their own page
 

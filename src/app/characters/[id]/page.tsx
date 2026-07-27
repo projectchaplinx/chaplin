@@ -220,24 +220,6 @@ export default function CharacterProfilePage() {
               ))}
             </dl>
 
-          {/* The conversation panel is further down the page; this is the door
-              to it, so the left column offers the actor rather than just
-              describing them. */}
-          <a
-            href="#talk"
-            className="group flex items-center gap-3 rounded-xl border border-line bg-black/25 p-3 transition-colors hover:border-accent/50"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm text-accent">
-              ✦
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">Talk to {character.name.split(" ")[0]}</span>
-              <span className="mt-0.5 block text-[11px] text-grey">
-                Ask anything — they answer in character, out loud.
-              </span>
-            </span>
-            <span aria-hidden="true" className="shrink-0 text-grey transition-colors group-hover:text-accent">›</span>
-          </a>
         </CharacterBroll>
       </div>
 

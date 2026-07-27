@@ -221,3 +221,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.13 | `812d378` | 2026-07-27T21:42:53+05:30 | Give the hero the screen and make the two shelves match |
 | v0.2.14 | `0fa937c` | 2026-07-27T21:57:29+05:30 | Stop the actor page opening on nothing but a playing clip |
 | v0.2.15 | `72db047` | 2026-07-27T22:12:13+05:30 | Close the Super Admin default credential |
+| v0.2.16 | `514e733` | 2026-07-27T22:15:22+05:30 | Let a viewer step back to the actor that just passed |

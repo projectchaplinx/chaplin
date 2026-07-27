@@ -3,6 +3,23 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.17 - 2026-07-27 - Stop cropping the actor on their own page
+
+- The profile hero is now two columns: name, tagline, chips and all six stats
+  sit beside the frame instead of on top of it.
+- The frame sizes itself from the media's real dimensions rather than imposing
+  a shape. Desktop fixes the height and the width follows; phone fixes the
+  width and the height follows. Pinning both is what caused the crop.
+- User-facing: nothing is cut off any more. A 1280x720 clip renders as a
+  967x544 frame, a 4:3 still as 725x544 — measured, not assumed.
+- The left-to-right scrim inside `CharacterBroll` is now optional and off here.
+  It exists to keep overlaid text legible; with the text moved off the media it
+  was only dimming a third of the performance.
+- Fixes the regression in v0.2.14, where capping the height of a full-width
+  16:9 frame produced a ~3:1 letterbox that `object-cover` filled by slicing
+  the sides off the shot.
+- `(pending)`
+
 ## v0.2.16 - 2026-07-27 - Step back through the hero
 
 - The hero now has previous / next controls. It advances on its own — when a
@@ -10,7 +27,7 @@ provider integrations, and the validation boundary for each major Chaplin update
   just passed had to hunt for it in the rail, and could not reach it at all
   once it scrolled out of the rail. Wraps in both directions.
 - User-facing: `‹` and `›` sit beside the mute button, top-right of the hero.
-- `(pending)`
+- `(514e733)`
 
 ## v0.2.15 - 2026-07-27 - Close the Super Admin default credential; hero typography
 

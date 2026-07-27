@@ -166,65 +166,74 @@ export default function CharacterProfilePage() {
         </button>
       )}
 
-      {/* Every actor gets the same casting stage, so profile cards never change
-          size by media. 16:9 is the shape, but height is capped against the
-          viewport: at full page width the ratio alone made this frame ~970px
-          tall, which pushed the name, tagline and every stat below the fold —
-          the actor's own page opened on nothing but a playing clip. The media
-          is object-cover inside, so the cap crops rather than distorts. */}
+      {/*
+        Details beside the frame, not on top of it.
+
+        This used to be one full-bleed 16:9 stage with the name overlaid. Locked
+        to the page width it rendered ~970px tall and pushed every detail below
+        the fold; capping its height instead turned it into a ~3:1 letterbox,
+        which object-cover then filled by cropping the sides off a portrait clip.
+        Both failures come from forcing one wide frame to carry the whole page.
+
+        So the frame is now sized from its HEIGHT and keeps a portrait ratio —
+        the shape the clips are actually generated in — and the column beside it
+        takes the space that cropping used to eat.
+      */}
       <div className="poster-card overflow-hidden rounded-xl" data-character-profile-hero>
-        <div
-          className="relative w-full overflow-hidden"
-          style={{ aspectRatio: "16 / 9", maxHeight: "62vh" }}
-        >
-          <CharacterBroll character={character} />
-          <div className="absolute inset-0 flex max-w-[78%] flex-col justify-end gap-1 p-4 pb-4 sm:max-w-[52%] sm:gap-2 sm:p-8 lg:p-10">
-            <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-              <h1 className="reel-title text-xl leading-none text-ink sm:text-4xl sm:leading-tight">
-                {character.name}
-              </h1>
-              {maker && (
-                <span className="text-[9px] text-ink/65 sm:text-xs">
-                  made by{" "}
-                  <Link href="/studio" className="text-accent hover:underline">
-                    {maker.name}
-                  </Link>
-                </span>
-              )}
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="order-2 flex flex-col justify-center gap-5 p-5 sm:p-7 lg:order-1 lg:p-9">
+            <div>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <h1 className="reel-title text-2xl leading-tight text-ink sm:text-4xl">
+                  {character.name}
+                </h1>
+                {maker && (
+                  <span className="text-[11px] text-ink/65 sm:text-xs">
+                    made by{" "}
+                    <Link href="/studio" className="text-accent hover:underline">
+                      {maker.name}
+                    </Link>
+                  </span>
+                )}
+              </div>
+              <p data-broll-punchline className="mt-2 max-w-prose text-sm italic leading-relaxed text-ink/75 sm:text-base">
+                &ldquo;{character.tagline}&rdquo;
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Chip compact label={ARCHETYPE_LABEL[character.archetype]} hue={ARCHETYPE_HUE[character.archetype]} />
+                <Chip compact label={LICENSE_LABEL[character.licenseType]} hue={LICENSE_HUE[character.licenseType]} />
+              </div>
             </div>
-            <p data-broll-punchline className="line-clamp-2 text-xs italic leading-snug text-ink/75 sm:line-clamp-none sm:text-base sm:text-ink/80">
-              &ldquo;{character.tagline}&rdquo;
-            </p>
-            <div className="mt-0.5 flex flex-wrap gap-1 sm:mt-1 sm:gap-1.5">
-              <Chip compact label={ARCHETYPE_LABEL[character.archetype]} hue={ARCHETYPE_HUE[character.archetype]} />
-              <Chip compact label={LICENSE_LABEL[character.licenseType]} hue={LICENSE_HUE[character.licenseType]} />
-            </div>
+
+            <dl className="grid grid-cols-3 gap-x-6 gap-y-4 border-t border-line pt-5 sm:grid-cols-6 lg:grid-cols-3 xl:grid-cols-6">
+              {[
+                { label: "Castings", value: String(character.stats.castings) },
+                { label: "Fans", value: compactNumber(character.stats.fans) },
+                { label: "Impressions", value: compactNumber(character.stats.socialImpressions) },
+                { label: "Views", value: compactNumber(character.stats.socialViews) },
+                { label: "Likes", value: compactNumber(character.stats.socialLikes) },
+                { label: "Lifetime earnings", value: money(character.stats.earnings), accent: true },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <dd className={`text-lg font-semibold sm:text-xl ${stat.accent ? "text-accent" : ""}`}>{stat.value}</dd>
+                  <dt className="mt-0.5 text-[9px] uppercase tracking-wide text-grey sm:text-[10px]">{stat.label}</dt>
+                </div>
+              ))}
+            </dl>
           </div>
-        </div>
-        <div className="grid grid-cols-3 divide-x divide-y divide-line border-t border-line sm:grid-cols-6 sm:divide-y-0">
-          <div className="p-2.5 text-center sm:p-4">
-            <p className="text-base font-semibold sm:text-xl">{character.stats.castings}</p>
-            <p className="text-[8px] uppercase tracking-wide text-grey sm:text-[11px]">Castings</p>
-          </div>
-          <div className="p-2.5 text-center sm:p-4">
-            <p className="text-base font-semibold sm:text-xl">{compactNumber(character.stats.fans)}</p>
-            <p className="text-[8px] uppercase tracking-wide text-grey sm:text-[11px]">Fans</p>
-          </div>
-          <div className="p-2.5 text-center sm:p-4">
-            <p className="text-base font-semibold sm:text-xl">{compactNumber(character.stats.socialImpressions)}</p>
-            <p className="text-[8px] uppercase tracking-wide text-grey sm:text-[11px]">Impressions</p>
-          </div>
-          <div className="p-2.5 text-center sm:p-4">
-            <p className="text-base font-semibold sm:text-xl">{compactNumber(character.stats.socialViews)}</p>
-            <p className="text-[8px] uppercase tracking-wide text-grey sm:text-[11px]">Views</p>
-          </div>
-          <div className="p-2.5 text-center sm:p-4">
-            <p className="text-base font-semibold sm:text-xl">{compactNumber(character.stats.socialLikes)}</p>
-            <p className="text-[8px] uppercase tracking-wide text-grey sm:text-[11px]">Likes</p>
-          </div>
-          <div className="p-2.5 text-center sm:p-4">
-            <p className="text-base font-semibold text-accent sm:text-xl">{money(character.stats.earnings)}</p>
-            <p className="text-[8px] uppercase tracking-wide text-grey sm:text-[11px]">Lifetime earnings</p>
+
+          {/*
+            Height-driven, width-derived: the frame is as wide as a portrait clip
+            at this height, so the column ends where the picture ends and there
+            is no dead margin to fill. On phones it goes back to full width.
+          */}
+          <div
+            /* Phone: width is fixed and height follows the clip. Desktop: height
+               is fixed and width follows. Pinning both is what crops. */
+            className="order-1 flex w-full items-center justify-center overflow-hidden bg-black/35 lg:order-2 lg:h-[min(66vh,34rem)] lg:w-auto lg:justify-end"
+            data-character-profile-media
+          >
+            <CharacterBroll character={character} scrim={false} fit="natural" />
           </div>
         </div>
       </div>

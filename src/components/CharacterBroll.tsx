@@ -18,7 +18,26 @@ type AudioMode = "voice" | "sfx" | "theme";
 
 const WAVEFORM_BARS = [34, 72, 48, 86, 58, 94, 42, 78, 54, 88, 38, 68, 46, 82, 52, 74];
 
-export default function CharacterBroll({ character }: { character: Character }) {
+export default function CharacterBroll({
+  character,
+  /*
+    The scrim exists to keep overlaid text legible. When the name and tagline
+    sit beside the frame rather than on top of it there is nothing to protect,
+    and the gradient just dims a third of the performance.
+  */
+  scrim = true,
+  /*
+    "fill" stretches to a frame the caller has already shaped. "natural" makes
+    this component size ITSELF from the media's own dimensions: the caller fixes
+    a height, and the width follows the real aspect ratio. That is the only way
+    a catalogue holding both 1280x720 clips and vertical ones can be shown
+    without object-cover slicing something off one of them.
+  */
+  fit = "fill",
+}: { character: Character; scrim?: boolean; fit?: "fill" | "natural" }) {
+  // 16:9 until the real dimensions arrive, so the frame does not jump far.
+  const [naturalRatio, setNaturalRatio] = useState(16 / 9);
+  const posterRef = useRef<HTMLImageElement | null>(null);
   const dialogueRef = useRef<HTMLAudioElement | null>(null);
   const sfxRef = useRef<HTMLAudioElement | null>(null);
   const themeRef = useRef<HTMLAudioElement | null>(null);
@@ -78,6 +97,18 @@ export default function CharacterBroll({ character }: { character: Character }) 
   const sfxSource = production?.latestSfxUrl ?? null;
   const themeSource = production?.latestThemeUrl ?? null;
   const posterSource = character.bannerUrl ?? character.imageUrl ?? null;
+
+  /*
+    A priority image is usually already decoded by the time React hydrates, so
+    its onLoad never fires on the client and the frame would keep the 16:9
+    guess. Read the dimensions directly whenever the poster changes.
+  */
+  useEffect(() => {
+    if (videoSource) return;
+    const el = posterRef.current;
+    if (!el || !el.complete || !el.naturalWidth || !el.naturalHeight) return;
+    setNaturalRatio(el.naturalWidth / el.naturalHeight);
+  }, [posterSource, videoSource]);
 
   const trackDetails = [
     {
@@ -288,7 +319,12 @@ export default function CharacterBroll({ character }: { character: Character }) 
     : null;
 
   return (
-    <div className="absolute inset-0" data-character-broll>
+    <div
+      className={fit === "natural" ? "relative w-full max-w-full lg:h-full lg:w-auto" : "absolute inset-0"}
+      style={fit === "natural" ? { aspectRatio: String(naturalRatio) } : undefined}
+      data-character-broll
+      data-broll-ratio={naturalRatio.toFixed(3)}
+    >
       {posterSource ? (
         <Image
           src={posterSource}
@@ -299,6 +335,13 @@ export default function CharacterBroll({ character }: { character: Character }) 
           // by roughly a quarter, which read as softness on the actor's face.
           sizes="(min-width: 1152px) 1104px, 100vw"
           quality={90}
+          ref={posterRef}
+          onLoad={(event) => {
+            const el = event.currentTarget;
+            if (!videoSource && el.naturalWidth && el.naturalHeight) {
+              setNaturalRatio(el.naturalWidth / el.naturalHeight);
+            }
+          }}
           className={`object-cover object-[68%_22%] ${videoSource ? "" : "motion-safe:animate-[broll-drift_8s_ease-in-out_infinite_alternate]"}`}
           priority
         />
@@ -319,9 +362,12 @@ export default function CharacterBroll({ character }: { character: Character }) 
           loop
           playsInline
           preload="metadata"
-          /* Anchored high and right to match the still above. The profile frame
-             is now capped against viewport height, so a centred crop of a
-             portrait clip takes the head off the top of the shot. */
+          onLoadedMetadata={(event) => {
+            const el = event.currentTarget;
+            if (el.videoWidth && el.videoHeight) setNaturalRatio(el.videoWidth / el.videoHeight);
+          }}
+          /* Anchored high and right to match the still. Only bites when the
+             frame does not match the clip; with fit="natural" it does. */
           className="absolute inset-0 h-full w-full object-cover object-[68%_25%]"
         />
       )}
@@ -337,7 +383,9 @@ export default function CharacterBroll({ character }: { character: Character }) 
         it on the right. The fade now completes before the portrait begins, so
         the right side of the frame renders at full contrast.
       */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/88 via-black/45 to-transparent to-72% sm:via-black/28 sm:to-58%" />
+      {scrim && (
+        <div className="absolute inset-0 bg-gradient-to-r from-black/88 via-black/45 to-transparent to-72% sm:via-black/28 sm:to-58%" />
+      )}
       {availableTracks.length > 0 && (
         <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-5" data-broll-audio-controls>
           <button

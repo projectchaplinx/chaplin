@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Character } from "@/lib/types";
 import { IconMicrophone, IconMusic, IconShuffle, IconWaveform } from "@/components/Icons";
 
@@ -21,20 +21,17 @@ const WAVEFORM_BARS = [34, 72, 48, 86, 58, 94, 42, 78, 54, 88, 38, 68, 46, 82, 5
 export default function CharacterBroll({
   character,
   /*
-    The scrim exists to keep overlaid text legible. When the name and tagline
-    sit beside the frame rather than on top of it there is nothing to protect,
-    and the gradient just dims a third of the performance.
+    The left column. This component owns the audio state, so it also owns the
+    layout — that is what lets the sound controls sit beside the actor's details
+    instead of floating over their face.
+
+    The frame sizes itself from the media's real dimensions rather than imposing
+    a shape, which is the only way a catalogue holding both 1280x720 clips and
+    vertical ones can be shown without object-cover slicing something off one
+    of them.
   */
-  scrim = true,
-  /*
-    "fill" stretches to a frame the caller has already shaped. "natural" makes
-    this component size ITSELF from the media's own dimensions: the caller fixes
-    a height, and the width follows the real aspect ratio. That is the only way
-    a catalogue holding both 1280x720 clips and vertical ones can be shown
-    without object-cover slicing something off one of them.
-  */
-  fit = "fill",
-}: { character: Character; scrim?: boolean; fit?: "fill" | "natural" }) {
+  children,
+}: { character: Character; children?: ReactNode }) {
   // 16:9 until the real dimensions arrive, so the frame does not jump far.
   const [naturalRatio, setNaturalRatio] = useState(16 / 9);
   const posterRef = useRef<HTMLImageElement | null>(null);
@@ -318,13 +315,76 @@ export default function CharacterBroll({
       )
     : null;
 
+  /*
+    The sound controls used to float over the actor's face on the right of the
+    frame. They live in the left column now, in normal flow, beside the rest of
+    the character's details — nothing is laid over the performance.
+  */
+  const controls = availableTracks.length > 0 && (
+    <div className="flex flex-wrap items-center gap-2 border-t border-line pt-5" data-broll-audio-controls>
+      <button
+        type="button"
+        onClick={playSceneMix}
+        aria-label={mixing ? "Pause scene sound mix" : "Play voice, theme, and effects together"}
+        className={`flex h-10 items-center gap-2 rounded-full border px-4 text-[10px] font-bold uppercase tracking-wide transition-all ${
+          mixing
+            ? "border-accent-secondary bg-accent-secondary text-paper"
+            : "border-accent/70 bg-accent/85 text-white hover:bg-accent"
+        }`}
+      >
+        {mixing ? <span className="text-xs">Ⅱ</span> : <IconShuffle className="h-4 w-4" />}
+        {mixing ? "Pause mix" : "Scene mix"}
+      </button>
+
+      <div className="flex items-center gap-1 rounded-full border border-line bg-black/30 p-1">
+        {availableTracks.map(({ mode, label, icon: Icon }) => {
+          const active = playingMode === mode && !mixing;
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => playTrack(mode)}
+              aria-label={active ? `Pause ${label.toLowerCase()}` : `Play ${label.toLowerCase()}`}
+              title={label}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
+                active ? "bg-accent text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {active ? <span className="text-[10px]">Ⅱ</span> : <Icon className="h-3.5 w-3.5" />}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setConsoleOpen(true)}
+        className="rounded-full border border-line px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/75 transition-colors hover:border-accent-secondary hover:text-white"
+      >
+        Sound details
+      </button>
+    </div>
+  );
+
   return (
-    <div
-      className={fit === "natural" ? "relative w-full max-w-full lg:h-full lg:w-auto" : "absolute inset-0"}
-      style={fit === "natural" ? { aspectRatio: String(naturalRatio) } : undefined}
-      data-character-broll
-      data-broll-ratio={naturalRatio.toFixed(3)}
-    >
+    <div className="grid lg:grid-cols-[minmax(0,1fr)_auto]" data-character-stage>
+      <div className="order-2 flex flex-col justify-center gap-5 p-5 sm:p-7 lg:order-1 lg:p-9">
+        {children}
+        {controls}
+      </div>
+
+      {/* Phone: width is fixed and height follows the clip. Desktop: height is
+          fixed and width follows. Pinning both is what crops. */}
+      <div
+        className="order-1 flex w-full items-center justify-center overflow-hidden bg-black/35 lg:order-2 lg:h-[min(66vh,34rem)] lg:w-auto lg:justify-end"
+        data-character-profile-media
+      >
+        <div
+          className="relative w-full max-w-full lg:h-full lg:w-auto"
+          style={{ aspectRatio: String(naturalRatio) }}
+          data-character-broll
+          data-broll-ratio={naturalRatio.toFixed(3)}
+        >
       {posterSource ? (
         <Image
           src={posterSource}
@@ -366,8 +426,8 @@ export default function CharacterBroll({
             const el = event.currentTarget;
             if (el.videoWidth && el.videoHeight) setNaturalRatio(el.videoWidth / el.videoHeight);
           }}
-          /* Anchored high and right to match the still. Only bites when the
-             frame does not match the clip; with fit="natural" it does. */
+          /* Anchored high and right to match the still. Only bites if the frame
+             ever disagrees with the clip, which it no longer does. */
           className="absolute inset-0 h-full w-full object-cover object-[68%_25%]"
         />
       )}
@@ -375,61 +435,8 @@ export default function CharacterBroll({
       {sfxSource && <audio ref={sfxRef} src={sfxSource} preload="metadata" onEnded={() => handleTrackEnded("sfx")} data-broll-track="sfx" />}
       {themeSource && <audio ref={themeRef} src={themeSource} preload="metadata" onEnded={() => handleTrackEnded("theme")} data-broll-track="theme" />}
 
-      {/*
-        The name and tagline sit bottom-left inside max-w-[78%] on mobile and
-        max-w-[52%] on desktop, so the scrim only needs to protect that column.
-        It used to run the full width at 92% black falling to 55% mid-frame,
-        which dulled the actor's face — object-[68%_22%] deliberately places
-        it on the right. The fade now completes before the portrait begins, so
-        the right side of the frame renders at full contrast.
-      */}
-      {scrim && (
-        <div className="absolute inset-0 bg-gradient-to-r from-black/88 via-black/45 to-transparent to-72% sm:via-black/28 sm:to-58%" />
-      )}
-      {availableTracks.length > 0 && (
-        <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-5" data-broll-audio-controls>
-          <button
-            type="button"
-            onClick={playSceneMix}
-            aria-label={mixing ? "Pause scene sound mix" : "Play voice, theme, and effects together"}
-            className={`group flex h-10 items-center gap-2 rounded-full border px-3 shadow-xl backdrop-blur-xl transition-all sm:h-11 sm:px-4 ${
-              mixing
-                ? "scale-105 border-accent-secondary bg-accent-secondary text-paper"
-                : "border-accent/70 bg-accent/85 text-white hover:scale-105 hover:bg-accent"
-            }`}
-          >
-            {mixing ? <span className="text-xs">Ⅱ</span> : <IconShuffle className="h-4 w-4" />}
-            <span className="hidden text-[10px] font-bold uppercase tracking-wide sm:inline">{mixing ? "Pause mix" : "Scene mix"}</span>
-          </button>
-
-          <div className="flex flex-col gap-1.5 rounded-full border border-white/15 bg-black/30 p-1.5 shadow-xl backdrop-blur-xl">
-            {availableTracks.map(({ mode, label, icon: Icon }) => {
-              const active = playingMode === mode && !mixing;
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => playTrack(mode)}
-                  aria-label={active ? `Pause ${label.toLowerCase()}` : `Play ${label.toLowerCase()}`}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
-                    active ? "bg-accent text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  {active ? <span className="text-[10px]">Ⅱ</span> : <Icon className="h-3.5 w-3.5" />}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setConsoleOpen(true)}
-            className="rounded-full border border-white/20 bg-black/45 px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/75 shadow-xl backdrop-blur-xl hover:border-accent-secondary hover:text-white"
-          >
-            Sound details
-          </button>
-        </div>
-      )}
+      </div>
+      </div>
       {soundConsole}
     </div>
   );

@@ -180,9 +180,8 @@ export default function CharacterProfilePage() {
         takes the space that cropping used to eat.
       */}
       <div className="poster-card overflow-hidden rounded-xl" data-character-profile-hero>
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="order-2 flex flex-col justify-center gap-5 p-5 sm:p-7 lg:order-1 lg:p-9">
-            <div>
+        <CharacterBroll character={character}>
+          <div>
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <h1 className="reel-title text-2xl leading-tight text-ink sm:text-4xl">
                   {character.name}
@@ -220,25 +219,29 @@ export default function CharacterProfilePage() {
                 </div>
               ))}
             </dl>
-          </div>
 
-          {/*
-            Height-driven, width-derived: the frame is as wide as a portrait clip
-            at this height, so the column ends where the picture ends and there
-            is no dead margin to fill. On phones it goes back to full width.
-          */}
-          <div
-            /* Phone: width is fixed and height follows the clip. Desktop: height
-               is fixed and width follows. Pinning both is what crops. */
-            className="order-1 flex w-full items-center justify-center overflow-hidden bg-black/35 lg:order-2 lg:h-[min(66vh,34rem)] lg:w-auto lg:justify-end"
-            data-character-profile-media
+          {/* The conversation panel is further down the page; this is the door
+              to it, so the left column offers the actor rather than just
+              describing them. */}
+          <a
+            href="#talk"
+            className="group flex items-center gap-3 rounded-xl border border-line bg-black/25 p-3 transition-colors hover:border-accent/50"
           >
-            <CharacterBroll character={character} scrim={false} fit="natural" />
-          </div>
-        </div>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm text-accent">
+              ✦
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Talk to {character.name.split(" ")[0]}</span>
+              <span className="mt-0.5 block text-[11px] text-grey">
+                Ask anything — they answer in character, out loud.
+              </span>
+            </span>
+            <span aria-hidden="true" className="shrink-0 text-grey transition-colors group-hover:text-accent">›</span>
+          </a>
+        </CharacterBroll>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 scroll-mt-24" id="talk">
         <CharacterConversationPanel character={character} />
       </div>
 

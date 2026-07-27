@@ -3,6 +3,21 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.18 - 2026-07-27 - Nothing sits on the actor's face
+
+- Scene mix, the voice/theme/effects track buttons and Sound details move off
+  the frame and into the left column, in normal flow. They were floating over
+  the right of the shot, which is where the actor is.
+- `CharacterBroll` now owns the two-column layout as well as the audio state.
+  That is what lets the controls sit beside the details rather than on top of
+  the performance — the state they read never leaves the component.
+- The left column gains a "Talk to <name>" card linking to the conversation
+  panel further down, so the space is used and the actor is offered rather
+  than only described.
+- User-facing: the actor's face is completely unobstructed. Every sound control
+  is still one click away, on the left.
+- `(pending)`
+
 ## v0.2.17 - 2026-07-27 - Stop cropping the actor on their own page
 
 - The profile hero is now two columns: name, tagline, chips and all six stats

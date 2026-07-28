@@ -233,4 +233,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.25 | `aa44caf` | 2026-07-28T20:34:42+05:30 | Fix desktop sign-in footer layout |
 | v0.2.26 | `f21fccf` | 2026-07-28T20:40:29+05:30 | Enforce owner-only actor controls |
 | v0.2.27 | `412b5e0` | 2026-07-28T20:45:30+05:30 | Remove glow from Chaplin wordmark |
-| v0.2.28 | `a6dd629` | 2026-07-28T21:15:10+05:30 | Merge projectchaplinx main and preserve launch fixes |
+| v0.2.28 | `ffe4ac9` | 2026-07-28T21:15:20+05:30 | Merge projectchaplinx main and preserve launch fixes |

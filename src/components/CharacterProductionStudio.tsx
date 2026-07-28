@@ -550,6 +550,7 @@ export default function CharacterProductionStudio({
   );
   const [previewText, setPreviewText] = useState(brollLine);
   const [previews, setPreviews] = useState<VoicePreview[]>([]);
+  const [selectedVoicePreviewIndex, setSelectedVoicePreviewIndex] = useState(0);
   const [lockedVoiceId, setLockedVoiceId] = useState(character.voiceId ?? "");
   const [speechText, setSpeechText] = useState(dialogueForEditor(initialScene.dialogue));
   const [speechUrl, setSpeechUrl] = useState("");
@@ -1042,6 +1043,7 @@ export default function CharacterProductionStudio({
       const nextPreviews = data.previews ?? [];
       if (!nextPreviews.length) throw new Error("No voice takes were returned.");
       setPreviews(nextPreviews);
+      setSelectedVoicePreviewIndex(0);
       setVoiceBuildStage(4);
       setMessage(`Three voices for ${character.name} are ready. Play each take, then choose the one that feels true.`);
     });
@@ -1512,6 +1514,7 @@ export default function CharacterProductionStudio({
           const firstVoice = voiceData.previews?.[0];
           if (!firstVoice) throw new Error("ElevenLabs returned no voice take to lock.");
           setPreviews(voiceData.previews ?? []);
+          setSelectedVoicePreviewIndex(0);
           const savedVoice = await jsonAction("voice-save", {
             name: `${character.name} - Chaplin`,
             description: directedVoice,
@@ -1845,24 +1848,56 @@ export default function CharacterProductionStudio({
 
   function renderActiveAssetPreview() {
     if (activeStep === 1) {
+      const selectedVoicePreview = previews[selectedVoicePreviewIndex] ?? previews[0];
+      const selectedVoiceTake = selectedVoicePreview ? previews.indexOf(selectedVoicePreview) + 1 : 0;
       return (
         <div className="space-y-2">
-          {previews.map((preview, index) => (
-            <article key={preview.generated_voice_id} className="rounded-md border border-line bg-black/15 p-2.5" data-asset-canvas-candidate="voice">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-semibold">Voice take {index + 1}</span>
-                <button type="button" onClick={() => lockVoice(preview)} disabled={Boolean(busy)} className="min-h-9 rounded-full border border-accent/60 px-3 py-1.5 text-[10px] font-semibold text-accent disabled:opacity-40">
-                  {busy === "voice-save" ? "Locking…" : "Choose"}
-                </button>
+          {selectedVoicePreview && (
+            <article className="rounded-md border border-line bg-black/15 p-2.5" data-asset-canvas-candidate="voice">
+              <div className="mb-2.5">
+                <span className="block text-[10px] font-semibold">Compare voice takes</span>
+                <span className="mt-0.5 block text-[9px] text-grey">One audition line, three different voices.</span>
               </div>
+
+              <div className="mb-2 grid grid-cols-3 gap-1.5" aria-label="Voice takes">
+                {previews.map((preview, index) => {
+                  const selected = preview.generated_voice_id === selectedVoicePreview.generated_voice_id;
+                  return (
+                    <button
+                      key={preview.generated_voice_id}
+                      type="button"
+                      onClick={() => setSelectedVoicePreviewIndex(index)}
+                      aria-pressed={selected}
+                      className={`min-h-9 rounded-full border px-2 py-1.5 text-[10px] font-semibold transition ${
+                        selected
+                          ? "border-accent bg-accent text-paper"
+                          : "border-line text-grey hover:border-accent/60 hover:text-ink"
+                      }`}
+                    >
+                      Take {index + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
               <MediaPlayer
-                src={`data:${preview.media_type ?? "audio/mpeg"};base64,${preview.audio_base_64}`}
-                label={`Voice candidate ${index + 1}`}
+                key={selectedVoicePreview.generated_voice_id}
+                src={`data:${selectedVoicePreview.media_type ?? "audio/mpeg"};base64,${selectedVoicePreview.audio_base_64}`}
+                label={`Voice take ${selectedVoiceTake}`}
                 compact
                 playbackLimitSeconds={7}
               />
+
+              <button
+                type="button"
+                onClick={() => lockVoice(selectedVoicePreview)}
+                disabled={Boolean(busy)}
+                className="mt-2.5 min-h-9 w-full rounded-full border border-accent/60 px-3 py-1.5 text-[10px] font-semibold text-accent hover:bg-accent hover:text-paper disabled:opacity-40"
+              >
+                {busy === "voice-save" ? "Locking…" : `Choose take ${selectedVoiceTake}`}
+              </button>
             </article>
-          ))}
+          )}
           {lockedVoiceId && previews.length === 0 && (
             <article className="rounded-md border border-emerald-400/35 bg-emerald-400/[0.055] p-3" data-asset-canvas-ready="voice">
               <div className="flex items-center gap-2">

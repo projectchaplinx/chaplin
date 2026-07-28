@@ -3,6 +3,15 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.29 - 2026-07-28 - Single voice audition player
+
+- Replaced three repeated voice-preview cards with one audition player and
+  Take 1, Take 2, and Take 3 selectors.
+- Kept the provider's three distinct voice options while presenting the shared
+  audition line only once and moving selection to one clear action.
+- Reset the selected take whenever a fresh voice set is generated so the player
+  and Choose action always stay in sync.
+
 ## v0.2.28 - 2026-07-28 - Project Chaplin X main reconciliation
 
 - Reconciled the public-launch, owner-access, footer, Magic-action, and crisp

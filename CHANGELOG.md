@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.48 - 2026-07-29 - Parallel scene production
+
+- Confirmed scene-frame generation uses four distinct prompts and provider jobs,
+  then made the live Studio progress readout expose completed frame and
+  soundtrack counts instead of showing one ambiguous selected canvas.
+- Started all scene frames and per-scene soundtracks together. Each batch keeps
+  a four-worker cap, so independent BytePlus and ElevenLabs work no longer waits
+  behind the other stage.
+- Restored parallel motion generation for every independent scene while keeping
+  real `chain` dependencies ordered behind only the source clip whose terminal
+  frame they require.
+
 ## v0.2.47 - 2026-07-29 - Production-safe Direction Brain
 
 - Added a typed Direction Brain safety contract that preserves the

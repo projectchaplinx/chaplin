@@ -960,9 +960,10 @@ export function ProductionWorkspace({
       // Build the complete storyboard before asking the video model to move any frame.
       // This keeps the four authored scene starts visible and reviewable as one sequence.
       let framesDesigned = 0;
+      let scenesRecorded = 0;
       setRenderShots((shots) => shots.map((shot) => ({ ...shot, status: "designing", error: undefined })));
-      setRenderProgress(`Designing ${contract.shotCount} scene frames together`);
-      const frameResults = await mapScenes(contract.shotCount, async (index) => {
+      setRenderProgress(`Parallel generation · 0/${contract.shotCount} frames · 0/${contract.shotCount} soundtracks`);
+      const frameResultsPromise = mapScenes(contract.shotCount, async (index) => {
         const directedScene = authoredScenes[index];
         /*
           Only this scene's actors. Rendering every shot against the whole cast
@@ -1019,7 +1020,7 @@ export function ProductionWorkspace({
         framesDesigned += 1;
         setRenderFrameUrl(frameUrl);
         setSelectedShotIndex(index);
-        setRenderProgress(`Designed ${framesDesigned} of ${contract.shotCount} scene frames`);
+        setRenderProgress(`Parallel generation · ${framesDesigned}/${contract.shotCount} frames · ${scenesRecorded}/${contract.shotCount} soundtracks`);
         setRenderShots((shots) => shots.map((shot, shotIndex) => (
           shotIndex === index
             ? { ...shot, frameUrl, frameAssetId: frameData.assetId, status: "frame_ready" }
@@ -1034,9 +1035,7 @@ export function ProductionWorkspace({
         original ElevenLabs asset is still mastered into the final cut so actor
         identity never depends on a model's re-performance.
       */
-      let scenesRecorded = 0;
-      setRenderProgress(`Recording voice and sound for ${contract.shotCount} scenes together`);
-      const audioResults = await mapScenes(contract.shotCount, async (index) => {
+      const audioResultsPromise = mapScenes(contract.shotCount, async (index) => {
         const directedScene = authoredScenes[index];
         const dialogueLine = directedScene.lines.find((line) => line.text.trim());
         const dialogueSpeaker = cast.find((character) => character.id === dialogueLine?.characterId) ?? cast[0];
@@ -1085,7 +1084,7 @@ export function ProductionWorkspace({
           }),
         ]);
         scenesRecorded += 1;
-        setRenderProgress(`Recorded ${scenesRecorded} of ${contract.shotCount} scene soundtracks`);
+        setRenderProgress(`Parallel generation · ${framesDesigned}/${contract.shotCount} frames · ${scenesRecorded}/${contract.shotCount} soundtracks`);
         setRenderShots((shots) => shots.map((shot, shotIndex) => (
           shotIndex === index
             ? {
@@ -1106,6 +1105,10 @@ export function ProductionWorkspace({
           sfxAssetId: sfxAsset.assetId,
         };
       });
+      const [frameResults, audioResults] = await Promise.all([
+        frameResultsPromise,
+        audioResultsPromise,
+      ]);
 
       const solvedSlotDurations = solveDirectionDurations(
         authoredScenes.map((scene, index) => ({
@@ -1123,110 +1126,115 @@ export function ProductionWorkspace({
       let scenesAnimated = 0;
       setRenderShots((shots) => shots.map((shot) => ({ ...shot, status: "animating", error: undefined })));
       setRenderProgress(`Animating ${contract.shotCount} timed scenes`);
-      const shotResults: Array<{
+      type RenderedShot = {
         frameUrl: string;
         frameAssetId?: string;
         url: string;
         assetId: string;
-      }> = [];
+      };
+      const shotPromises: Array<Promise<RenderedShot>> = [];
       for (let index = 0; index < contract.shotCount; index += 1) {
-        const directedScene = authoredScenes[index];
-        let frameData = frameResults[index];
-        if (directedScene.motionMode === "chain" && directedScene.motionFromSlotId) {
-          const sourceIndex = authoredScenes.findIndex((scene) => scene.slotId === directedScene.motionFromSlotId);
-          const sourceShot = sourceIndex >= 0 ? shotResults[sourceIndex] : undefined;
-          if (!sourceShot) {
-            throw new Error(`Scene ${index + 1} needs rendered slot ${directedScene.motionFromSlotId} before its chain can continue.`);
+        shotPromises[index] = (async (): Promise<RenderedShot> => {
+          const directedScene = authoredScenes[index];
+          let frameData = frameResults[index];
+          if (directedScene.motionMode === "chain" && directedScene.motionFromSlotId) {
+            const sourceIndex = authoredScenes.findIndex((scene) => scene.slotId === directedScene.motionFromSlotId);
+            const sourcePromise = sourceIndex >= 0 && sourceIndex < index ? shotPromises[sourceIndex] : undefined;
+            if (!sourcePromise) {
+              throw new Error(`Scene ${index + 1} needs earlier rendered slot ${directedScene.motionFromSlotId} before its chain can continue.`);
+            }
+            const sourceShot = await sourcePromise;
+            const chainResponse = await fetch("/api/media/chain-frame", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                characterId: resolveSceneActors(directedScene, cast).lead.id,
+                runId: activeRun.id,
+                sourceUrl: sourceShot.url,
+                sourceAssetId: sourceShot.assetId,
+                sourceSlotId: directedScene.motionFromSlotId,
+                targetSlotId: directedScene.slotId ?? String(index + 1),
+              }),
+            });
+            const chainData = await chainResponse.json() as { url?: string; assetId?: string; error?: string };
+            if (!chainResponse.ok || !chainData.url || !chainData.assetId) {
+              throw new Error(chainData.error ?? `Scene ${index + 1} could not extract its chain frame.`);
+            }
+            frameData = { frameUrl: chainData.url, frameAssetId: chainData.assetId };
           }
-          const chainResponse = await fetch("/api/media/chain-frame", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              characterId: resolveSceneActors(directedScene, cast).lead.id,
-              runId: activeRun.id,
-              sourceUrl: sourceShot.url,
-              sourceAssetId: sourceShot.assetId,
-              sourceSlotId: directedScene.motionFromSlotId,
-              targetSlotId: directedScene.slotId ?? String(index + 1),
-            }),
+          const motionActors = resolveSceneActors(directedScene, cast).present;
+          const motionPrompt = buildShotVideoPrompt({
+            productionTitle: story.title, productionLogline: story.logline,
+            scene: { ...directedScene, durationMs: renderedDurationMs(index) },
+            sceneIndex: index, sceneCount: contract.shotCount, format: story.format,
+            actorName: sceneActorNames(motionActors),
+            actorIdentity: `${sceneActorIdentity(motionActors)}\n${absentCastNegative(motionActors, cast)}`.trim(),
+            actors: motionActors.map((actor) => ({ name: actor.name, identity: actor.personality })),
+            productName: story.productImageName, hasProductReference: Boolean(story.productImageUrl),
+            continuityNote: "Animate only this scene's exact starting frame. Preserve every visible identity, object, spatial relationship, and screen direction inside the shot; do not borrow staging or action from another scene.",
           });
-          const chainData = await chainResponse.json() as { url?: string; assetId?: string; error?: string };
-          if (!chainResponse.ok || !chainData.url || !chainData.assetId) {
-            throw new Error(chainData.error ?? `Scene ${index + 1} could not extract its chain frame.`);
-          }
-          frameData = { frameUrl: chainData.url, frameAssetId: chainData.assetId };
-        }
-        const motionActors = resolveSceneActors(directedScene, cast).present;
-        const motionPrompt = buildShotVideoPrompt({
-          productionTitle: story.title, productionLogline: story.logline,
-          scene: { ...directedScene, durationMs: renderedDurationMs(index) },
-          sceneIndex: index, sceneCount: contract.shotCount, format: story.format,
-          actorName: sceneActorNames(motionActors),
-          actorIdentity: `${sceneActorIdentity(motionActors)}\n${absentCastNegative(motionActors, cast)}`.trim(),
-          actors: motionActors.map((actor) => ({ name: actor.name, identity: actor.personality })),
-          productName: story.productImageName, hasProductReference: Boolean(story.productImageUrl),
-          continuityNote: "Animate only this scene's exact starting frame. Preserve every visible identity, object, spatial relationship, and screen direction inside the shot; do not borrow staging or action from another scene.",
-        });
-        const videoData = await withSceneRetry(async () => {
-        const videoResponse = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "video",
-            // The scene's own lead, so the actor context matches who is on screen.
-            characterId: resolveSceneActors(directedScene, cast).lead.id,
-            referenceImage: frameData.frameUrl,
-            durationSeconds: renderedDurationMs(index) / 1000,
-            /*
-              The audio plan is what engages the AUDIO SCENE grammar. Without it
-              the shot rendered mute: the locked line and the location sound had
-              nowhere to be declared, so a scene with a speaking actor came back
-              silent. Ambience is the location, the effect is the visible action,
-              and the spoken line rides the locked recording below.
-            */
-            audioPlan: {
-              ambience: clamp(directedScene.setting || "the established location", 110),
-              sfxMoments: directedScene.action
-                ? [{ description: clamp(directedScene.action, 90), atSeconds: 2 }]
-                : [],
-            },
-            referenceAudio: audioResults[index]?.dialogueUrl,
-            dialogueText: audioResults[index]?.dialogueText,
-            prompt: motionPrompt,
-          }),
-        });
-        const payload = await videoResponse.json() as { url?: string; assetId?: string; error?: string };
-        if (!videoResponse.ok || !payload.url || !payload.assetId) {
-          throw new Error(payload.error ?? `Scene ${index + 1} did not produce a saved video.`);
-        }
-        return payload as { url: string; assetId: string };
-        }).catch((error: unknown) => {
-          activeShotIndex = index;
-          throw error;
-        });
-        scenesAnimated += 1;
-        setSelectedShotIndex(index);
-        setRenderFrameUrl(frameData.frameUrl);
-        setRenderProgress(`Animated ${scenesAnimated} of ${contract.shotCount} scenes`);
-        setRenderShots((shots) => shots.map((shot, shotIndex) => (
-          shotIndex === index
-            ? {
-                ...shot,
-                frameUrl: frameData.frameUrl,
-                frameAssetId: frameData.frameAssetId,
-                videoUrl: videoData.url,
-                videoAssetId: videoData.assetId,
-                status: "ready",
-              }
-            : shot
-        )));
-        shotResults.push({
-          frameUrl: frameData.frameUrl,
-          frameAssetId: frameData.frameAssetId,
-          url: videoData.url as string,
-          assetId: videoData.assetId as string,
-        });
+          const videoData = await withSceneRetry(async () => {
+            const videoResponse = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "video",
+                // The scene's own lead, so the actor context matches who is on screen.
+                characterId: resolveSceneActors(directedScene, cast).lead.id,
+                referenceImage: frameData.frameUrl,
+                durationSeconds: renderedDurationMs(index) / 1000,
+                /*
+                  The audio plan is what engages the AUDIO SCENE grammar. Without it
+                  the shot rendered mute: the locked line and the location sound had
+                  nowhere to be declared, so a scene with a speaking actor came back
+                  silent. Ambience is the location, the effect is the visible action,
+                  and the spoken line rides the locked recording below.
+                */
+                audioPlan: {
+                  ambience: clamp(directedScene.setting || "the established location", 110),
+                  sfxMoments: directedScene.action
+                    ? [{ description: clamp(directedScene.action, 90), atSeconds: 2 }]
+                    : [],
+                },
+                referenceAudio: audioResults[index]?.dialogueUrl,
+                dialogueText: audioResults[index]?.dialogueText,
+                prompt: motionPrompt,
+              }),
+            });
+            const payload = await videoResponse.json() as { url?: string; assetId?: string; error?: string };
+            if (!videoResponse.ok || !payload.url || !payload.assetId) {
+              throw new Error(payload.error ?? `Scene ${index + 1} did not produce a saved video.`);
+            }
+            return payload as { url: string; assetId: string };
+          }).catch((error: unknown) => {
+            activeShotIndex = index;
+            throw error;
+          });
+          scenesAnimated += 1;
+          setSelectedShotIndex(index);
+          setRenderFrameUrl(frameData.frameUrl);
+          setRenderProgress(`Animated ${scenesAnimated} of ${contract.shotCount} scenes`);
+          setRenderShots((shots) => shots.map((shot, shotIndex) => (
+            shotIndex === index
+              ? {
+                  ...shot,
+                  frameUrl: frameData.frameUrl,
+                  frameAssetId: frameData.frameAssetId,
+                  videoUrl: videoData.url,
+                  videoAssetId: videoData.assetId,
+                  status: "ready",
+                }
+              : shot
+          )));
+          return {
+            frameUrl: frameData.frameUrl,
+            frameAssetId: frameData.frameAssetId,
+            url: videoData.url,
+            assetId: videoData.assetId,
+          };
+        })();
       }
+      const shotResults = await Promise.all(shotPromises);
 
       activeRun = await transitionStep(activeRun, "shot-packages", "complete", {
         output: {

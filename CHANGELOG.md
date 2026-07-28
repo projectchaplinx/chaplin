@@ -3,6 +3,16 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.52 - 2026-07-29 - Compact live actor conversation
+
+- Reduced the actor hero's desktop and narrow-screen typography, spacing,
+  conversation entry, stats, and action sizes so casting and editor controls
+  remain visible instead of being clipped below an oversized identity block.
+- Made Talk to Actor open the live room, play the actor's existing opening line
+  when a locked voice is available, and focus the message composer immediately.
+- Tightened the cinematic stage's viewport sizing while preserving its split
+  actor-media presentation and responsive stacked layout.
+
 ## v0.2.51 - 2026-07-29 - Playable character file browser
 
 - Rebuilt Super Admin character files as counted All, Images, Videos, Audio,

@@ -37,6 +37,7 @@ export default function CharacterConversationPanel({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const themeRef = useRef<HTMLAudioElement | null>(null);
+  const messageInputRef = useRef<HTMLInputElement | null>(null);
   const openedRef = useRef(false);
 
   useEffect(() => () => {
@@ -44,6 +45,15 @@ export default function CharacterConversationPanel({
     themeRef.current?.pause();
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!roomLive || variant !== "hero") return;
+    const frame = window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus({ preventScroll: true });
+      messageInputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [roomLive, variant]);
 
   // The character's own theme is part of their identity, so the room plays it
   // rather than sitting in silence. Same production state the profile hero uses.
@@ -263,6 +273,7 @@ export default function CharacterConversationPanel({
             )}
             <div className="mt-3 flex gap-2">
               <input
+                ref={messageInputRef}
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 onKeyDown={(event) => { if (event.key === "Enter") void send(); }}

@@ -3045,6 +3045,7 @@ export default function CharacterProductionStudio({
               <VoiceCapacityRecovery
                 characterId={character.id}
                 onDeleted={(result) => setMessage(result)}
+                onContinue={buildVoice}
               />
             )}
           </div>

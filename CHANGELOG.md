@@ -3,6 +3,17 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.43 - 2026-07-29 - Named voice-slot recovery
+
+- Expanded creator voice-capacity recovery from only the currently open actor
+  to every actor owned by that creator. Each safely reclaimable voice now shows
+  its real ElevenLabs name and associated actor before deletion.
+- Kept active voices and other creators' voices protected server-side. Untracked
+  and other-app voices remain available only through account-wide Super Admin
+  voice control, now linked directly from an empty creator recovery panel.
+- After a confirmed deletion frees a custom-voice slot, added a direct action
+  to create new voice takes and choose the replacement without losing context.
+
 ## v0.2.42 - 2026-07-28 - Scene generation stays in Studio
 
 - Kept the Scene Studio stage rail, center canvas, and asset panel mounted when

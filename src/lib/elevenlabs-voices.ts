@@ -58,6 +58,32 @@ export function reclaimableChaplinVoices(
 }
 
 /**
+ * Capacity recovery for a regular creator's complete Studio.
+ *
+ * A creator may reclaim an inactive Chaplin-generated voice from any actor
+ * they own, not only the actor currently open. Provider voices without a
+ * Chaplin actor label remain outside this scope and require Super Admin.
+ */
+export function reclaimableOwnedChaplinVoices(
+  voices: ElevenLabsVoiceSummary[],
+  activeVoiceIds: ReadonlySet<string>,
+  ownedCharacterIds: ReadonlySet<string>,
+) {
+  return voices
+    .filter((voice) => (
+      voice.category === "generated"
+      && voice.labels?.project === "chaplin"
+      && Boolean(voice.labels?.character_id)
+      && ownedCharacterIds.has(voice.labels?.character_id ?? "")
+      && !activeVoiceIds.has(voice.voice_id)
+    ))
+    .sort((left, right) => (
+      (left.created_at_unix ?? Number.MAX_SAFE_INTEGER)
+      - (right.created_at_unix ?? Number.MAX_SAFE_INTEGER)
+    ));
+}
+
+/**
  * Selects provider voices that can be permanently reclaimed with an actor.
  *
  * Older Chaplin voices did not always receive labels, so a generated voice

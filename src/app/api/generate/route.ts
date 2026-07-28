@@ -71,6 +71,7 @@ import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { PromptLintError } from "@/lib/prompt-lint";
 import {
   reclaimableChaplinVoices,
+  reclaimableOwnedChaplinVoices,
   supersededChaplinVoices,
   type ElevenLabsVoiceSummary,
 } from "@/lib/elevenlabs-voices";
@@ -793,21 +794,27 @@ export async function POST(request: Request) {
     }
 
     if (action === "voice-capacity-list") {
-      const [voices, activeVoiceIds] = await Promise.all([
+      const [voices, activeVoiceIds, characters] = await Promise.all([
         listPersonalGeneratedVoices(),
         listActiveVoiceIds(),
+        listCharacters(),
       ]);
-      const candidates = reclaimableChaplinVoices(
-        voices,
-        activeVoiceIds,
-        characterId,
-        identity.role === "admin",
-      ).slice(0, 20);
+      const visibleCharacters = identity.role === "admin"
+        ? characters
+        : characters.filter((character) => character.makerId === identity.id);
+      const visibleCharacterIds = new Set(visibleCharacters.map((character) => character.id));
+      const characterNames = new Map(visibleCharacters.map((character) => [character.id, character.name]));
+      const candidates = (identity.role === "admin"
+        ? reclaimableChaplinVoices(voices, activeVoiceIds, characterId, true)
+        : reclaimableOwnedChaplinVoices(voices, activeVoiceIds, visibleCharacterIds)
+      ).slice(0, 50);
       return Response.json({
         candidates: candidates.map((voice) => ({
           voiceId: voice.voice_id,
           name: voice.name || "Unnamed Chaplin voice",
           characterId: voice.labels?.character_id ?? null,
+          characterName: characterNames.get(voice.labels?.character_id ?? "") ?? null,
+          project: voice.labels?.project ?? null,
           createdAtUnix: voice.created_at_unix ?? null,
         })),
       });
@@ -819,18 +826,23 @@ export async function POST(request: Request) {
       if (voiceId !== confirmedVoiceId) {
         throw new RequestValidationError("Voice deletion requires confirmation of the exact selected voice.");
       }
-      const [voices, activeVoiceIds] = await Promise.all([
+      const [voices, activeVoiceIds, characters] = await Promise.all([
         listPersonalGeneratedVoices(),
         listActiveVoiceIds(),
+        listCharacters(),
       ]);
-      const candidate = reclaimableChaplinVoices(
-        voices,
-        activeVoiceIds,
-        characterId,
-        identity.role === "admin",
+      const visibleCharacterIds = new Set(
+        (identity.role === "admin"
+          ? characters
+          : characters.filter((character) => character.makerId === identity.id)
+        ).map((character) => character.id),
+      );
+      const candidate = (identity.role === "admin"
+        ? reclaimableChaplinVoices(voices, activeVoiceIds, characterId, true)
+        : reclaimableOwnedChaplinVoices(voices, activeVoiceIds, visibleCharacterIds)
       ).find((voice) => voice.voice_id === voiceId);
       if (!candidate) {
-        throw new RequestValidationError("That voice is active, outside this actor's scope, or no longer reclaimable.");
+        throw new RequestValidationError("That voice is active, outside your Studio, or no longer reclaimable.");
       }
       await deleteElevenLabsVoice(candidate.voice_id);
       const registrations = await getSupabaseAdminClient()
@@ -845,7 +857,7 @@ export async function POST(request: Request) {
       return Response.json({
         deleted: true,
         voiceId: candidate.voice_id,
-        message: "One inactive Chaplin voice was deleted. Lock this actor's chosen voice, then retry production.",
+        message: `${candidate.name || "The inactive voice"} was deleted. One ElevenLabs custom-voice slot is now free.`,
       });
     }
 
@@ -979,7 +991,7 @@ export async function POST(request: Request) {
         reclaimedVoices = await reclaimSupersededActorVoices(characterId, currentProduction.voiceId);
         if (!reclaimedVoices.length) {
           throw new Error(
-            "This ElevenLabs account has reached its custom-voice limit, and Chaplin found no superseded voice for this actor that is safe to remove. Open Super Admin voice control to delete an unused voice, or raise the account limit.",
+            "This ElevenLabs account has reached its custom-voice limit. Open Manage unused voices to reclaim an inactive voice from your Studio, or use Super Admin for account-wide voice control.",
           );
         }
         response = await saveVoice();

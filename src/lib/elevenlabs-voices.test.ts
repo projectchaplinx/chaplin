@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   deletableCharacterVoices,
   reclaimableChaplinVoices,
+  reclaimableOwnedChaplinVoices,
   supersededChaplinVoices,
   type ElevenLabsVoiceSummary,
 } from "./elevenlabs-voices";
@@ -46,6 +47,25 @@ test("capacity recovery excludes every active voice and scopes regular makers to
   assert.deepEqual(
     reclaimableChaplinVoices(voices, new Set(["active"]), "actor-1", true).map((voice) => voice.voice_id),
     ["same-actor", "other-actor"],
+  );
+});
+
+test("creator capacity recovery includes inactive voices across actors in their Studio", () => {
+  const voices: ElevenLabsVoiceSummary[] = [
+    { voice_id: "actor-1-old", category: "generated", labels: { project: "chaplin", character_id: "actor-1" }, created_at_unix: 3 },
+    { voice_id: "actor-2-old", category: "generated", labels: { project: "chaplin", character_id: "actor-2" }, created_at_unix: 2 },
+    { voice_id: "actor-2-active", category: "generated", labels: { project: "chaplin", character_id: "actor-2" }, created_at_unix: 1 },
+    { voice_id: "other-maker", category: "generated", labels: { project: "chaplin", character_id: "actor-3" }, created_at_unix: 0 },
+    { voice_id: "untracked", category: "generated" },
+  ];
+
+  assert.deepEqual(
+    reclaimableOwnedChaplinVoices(
+      voices,
+      new Set(["actor-2-active"]),
+      new Set(["actor-1", "actor-2"]),
+    ).map((voice) => voice.voice_id),
+    ["actor-2-old", "actor-1-old"],
   );
 });
 

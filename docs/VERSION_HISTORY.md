@@ -247,3 +247,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.39 | `44fa908` | 2026-07-28T23:42:27+05:30 | Keep Studio mode switch persistent |
 | v0.2.40 | `f735911` | 2026-07-28T23:49:16+05:30 | Fix repeated voice audition text |
 | v0.2.41 | `ea238d7` | 2026-07-28T23:53:02+05:30 | Fix expanded actor room layout |
+| v0.2.42 | `34998b0` | 2026-07-28T23:59:37+05:30 | Keep scene generation inside Studio |

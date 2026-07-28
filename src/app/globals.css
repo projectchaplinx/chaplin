@@ -429,23 +429,176 @@ body:has([data-home-shell]) > main {
 
   body:has([data-character-studio-shell]) > header[data-header-compact],
   body:has([data-character-creation-shell]) > header[data-header-compact],
+  body:has([data-unified-studio-shell]) > header[data-header-compact],
   body:has([data-character-creation-shell]) > footer,
-  body:has([data-character-studio-shell]) > footer {
+  body:has([data-character-studio-shell]) > footer,
+  body:has([data-unified-studio-shell]) > footer,
+  body:has([data-character-studio-shell]) [data-bottom-nav],
+  body:has([data-character-creation-shell]) [data-bottom-nav],
+  body:has([data-unified-studio-shell]) [data-bottom-nav] {
     display: none;
   }
 
   body:has([data-character-creation-shell]) > header[data-header-compact] + div,
-  body:has([data-character-studio-shell]) > header[data-header-compact] + div {
+  body:has([data-character-studio-shell]) > header[data-header-compact] + div,
+  body:has([data-unified-studio-shell]) > header[data-header-compact] + div {
     display: none;
   }
 
   body:has([data-character-creation-shell]) > main,
-  body:has([data-character-studio-shell]) > main {
+  body:has([data-character-studio-shell]) > main,
+  body:has([data-unified-studio-shell]) > main {
     min-height: 100dvh;
+    padding-left: 0;
     padding-bottom: 0;
   }
 
+  .unified-studio-shell {
+    display: flex;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+      radial-gradient(900px circle at 52% 30%, rgba(27, 53, 47, 0.14), transparent 55%),
+      #070a08;
+  }
+
+  .unified-studio-shell__body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .studio-workspace-header {
+    position: relative;
+    z-index: 80;
+    display: grid;
+    width: 100%;
+    height: 4rem;
+    flex: 0 0 4rem;
+    grid-template-columns: minmax(14rem, 1fr) minmax(20rem, 1.25fr) minmax(14rem, 1fr);
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(6, 9, 8, 0.96);
+    padding: 0 1.1rem;
+    backdrop-filter: blur(18px);
+  }
+
+  .studio-workspace-header__identity,
+  .studio-workspace-header__actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .studio-workspace-header__brand {
+    display: flex;
+    width: 7.6rem;
+    flex: 0 0 7.6rem;
+    align-items: center;
+  }
+
+  .studio-workspace-header__divider {
+    width: 1px;
+    height: 1.75rem;
+    flex: 0 0 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .studio-workspace-header__project {
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.76rem;
+    font-weight: 650;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .studio-workspace-header__status {
+    margin-top: 0.2rem;
+    overflow: hidden;
+    color: #3ed9be;
+    font-size: 0.52rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .studio-workspace-header__center {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .studio-workspace-switcher {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.025);
+    padding: 0.2rem;
+  }
+
+  .studio-workspace-switcher a {
+    min-width: 5.5rem;
+    border-radius: 0.45rem;
+    padding: 0.48rem 0.85rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .studio-workspace-switcher a:hover {
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .studio-workspace-switcher a.is-active {
+    background: rgba(242, 78, 112, 0.16);
+    color: #f46a87;
+    box-shadow: inset 0 0 0 1px rgba(242, 78, 112, 0.32);
+  }
+
+  .studio-workspace-header__actions {
+    justify-content: flex-end;
+  }
+
+  .studio-workspace-header__mode,
+  .studio-workspace-header__saved {
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 0.45rem;
+    padding: 0.45rem 0.7rem;
+    color: rgba(255, 255, 255, 0.52);
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .studio-workspace-header__saved {
+    color: #3ed9be;
+  }
+
+  .studio-workspace-grid {
+    grid-template-columns: 19rem minmax(25rem, 1fr) 23rem;
+  }
+
   .studio-shell {
+    display: flex;
+    flex-direction: column;
     background:
       radial-gradient(900px circle at 52% 35%, rgba(27, 53, 47, 0.14), transparent 55%),
       #070a08;
@@ -526,10 +679,124 @@ body:has([data-home-shell]) > main {
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
   }
+
+  .unified-studio-shell .scene-studio-shell {
+    height: 100%;
+  }
+
+  .studio-embedded-production {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.1rem 1.5rem 4rem;
+    scrollbar-gutter: stable;
+  }
+
+  .studio-embedded-production__summary {
+    margin: -1.1rem -1.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.015);
+    padding: 1rem 1.5rem;
+  }
+
+  .studio-embedded-production__summary h1 {
+    margin-top: 0.2rem;
+    font-size: clamp(1.8rem, 3vw, 3rem);
+  }
+
+  .studio-embedded-production__summary p {
+    margin-top: 0.35rem;
+  }
+
+  .studio-embedded-production__actionbar {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 -1.5rem;
+    border-bottom: 1px solid rgba(242, 78, 112, 0.28);
+    background: rgba(7, 10, 8, 0.95);
+    padding: 0.8rem 1.5rem;
+    backdrop-filter: blur(18px);
+  }
 }
 
 /* Below the canvas breakpoint the studio stays a normal stacked page. */
 @media (max-width: 1023px) {
+  .unified-studio-shell {
+    display: flex;
+    min-height: 100dvh;
+    flex-direction: column;
+    background: #070a08;
+  }
+
+  .unified-studio-shell__body {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .studio-workspace-header {
+    display: flex;
+    min-height: 3.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: #060908;
+    padding: 0.65rem 0.9rem;
+  }
+
+  .studio-workspace-header__identity,
+  .studio-workspace-header__actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .studio-workspace-header__brand {
+    display: flex;
+    width: 6.6rem;
+    flex: 0 0 6.6rem;
+  }
+
+  .studio-workspace-header__divider,
+  .studio-workspace-header__center,
+  .studio-workspace-header__mode {
+    display: none;
+  }
+
+  .studio-workspace-header__project {
+    overflow: hidden;
+    max-width: 9rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .studio-workspace-header__status {
+    display: none;
+  }
+
+  .studio-workspace-header__actions {
+    justify-content: flex-end;
+  }
+
+  .studio-workspace-header__saved {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.45rem;
+    padding: 0.45rem 0.65rem;
+    color: #3ed9be;
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
   .scene-studio-shell {
     display: block;
   }
@@ -537,6 +804,20 @@ body:has([data-home-shell]) > main {
   .scene-studio-shell > [data-scene-studio-rail],
   .scene-studio-shell > [data-scene-studio-assets] {
     display: none;
+  }
+
+  .studio-embedded-production {
+    padding: 1rem;
+  }
+
+  .studio-embedded-production__actionbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin: 0 -1rem;
+    border-bottom: 1px solid rgba(242, 78, 112, 0.28);
+    padding: 0.8rem 1rem;
   }
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Avatar from "@/components/Avatar";
+import StudioWorkspaceHeader from "@/components/studio/StudioWorkspaceHeader";
 import { useChaplinStore } from "@/lib/store";
 import { castForStory, getStory } from "@/lib/selectors";
 import {
@@ -190,7 +191,15 @@ function isRetryableStepError(error: unknown) {
  * this same workspace inline - one surface, no page change - while the route
  * below keeps working for a direct link.
  */
-export function ProductionWorkspace({ storyId }: { storyId: string }) {
+export function ProductionWorkspace({
+  storyId,
+  embedded = false,
+  autoStart = false,
+}: {
+  storyId: string;
+  embedded?: boolean;
+  autoStart?: boolean;
+}) {
   const id = storyId;
   const world = useChaplinStore((state) => state);
   const hydrated = useChaplinStore((state) => state.hydrated);
@@ -213,6 +222,7 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
   const [renderShots, setRenderShots] = useState<ShotRenderState[]>([]);
   const [selectedShotIndex, setSelectedShotIndex] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
+  const autoInitializeRef = useRef(false);
   const referenceStep = run?.steps.find((step) => step.key === "reference-frame");
   const referenceImageUrl = typeof referenceStep?.output.url === "string"
     ? referenceStep.output.url
@@ -1308,13 +1318,37 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, nextAutomaticStep?.attempt, nextAutomaticStep?.id, run?.id]);
 
+  /*
+    Entering Render mode is already the creator's decision to begin production.
+    Requiring another "Continue to production" click inside the old detail page
+    made the Studio feel like a chain of separate products. The shared Studio
+    initializes its plan once, in place; provider generation still follows the
+    visible pipeline and its review gates.
+  */
+  useEffect(() => {
+    if (
+      !autoStart
+      || autoInitializeRef.current
+      || !hydrated
+      || loading
+      || busy
+      || run
+      || !story
+      || !contract?.scopeId
+    ) return;
+    autoInitializeRef.current = true;
+    void initializeProduction();
+    // initializeProduction follows the currently persisted story and contract.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, busy, contract?.scopeId, hydrated, loading, run?.id, story?.id]);
+
   if (!hydrated) {
-    return <main className="mx-auto max-w-5xl px-6 py-16 text-sm text-grey">Opening production...</main>;
+    return <main className={embedded ? "studio-embedded-production p-6 text-sm text-grey" : "mx-auto max-w-5xl px-6 py-16 text-sm text-grey"}>Opening production...</main>;
   }
 
   if (!story || !contract) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-16 text-center">
+      <main className={embedded ? "studio-embedded-production p-6 text-center" : "mx-auto max-w-3xl px-6 py-16 text-center"}>
         <p className="text-grey">This production draft is not available on this device.</p>
         <Link href="/studio" className="mt-4 inline-block text-accent">Back to My Studio</Link>
       </main>
@@ -1322,15 +1356,18 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
   }
 
   return (
-    <main className="app-width px-5 py-10 sm:px-8">
-      <div className="flex items-center justify-between gap-4">
+    <main
+      className={embedded ? "studio-embedded-production" : "app-width px-5 py-10 sm:px-8"}
+      data-embedded-production={embedded || undefined}
+    >
+      <div className={embedded ? "hidden" : "flex items-center justify-between gap-4"}>
         <Link href="/studio" className="text-xs text-grey hover:text-accent">Back to My Studio</Link>
         <span className="rounded-full border border-amber-300/30 px-3 py-1 text-[9px] uppercase tracking-[0.18em] text-amber-200">
           Private production · not published
         </span>
       </div>
 
-      <header className="mt-8 border-b border-line pb-8">
+      <header className={embedded ? "studio-embedded-production__summary" : "mt-8 border-b border-line pb-8"}>
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-3xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">{contract.definition.label} production</p>
@@ -1343,6 +1380,27 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
           </div>
         </div>
       </header>
+
+      {embedded && run && contract.format === "punch" && !finalVideoUrl && (
+        <section className="studio-embedded-production__actionbar" data-studio-render-action>
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Generate here</p>
+            <p className="mt-1 text-xs text-grey">
+              {busy
+                ? renderProgress || "The Studio is preparing the production."
+                : "Create the four scene clips and assemble the 15-second master without leaving this canvas."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void renderPunchOutput()}
+            disabled={busy}
+            className="rounded-full bg-accent px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+          >
+            {busy ? "Working…" : "Generate 15-second master"}
+          </button>
+        </section>
+      )}
 
       <section className="hidden gap-3 border-b border-line py-6 sm:grid sm:grid-cols-3">
         {[
@@ -1358,10 +1416,14 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
       </section>
 
       {!run && (
-        <section className="mt-6 flex flex-col gap-4 rounded-2xl border border-line bg-white/[0.03] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="mt-6 flex flex-col gap-4 rounded-2xl border border-line bg-white/[0.03] p-5 sm:flex-row sm:items-center sm:justify-between" aria-live="polite">
           <div>
-            <p className="text-sm font-semibold">Your script and cast are ready.</p>
-            <p className="mt-1 text-xs text-grey">Create the shot plan, then review the first frame before anything else is generated.</p>
+            <p className="text-sm font-semibold">{autoStart ? "Preparing the render workspace…" : "Your script and cast are ready."}</p>
+            <p className="mt-1 text-xs text-grey">
+              {autoStart
+                ? "The shot plan is opening here. You will not be sent to another page."
+                : "Create the shot plan, then review the first frame before anything else is generated."}
+            </p>
           </div>
           <button
             type="button"
@@ -1369,7 +1431,7 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
             disabled={busy || loading || !contract.scopeId}
             className="accent-btn min-h-12 shrink-0 rounded-full px-7 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? "Preparing production..." : "Continue to production"}
+            {busy ? "Preparing render…" : autoStart ? "Retry preparation" : "Continue to production"}
           </button>
         </section>
       )}
@@ -2269,5 +2331,17 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
 
 export default function ProductionDetailPage() {
   const { id } = useParams<{ id: string }>();
-  return <ProductionWorkspace storyId={id} />;
+  return (
+    <section className="unified-studio-shell" data-unified-studio-shell data-studio-mode="render">
+      <StudioWorkspaceHeader
+        mode="render"
+        projectName="Production"
+        status="Render studio · private workspace"
+        actions={<span className="studio-workspace-header__saved">Autosaved</span>}
+      />
+      <div className="unified-studio-shell__body">
+        <ProductionWorkspace storyId={id} embedded autoStart />
+      </div>
+    </section>
+  );
 }

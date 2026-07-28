@@ -10,6 +10,7 @@ import { getClientAuthIdentity } from "@/lib/client-auth";
 import SceneStudioRail, { type SceneStage } from "@/components/studio/SceneStudioRail";
 import SceneStudioAssets, { type SceneAsset } from "@/components/studio/SceneStudioAssets";
 import SceneStudioTimeline from "@/components/studio/SceneStudioTimeline";
+import StudioWorkspaceHeader from "@/components/studio/StudioWorkspaceHeader";
 import { ProductionWorkspace } from "@/app/productions/[id]/page";
 import Avatar from "@/components/Avatar";
 import Chip from "@/components/Chip";
@@ -1159,11 +1160,41 @@ export default function StoryBuilderForm() {
     shell rather than nesting inside it - same page, same route, no navigation.
   */
   if (productionStoryId) {
-    return <ProductionWorkspace storyId={productionStoryId} />;
+    return (
+      <section className="unified-studio-shell" data-unified-studio-shell data-studio-mode="render">
+        <StudioWorkspaceHeader
+          mode="render"
+          projectName={title.trim() || "Untitled scene"}
+          status="Render studio · generation stays in this workspace"
+          actions={<span className="studio-workspace-header__saved">Script locked</span>}
+        />
+        <div className="unified-studio-shell__body">
+          <ProductionWorkspace storyId={productionStoryId} embedded autoStart />
+        </div>
+      </section>
+    );
   }
 
   return (
-    <div className="scene-studio-shell" data-scene-studio-shell>
+    <section className="unified-studio-shell" data-unified-studio-shell data-studio-mode="scene">
+      <StudioWorkspaceHeader
+        mode="scene"
+        projectName={title.trim() || `Untitled ${formatDefinition.label}`}
+        status={
+          draftSaveState === "saving"
+            ? "Scene studio · saving"
+            : draftSaveState === "saved"
+              ? "Scene studio · autosaved"
+              : "Scene studio · private workspace"
+        }
+        actions={
+          <Link href="/studio" className="studio-workspace-header__saved">
+            All projects
+          </Link>
+        }
+      />
+      <div className="unified-studio-shell__body">
+      <div className="scene-studio-shell" data-scene-studio-shell>
       <SceneStudioRail
         stages={sceneStages}
         step={step}
@@ -1173,7 +1204,7 @@ export default function StoryBuilderForm() {
         durationSeconds={durationSeconds}
         sceneCount={scenes.length}
         framesReady={framesReady}
-        actionLabel={formatDefinition.finalAction}
+        actionLabel="Generate in Studio"
         onStartProduction={() => void handleStartProduction()}
         blockedReason={productionBlockedReason}
         starting={startingProduction}
@@ -1305,7 +1336,7 @@ export default function StoryBuilderForm() {
             className="shrink-0 rounded-full bg-accent px-5 py-3 text-xs font-semibold text-paper shadow-[0_0_28px_rgba(244,70,112,0.2)] transition hover:bg-accent-light disabled:cursor-not-allowed disabled:opacity-40"
             data-action="continue-to-production"
           >
-            {productionBusy ? "Opening production…" : "Next: Production →"}
+            {productionBusy ? "Preparing render…" : "Generate in Studio →"}
           </button>
         </div>
       )}
@@ -2235,7 +2266,7 @@ export default function StoryBuilderForm() {
               disabled={startingProduction || productionBusy}
               className="bg-accent text-paper font-semibold px-6 py-2.5 rounded-sm hover:bg-accent-light transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {startingProduction ? "Starting…" : `${formatDefinition.finalAction} →`}
+              {startingProduction ? "Preparing render…" : "Generate in Studio →"}
             </button>
           </div>
         </div>
@@ -2250,6 +2281,8 @@ export default function StoryBuilderForm() {
         canGenerate={castCharacters.length > 0 && scenes.some((scene) => scene.setting || scene.action)}
         productImageUrl={productImageUrl || undefined}
       />
-    </div>
+      </div>
+      </div>
+    </section>
   );
 }

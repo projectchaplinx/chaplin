@@ -3,6 +3,24 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.38 - 2026-07-28 - One persistent creative Studio
+
+- Introduced a shared Studio bar and workspace language across actor creation,
+  actor production, scene authoring, inline rendering, and saved productions.
+  Actor, Scene, and Projects remain in predictable locations while the tools,
+  canvas, stages, and assets change for the selected work.
+- Creating an actor now continues directly into Actor Studio for voice, still,
+  theme, and scene work instead of ejecting the creator to the public profile.
+- Scene authoring now changes into Render mode inside the same persistent shell.
+  Direct production links use that shell too, so production no longer feels
+  like a separate application.
+- Removed the redundant second production handoff: entering Render mode
+  initializes the idempotent production plan once, in place. Punch generation
+  is pinned at the top of the render canvas and creates the four scene clips
+  and 15-second master without another page transition.
+- Added responsive Studio chrome and preserved existing authentication,
+  autosave, review gates, pipeline retries, and provider-spend boundaries.
+
 ## v0.2.37 - 2026-07-28 - Pixel-matched cinematic actor profile
 
 - Rebuilt the desktop character profile around the approved Nova Calloway

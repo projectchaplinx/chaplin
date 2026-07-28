@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useChaplinStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
-import BrandLogo from "@/components/BrandLogo";
+import StudioWorkspaceHeader from "@/components/studio/StudioWorkspaceHeader";
 import Chip from "@/components/Chip";
 import { ARCHETYPES } from "@/data/seed";
 import type { Archetype, CharacterProductionBible, LicenseType, VoiceGender } from "@/lib/types";
@@ -816,7 +816,10 @@ export default function NewCharacterPage() {
       window.localStorage.removeItem(draftStorageKey);
       window.dispatchEvent(new Event("chaplin:credits-updated"));
       window.dispatchEvent(new CustomEvent("chaplin:catalogue-updated", { detail: { characterId: character.id } }));
-      router.push(`/characters/${character.id}`);
+      // Creating the database actor is the first Studio stage, not an exit.
+      // Continue into the same actor workspace for voice, still, theme, and
+      // scene generation; the public profile is the result, not the editor.
+      router.push(`/characters/${character.id}/studio`);
     } catch (submitError) {
       removeCharacter(character.id);
       setError(submitError instanceof Error ? submitError.message : "The AI actor could not be saved.");
@@ -831,28 +834,13 @@ export default function NewCharacterPage() {
         className="hidden h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#070a09] lg:flex"
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <header className="flex h-[4.35rem] shrink-0 items-center justify-between gap-5 border-b border-white/10 bg-[#080b0a]/95 px-5">
-            <div className="flex min-w-0 items-center gap-5">
-              <Link
-                href="/characters"
-                aria-label="Chaplin actors"
-                className="relative flex h-10 w-[8.75rem] shrink-0 items-center"
-              >
-                <BrandLogo priority className="h-10" />
-              </Link>
-              <span className="h-8 w-px bg-white/10" />
-              <label className="flex items-center gap-3 text-xs text-grey">
-                Project
-                <input
-                  value={name}
-                  onChange={(event) => updateCreatorName(event.target.value)}
-                  placeholder="Untitled actor"
-                  className="w-40 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2 text-sm font-semibold text-ink outline-none focus:border-accent"
-                />
-              </label>
-            </div>
-
-            <div className="flex min-w-[34rem] max-w-[43rem] flex-1 items-center px-5">
+          <StudioWorkspaceHeader
+            mode="actor"
+            projectName={name.trim() || "Untitled actor"}
+            status="Actor studio · autosaved"
+            backHref="/studio"
+            middle={
+              <div className="flex w-full min-w-[30rem] max-w-[40rem] items-center px-3">
               {["Identity", "Look", "Voice", "Spark", "Publish"].map((step, index) => (
                 <div key={step} className="flex min-w-0 flex-1 items-center">
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
@@ -864,9 +852,10 @@ export default function NewCharacterPage() {
                   {index < 4 && <span className="mx-3 h-px min-w-4 flex-1 bg-white/20" />}
                 </div>
               ))}
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2.5">
+              </div>
+            }
+            actions={
+              <>
               <button
                 type="button"
                 onClick={() => setSuggestionMessage("Draft saved. Chaplin will keep restoring it on this device.")}
@@ -882,10 +871,11 @@ export default function NewCharacterPage() {
               >
                 {saving ? "Creating actor…" : canCreateActor ? "Create actor →" : `Still needed · ${missingCreationFields[0] ?? "identity"}`}
               </button>
-            </div>
-          </header>
+              </>
+            }
+          />
 
-          <div className="grid min-h-0 flex-1 grid-cols-[20.5rem_minmax(25rem,1fr)_25rem] grid-rows-[minmax(0,1fr)] overflow-hidden">
+          <div className="studio-workspace-grid grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden">
             <aside
               data-lenis-prevent
               className="chaplin-scrollbar h-full min-h-0 touch-pan-y overflow-y-auto overscroll-contain border-r border-white/10 bg-[#0a0e0c] p-5"

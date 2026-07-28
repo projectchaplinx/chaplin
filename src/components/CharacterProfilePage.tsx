@@ -132,32 +132,22 @@ export default function CharacterProfilePage({
   }
 
   return (
-    <div className="app-width min-w-0 overflow-x-clip px-4 py-8 sm:px-6 sm:py-10">
-      <Link
-        href="/characters"
-        className="inline-flex items-center gap-1.5 pl-2.5 pr-4 py-2 rounded-full poster-card text-sm font-semibold hover:text-accent transition-colors mb-3"
-      >
-        <IconArrowLeft className="w-4 h-4" />
-        Shelf
-      </Link>
-      {viewerAccess.isAdmin && (
-        <Link
-          href={`/characters/${character.id}/system`}
-          className="ml-2 inline-flex items-center gap-2 rounded-full border border-[#07d2be]/35 bg-[#07d2be]/8 px-4 py-2 text-sm font-semibold text-[#36e0cd] transition-colors hover:bg-[#07d2be]/14"
-        >
-          <span className="h-2 w-2 rounded-full bg-[#07d2be] shadow-[0_0_12px_#07d2be]" />
-          Master prompt
+    <div className="character-profile-page app-width min-w-0 overflow-x-clip" data-character-profile-page>
+      <div className="character-profile-toolbar">
+        <Link href="/characters" className="character-profile-toolbar__shelf">
+          <IconArrowLeft className="h-4 w-4" />
+          Shelf
         </Link>
-      )}
-      {canProduce && (
-        <button
-          type="button"
-          onClick={openProductionStudio}
-          className="ml-2 inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-accent-light"
-        >
-          Open production editor
-        </button>
-      )}
+        {canProduce && (
+          <button
+            type="button"
+            onClick={openProductionStudio}
+            className="character-profile-toolbar__editor"
+          >
+            Open production editor
+          </button>
+        )}
+      </div>
 
       <CharacterProfileHero
         character={character}
@@ -235,7 +225,7 @@ export default function CharacterProfilePage({
         <CharacterConversationPanel character={character} />
       </div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+      <div className="character-profile-below grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* Left: personality, voice, license terms */}
         <div className="md:col-span-2 flex flex-col gap-6">
           <CharacterPersonalityCard character={character} />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Character } from "@/lib/types";
+import { IconMicrophone } from "@/components/Icons";
 
 type Turn = { role: "user" | "character"; text: string };
 
@@ -175,6 +176,41 @@ export default function CharacterConversationPanel({
   }
 
   const lastReply = [...turns].reverse().find((turn) => turn.role === "character");
+
+  if (variant === "hero" && !roomLive) {
+    const firstName = character.name.split(" ")[0];
+    const readiness = canSpeak && themeUrl
+      ? "Voice, memory and theme ready"
+      : canSpeak
+        ? "Voice and memory ready"
+        : themeUrl
+          ? "Memory and theme ready"
+          : "Start a live in-character conversation";
+
+    return (
+      <section
+        className="character-hero-room character-hero-room--entry"
+        data-character-conversation
+        data-conversation-variant="hero"
+      >
+        <button
+          type="button"
+          onClick={enterRoom}
+          className="character-hero-room__entry"
+          aria-label={`Talk to ${firstName}`}
+        >
+          <span className="character-hero-room__mic" aria-hidden="true">
+            <IconMicrophone className="h-7 w-7" />
+          </span>
+          <span className="character-hero-room__copy">
+            <span className="character-hero-room__title">Talk to {firstName}</span>
+            <span className="character-hero-room__subtitle">{readiness}</span>
+          </span>
+          <span className="character-hero-room__arrow" aria-hidden="true">→</span>
+        </button>
+      </section>
+    );
+  }
 
   if (variant === "hero") {
     return (

@@ -375,18 +375,18 @@ export default function CharacterBroll({
         {mediaContent}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(4,7,3,0.18),transparent_42%),linear-gradient(0deg,rgba(3,5,2,0.56),transparent_32%)]" />
 
-        <div className="absolute bottom-4 left-4 z-20 rounded-full border border-white/15 bg-black/55 px-4 py-2.5 backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:px-5">
+        <div className="character-profile-now-playing absolute bottom-4 left-4 z-20 rounded-full border border-white/15 bg-black/55 px-4 py-2.5 backdrop-blur-xl sm:left-auto">
           <p className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-[0.2em] text-white/72 sm:text-[9px]">
             <span className={`h-1.5 w-1.5 rounded-full ${videoSource ? "animate-pulse bg-accent-secondary" : "bg-white/45"}`} />
             {videoSource ? "Playing" : "Showing"} <span className="text-white/35">·</span> Featured performance
           </p>
         </div>
 
-        <div className="absolute right-3 top-1/2 z-30 hidden -translate-y-1/2 overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/52 backdrop-blur-2xl sm:block">
+        <div className="character-profile-scene-mix absolute top-1/2 z-30 hidden -translate-y-1/2 overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/52 backdrop-blur-2xl sm:block">
           <button
             type="button"
             onClick={playSceneMix}
-            className={`flex w-[4.8rem] flex-col items-center gap-1 border-b border-white/10 px-2 py-3 text-[7px] font-bold uppercase tracking-[0.1em] transition-colors ${
+            className={`character-profile-scene-mix__item flex flex-col items-center gap-1 border-b border-white/10 px-2 text-[7px] font-bold uppercase tracking-[0.1em] transition-colors ${
               mixing ? "bg-accent-secondary/18 text-accent-secondary" : "text-white/72 hover:bg-white/8 hover:text-white"
             }`}
             aria-label={mixing ? "Pause scene mix" : "Play scene mix"}
@@ -402,7 +402,7 @@ export default function CharacterBroll({
                 type="button"
                 onClick={() => playTrack(mode)}
                 disabled={!source}
-                className={`flex w-[4.8rem] flex-col items-center gap-1 border-b border-white/10 px-2 py-3 text-[7px] font-bold uppercase tracking-[0.1em] transition-colors last:border-b-0 disabled:cursor-not-allowed disabled:opacity-35 ${
+                className={`character-profile-scene-mix__item flex flex-col items-center gap-1 border-b border-white/10 px-2 text-[7px] font-bold uppercase tracking-[0.1em] transition-colors last:border-b-0 disabled:cursor-not-allowed disabled:opacity-35 ${
                   active ? "bg-accent/18 text-accent" : "text-white/72 hover:bg-white/8 hover:text-white"
                 }`}
                 aria-label={source ? `${active ? "Pause" : "Play"} ${label}` : `${label} is not ready`}

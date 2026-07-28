@@ -3,6 +3,19 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.37 - 2026-07-28 - Pixel-matched cinematic actor profile
+
+- Rebuilt the desktop character profile around the approved Nova Calloway
+  composition: exact viewport stage height, identity/media split, spacing,
+  typography, stat dividers, scene-mix rail, and featured-performance status.
+- Replaced the large closed conversation card with the approved compact
+  `Talk to {actor}` control while preserving the full live room after entry.
+- Kept creator-only production controls permission-gated, removed the public
+  admin prompt shortcut, and suppresses the global navigation/footer chrome on
+  the desktop profile canvas so the actor stage owns the viewport.
+- Added responsive fallbacks for smaller screens without changing media,
+  conversation, casting, or production behavior.
+
 ## v0.2.36 - 2026-07-28 - Admin character catalogue control
 
 - Replaced the read-only actor-readiness table with an expandable Admin

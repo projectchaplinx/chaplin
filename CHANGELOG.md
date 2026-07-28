@@ -3,6 +3,14 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.45 - 2026-07-29 - Contained Cast-step action
+
+- Fixed the `Next: generate scenes` footer remaining a negative-margin sticky
+  overlay on desktop, where it escaped the center editor and covered the cast
+  shelf and adjacent Studio columns.
+- Matched the Script-step responsive behavior: the action remains reachable and
+  sticky on smaller screens, but returns to contained normal flow on desktop.
+
 ## v0.2.44 - 2026-07-29 - Existing productions open in Studio
 
 - Removed the last route-level Landing Zone exception. Opening an existing

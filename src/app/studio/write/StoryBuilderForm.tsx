@@ -1853,7 +1853,7 @@ export default function StoryBuilderForm() {
             normal flow sat below every actor and read as "there is no button".
             It sticks to the bottom of the scroller instead.
           */}
-          <div className="sticky bottom-0 -mx-6 flex items-center justify-between border-t border-line/70 bg-[#070a08]/95 px-6 py-3 backdrop-blur">
+          <div className="sticky bottom-0 -mx-6 flex items-center justify-between gap-3 border-t border-line/70 bg-[#070a08]/95 px-6 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:backdrop-blur-none">
             <button
               type="button"
               onClick={() => setStep(1)}
@@ -1865,7 +1865,7 @@ export default function StoryBuilderForm() {
               type="button"
               onClick={continueToScenes}
               disabled={magicBusy || castCharacters.length === 0}
-              className="bg-accent text-paper font-semibold px-4 py-2 rounded-sm hover:bg-accent-light transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+              className="shrink-0 whitespace-nowrap bg-accent text-paper font-semibold px-4 py-2 rounded-sm hover:bg-accent-light transition-colors disabled:cursor-not-allowed disabled:opacity-45"
             >
               {magicBusy ? "Building scenes…" : "Next: generate scenes →"}
             </button>

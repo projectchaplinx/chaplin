@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useChaplinStore } from "@/lib/store";
 
@@ -17,6 +18,27 @@ export default function AdminDeleteCharacterButton({
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) {
+        setOpen(false);
+        setConfirmation("");
+        setError("");
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [busy, open]);
 
   async function deleteCharacter() {
     if (confirmation !== characterName || busy) return;
@@ -54,14 +76,21 @@ export default function AdminDeleteCharacterButton({
       >
         Delete completely
       </button>
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 text-left"
+          className="fixed inset-0 z-[1000] grid min-h-full place-items-center overflow-y-auto bg-black/80 px-4 py-6 text-left backdrop-blur-sm sm:py-10"
           role="dialog"
           aria-modal="true"
           aria-labelledby={`delete-character-${characterId}`}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) {
+              setOpen(false);
+              setConfirmation("");
+              setError("");
+            }
+          }}
         >
-          <div className="w-full max-w-md rounded-xl border border-red-500/40 bg-[#090c09] p-5 shadow-2xl sm:p-6">
+          <div className="mx-auto w-full max-w-md rounded-xl border border-red-500/40 bg-[#090c09] p-5 shadow-2xl sm:p-6">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-red-400">Permanent deletion</p>
             <h2 id={`delete-character-${characterId}`} className="reel-title mt-2 text-2xl">
               Delete {characterName}?
@@ -108,7 +137,8 @@ export default function AdminDeleteCharacterButton({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

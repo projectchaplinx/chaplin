@@ -3,6 +3,13 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.49 - 2026-07-29 - Unclipped admin deletion
+
+- Moved the permanent character-deletion confirmation to a viewport-level
+  portal so character-card overflow can no longer crop or layer over it.
+- Added a scroll-safe responsive backdrop, protected busy state, and Escape or
+  backdrop dismissal while preserving the typed-name deletion safeguard.
+
 ## v0.2.48 - 2026-07-29 - Parallel scene production
 
 - Confirmed scene-frame generation uses four distinct prompts and provider jobs,

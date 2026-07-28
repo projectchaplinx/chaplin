@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  deletableCharacterVoices,
   reclaimableChaplinVoices,
   supersededChaplinVoices,
   type ElevenLabsVoiceSummary,
@@ -45,5 +46,25 @@ test("capacity recovery excludes every active voice and scopes regular makers to
   assert.deepEqual(
     reclaimableChaplinVoices(voices, new Set(["active"]), "actor-1", true).map((voice) => voice.voice_id),
     ["same-actor", "other-actor"],
+  );
+});
+
+test("character deletion reclaims registered and labelled generated voices but protects shared voices", () => {
+  const voices: ElevenLabsVoiceSummary[] = [
+    { voice_id: "registered-old", category: "generated" },
+    { voice_id: "labelled", category: "generated", labels: { project: "chaplin", character_id: "actor-1" } },
+    { voice_id: "shared", category: "generated", labels: { project: "chaplin", character_id: "actor-1" } },
+    { voice_id: "other", category: "generated", labels: { project: "chaplin", character_id: "actor-2" } },
+    { voice_id: "premade", category: "premade", labels: { project: "chaplin", character_id: "actor-1" } },
+  ];
+
+  assert.deepEqual(
+    deletableCharacterVoices(
+      voices,
+      "actor-1",
+      new Set(["registered-old", "shared"]),
+      new Set(["shared"]),
+    ).map((voice) => voice.voice_id),
+    ["registered-old", "labelled"],
   );
 });

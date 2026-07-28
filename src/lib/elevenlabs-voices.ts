@@ -56,3 +56,30 @@ export function reclaimableChaplinVoices(
       - (right.created_at_unix ?? Number.MAX_SAFE_INTEGER)
     ));
 }
+
+/**
+ * Selects provider voices that can be permanently reclaimed with an actor.
+ *
+ * Older Chaplin voices did not always receive labels, so a generated voice
+ * explicitly registered to this actor is also accepted. A voice referenced by
+ * another actor is never returned, even if its labels point at this actor.
+ */
+export function deletableCharacterVoices(
+  voices: ElevenLabsVoiceSummary[],
+  characterId: string,
+  registeredVoiceIds: ReadonlySet<string>,
+  sharedVoiceIds: ReadonlySet<string>,
+) {
+  return voices
+    .filter((voice) => {
+      if (voice.category !== "generated" || sharedVoiceIds.has(voice.voice_id)) return false;
+      const labelledForCharacter =
+        voice.labels?.project === "chaplin"
+        && voice.labels?.character_id === characterId;
+      return labelledForCharacter || registeredVoiceIds.has(voice.voice_id);
+    })
+    .sort((left, right) => (
+      (left.created_at_unix ?? Number.MAX_SAFE_INTEGER)
+      - (right.created_at_unix ?? Number.MAX_SAFE_INTEGER)
+    ));
+}

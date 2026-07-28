@@ -3,6 +3,24 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.33 - 2026-07-28 - Super Admin actor and voice cleanup
+
+- Added a live ElevenLabs capacity manager to the private Admin Control Room,
+  listing every personal generated voice with its actor linkage and locked or
+  unused state.
+- Super Admin can permanently delete any unused generated voice after confirming
+  its exact Voice ID; actively locked voices are rechecked and protected on the
+  server immediately before deletion.
+- Voice-limit errors in the production studio now link directly to the Super
+  Admin voice control instead of sending the operator to an unspecified external
+  cleanup step.
+- Added an exact-name-confirmed complete actor deletion that reclaims owned
+  ElevenLabs voices, removes archived storage objects, briefs, cast memberships,
+  actor-scoped pipeline runs, and cascading database history while preserving
+  shared voices and leaving a system audit event.
+- Made the database catalogue authoritative during browser synchronization so a
+  permanently deleted actor cannot return from stale local storage.
+
 ## v0.2.32 - 2026-07-28 - Per-slot audio ownership and voice recovery
 
 - Added a strict per-slot audio plan for dialogue, ambience, SFX, and music,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, WheelEvent } from "react";
+import Link from "next/link";
 import type { Character } from "@/lib/types";
 import { useChaplinStore } from "@/lib/store";
 import MediaPlayer from "@/components/MediaPlayer";
@@ -3037,7 +3038,19 @@ export default function CharacterProductionStudio({
           </div>
         </section>
 
-        {message && <p className={`text-xs rounded-sm px-3 py-2 ${message.toLowerCase().includes("failed") || message.includes("not configured") ? "bg-red-500/10 text-red-600" : "bg-accent/10 text-ink"}`}>{message}</p>}
+        {message && (
+          <div className={`flex flex-wrap items-center justify-between gap-3 rounded-sm px-3 py-2 text-xs ${message.toLowerCase().includes("failed") || message.includes("not configured") || /custom-voice limit/i.test(message) ? "bg-red-500/10 text-red-500" : "bg-accent/10 text-ink"}`}>
+            <p>{message}</p>
+            {/custom-voice limit|maximum amount of custom voices/i.test(message) && (
+              <Link
+                href="/admin#voice-capacity"
+                className="shrink-0 rounded-full border border-red-500/45 px-3 py-1.5 text-[10px] font-semibold text-red-400 hover:bg-red-500/10"
+              >
+                Super Admin voice control
+              </Link>
+            )}
+          </div>
+        )}
       </div>
       <aside
         className="studio-asset-panel hidden border-l border-line bg-[#090d0b] lg:flex lg:flex-col"

@@ -330,7 +330,6 @@ export const useChaplinStore = create<ChaplinState>((set, get) => ({
   mergePersistedCharacters: (persistedCharacters) => {
     set((state) => {
       const localById = new Map(state.characters.map((character) => [character.id, character]));
-      const remoteIds = new Set(persistedCharacters.map((character) => character.id));
       const mergedRemote = persistedCharacters.map((remote) => {
         const local = localById.get(remote.id);
         return {
@@ -346,10 +345,9 @@ export const useChaplinStore = create<ChaplinState>((set, get) => ({
         };
       });
       return {
-        characters: [
-          ...mergedRemote,
-          ...state.characters.filter((character) => !remoteIds.has(character.id)),
-        ],
+        // Supabase is the catalogue authority. Keeping local-only rows here
+        // resurrected actors after Super Admin permanently deleted them.
+        characters: mergedRemote,
       };
     });
     persist(get());

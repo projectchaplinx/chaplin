@@ -6,6 +6,8 @@ import AdminRefreshButton from "@/components/AdminRefreshButton";
 import AdminProviderStatus from "@/components/AdminProviderStatus";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import AppearanceToggle from "@/components/AppearanceToggle";
+import AdminDeleteCharacterButton from "@/components/AdminDeleteCharacterButton";
+import AdminVoiceCapacityManager from "@/components/AdminVoiceCapacityManager";
 import { pipelineModelLabel } from "@/lib/pipeline-config";
 
 export const dynamic = "force-dynamic";
@@ -185,6 +187,7 @@ export default async function AdminPage() {
                       <div className="flex flex-col items-end gap-1">
                         <Link href={`/characters/${character.id}/system`} className="text-xs font-semibold text-[#36e0cd] hover:underline">Master prompt →</Link>
                         <Link href={`/characters/${character.id}`} className="text-[10px] text-accent hover:underline">Open production</Link>
+                        <AdminDeleteCharacterButton characterId={character.id} characterName={character.name} />
                       </div>
                     </td>
                   </tr>
@@ -200,6 +203,8 @@ export default async function AdminPage() {
       <section className="mb-6">
         <AdminProviderStatus />
       </section>
+
+      <AdminVoiceCapacityManager />
 
       <div className="grid lg:grid-cols-[1.5fr_0.5fr] gap-6">
         <section className="poster-card rounded-md p-5">

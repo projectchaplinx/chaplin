@@ -1014,7 +1014,7 @@ export async function POST(request: Request) {
         reclaimedVoices = await reclaimSupersededActorVoices(characterId, currentProduction.voiceId);
         if (!reclaimedVoices.length) {
           throw new Error(
-            "This ElevenLabs account has reached its custom-voice limit, and Chaplin found no superseded voice for this actor that is safe to remove. Delete an unused custom voice in ElevenLabs or raise the account limit.",
+            "This ElevenLabs account has reached its custom-voice limit, and Chaplin found no superseded voice for this actor that is safe to remove. Open Super Admin voice control to delete an unused voice, or raise the account limit.",
           );
         }
         response = await saveVoice();

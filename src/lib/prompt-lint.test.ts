@@ -5,6 +5,7 @@ import { lintPromptHandoff } from "@/lib/prompt-lint";
 import { RUKHSAR_RU_FIXTURE } from "@/lib/prompt-lint-fixtures";
 import { BOAT_PROBLEM_SOLUTION_BOARD } from "@/lib/ad-board-fixtures";
 import { WAR_DROP_CHARACTERS, warDropBoard } from "@/lib/direction-safety-fixtures";
+import { FILM_LOOK_LINE, VIDEO_PROMPT_ENDING } from "@/lib/prompt-standards";
 
 test("Ru golden handoff renders source direction once and removes legacy defaults", () => {
   const handoff = buildPromptHandoff(RUKHSAR_RU_FIXTURE, { presentationConfirmed: true });
@@ -88,4 +89,18 @@ test("direction-board safety rules flow through the existing prompt linter", () 
     directionCharacters: WAR_DROP_CHARACTERS,
   });
   assert.ok(result.failures.some((issue) => issue.rule === "L10" && /unsafe for action energy/i.test(issue.message)));
+});
+
+test("visual prompt standards hard-fail slop and warn on unexplained gear numbers", () => {
+  const result = lintPromptHandoff({
+    artifacts: [{
+      id: "unsafe-video",
+      consumer: "video",
+      prompt: `Ultra sharp portrait on 50mm. ${FILM_LOOK_LINE} ${VIDEO_PROMPT_ENDING}`,
+    }],
+    recognitionLocks: [],
+    presentationConfirmed: false,
+  });
+  assert.ok(result.failures.some((issue) => issue.rule === "L11" && /ultra sharp/i.test(issue.message)));
+  assert.ok(result.warnings.some((issue) => issue.rule === "L12" && /lens or aperture/i.test(issue.message)));
 });

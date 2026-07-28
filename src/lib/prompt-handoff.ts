@@ -11,6 +11,7 @@ import {
 } from "@/lib/production-prompting";
 import { lintPromptHandoff, type PromptLintResult } from "@/lib/prompt-lint";
 import type { PipelineStageId } from "@/lib/pipeline-config";
+import { finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
 
 export type HandoffPromptCard = {
   id: string;
@@ -59,7 +60,7 @@ export function buildPromptHandoff(
       title: "Character sheet frame",
       destination: "Image provider",
       note: "Canonical front reference. Only locks visible in this framing are emitted.",
-      prompt: composeCharacterSheetPrompt(character, bible, { viewId: "front", ageStateId: "canonical" }),
+      prompt: withStandingInjections(composeCharacterSheetPrompt(character, bible, { viewId: "front", ageStateId: "canonical" }), true),
       consumer: "sheet",
       stage: "image",
       medium: bible.visual.medium,
@@ -112,7 +113,7 @@ export function buildPromptHandoff(
       title: "Identity still",
       destination: "Image provider",
       note: "Definitive visual source with coherent medium and visible locks.",
-      prompt: composeIdentityImagePrompt(character),
+      prompt: withStandingInjections(composeIdentityImagePrompt(character), true),
       consumer: "image",
       stage: "image",
       medium: bible.visual.medium,
@@ -125,7 +126,7 @@ export function buildPromptHandoff(
       title: "Scene still",
       destination: "Image provider",
       note: "Playable moment and composition; identity remains separate.",
-      prompt: scene.image,
+      prompt: withStandingInjections(scene.image, true),
       consumer: "image",
       stage: "image",
       medium: bible.visual.medium,
@@ -138,7 +139,7 @@ export function buildPromptHandoff(
       title: "Image-to-video direction",
       destination: "Seedance",
       note: "Motion and one camera move only; no scene redesign.",
-      prompt: composeVideoPrompt(character, scene.blueprint),
+      prompt: finalizeVideoPrompt(composeVideoPrompt(character, scene.blueprint), true),
       consumer: "video",
       stage: "video",
     },

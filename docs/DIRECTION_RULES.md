@@ -1,83 +1,112 @@
-# Direction safety rules
+# Direction and shot-job rules
 
-Magic Scene writes the dramatic board. The direction-safety pass then makes that board renderable without rewriting its dramatic objectives. The named house arc is `hook_escalate_reverse_cliffhanger`: hook, escalate cost, reverse power, cliffhanger.
+Magic Scene writes the dramatic board. Direction safety preserves its dramatic
+objective while compiling it into the strict `ShotJob` contract in
+`src/lib/shot-job.ts`. A scene is one job whenever the probed provider duration
+allows it. Crossing that ceiling is the only reason to chain jobs.
 
-## Identity budget
+## Identity and references
 
-| Energy state | Maximum readable, identity-locked characters | Other humans |
-| --- | ---: | --- |
-| `action` | 1 | Anonymous dressing only |
-| `sustained` | 1 | Anonymous dressing only |
-| `static` | 2 | Anonymous dressing only |
+- A job may track at most three named characters across all cuts.
+- Every tracked character carries the current canonical still or 16:9,
+  three-panel character sheet as a `character` reference.
+- The selected self-tape audition rides as a `motion` reference in subsequent
+  scenes.
+- Product shots carry the current product card as a `product` reference.
+- A start or end frame pins a moment. It does not replace an identity, product,
+  style, motion, or audio reference.
+- Extras remain generic and unnamed, with non-readable faces and no identity
+  assertion.
+- Every cut re-establishes screen position and facing direction. The camera
+  stays on one side of the action line.
 
-Dressing receives no identity assertion or recognition locks. Faces remain unreadable through distance, backlight, smoke, motion blur, silhouette, or turned-away staging. When an action beat needs two heroes, the generator preserves the beat and splits it into lettered sub-slots such as `3a` and `3b`.
+Character sheets are keyed by character, age state, and wardrobe state. An
+appearance change supersedes the old sheet; the replacement sheet is generated
+before prompts for the changed appearance.
 
-Every selected hero must contribute at least one behavior tell from their production bible or character card somewhere on the board.
+## Shot grammar
 
-## Camera matrix
+- One beat contains one visible or audible action.
+- A shot contains exactly one camera move, or `locked`.
+- Stacked actions become separate timecoded beats.
+- Camera moves gain `slow` by default. Explicit whip and crash moves retain
+  their requested speed.
+- Every beat begins strictly inside its shot duration and timecodes increase.
+- Shot durations sum exactly to the job target.
+- Duration is measured VO plus the dialogue gap when VO exists. Otherwise it is
+  derived from beat count and capped by the probed model maximum. There is no
+  flat 4000 ms slot default.
 
-| Energy state | Allowed camera |
+## Five seams
+
+| Seam | Contract |
 | --- | --- |
-| `action` | Locked-off, micro push, or single-axis micro lateral move |
-| `sustained` | Locked-off, slow push/dolly in, or slow dolly out |
-| `static` | Crane, orbit, dolly, reveal, and other established moves |
+| `hard_cut` | Default when the brief is silent. No continuity frame is implied. |
+| `frozen_handoff` | The previous rendered clip must end in a freezable state. Its real extracted final frame opens the next shot, whose first action restates that state verbatim. |
+| `action_bridge` | Both sides name the continuing motion and its screen direction. |
+| `match_cut` | Both sides name the rhyming shape, position, or colour. |
+| `portal` | Stylized transition; maximum one per board. |
 
-Orbit, crane/vertical, whip, and expressive moves are hard-blocked during action. The motion prompt names exactly one moving subject, holds all other people and dressing still except for passive inertia, and states camera drift separately. A locked action camera emits `--camerafixed true`.
+Brief mapping:
 
-## Duration
+- `seamless`, `one take`, `flow` → `frozen_handoff`
+- `cut to`, `meanwhile`, `vignettes` → `hard_cut`
+- `morphs into`, `becomes` → `match_cut`
 
-- The board target is authoritative; solved slot durations must sum exactly to it.
-- A measured locked-voice file uses its measured duration plus a dialogue gap.
-- When measurement is not yet available, speech receives a conservative word-timing estimate plus the same gap.
-- Silent action defaults to 3000-4000 ms.
-- The solver may shorten readable, non-action space before violating an action minimum.
-- An explicit count such as “three shots” in the brief overrides the format default.
-- The renderer and FFmpeg assembler consume every slot’s solved duration; they do not restore a flat four-second duration.
+Legacy migration is deterministic: `forward` becomes `hard_cut`, `chain`
+becomes `frozen_handoff`, and `ff_lf` becomes explicit start and end frame
+assets rather than a motion mode.
 
-## Dialogue
+## Character sheet and audition
 
-| Rule | Enforcement |
-| --- | --- |
-| Dialogue during action | Move to an adjacent readable slot when possible; otherwise cut |
-| Speakers per slot | Maximum 1 |
-| Voice source | Locked TTS |
-| No usable native audio reference | `off_face` framing |
+The character sheet is one 16:9 image with exactly three panels: straight-on
+head-and-shoulders, exact side profile, and full body in final wardrobe. It uses
+a plain studio background, no props, and no text.
 
-Off-face coverage means hands, profile, listener, rear three-quarter, or reaction coverage. The original locked TTS asset is mixed into the final master.
+The Studio's **Audition** stage produces two or three self-tape takes. Each is a
+locked-off, eye-level medium close-up with shallow focus, a short line with
+subtext, a three-quality voice recipe, one named vocal moment, one named
+physical behaviour, silence before and after, and an unresolved ending. Only
+one rendered take can be selected.
 
-## Props and weapons
+## Observable physics
 
-The allowed set is the union of:
+- Direct intent with a named visible move; never describe biomechanics.
+- Convert emotion labels into physical action.
+- Describe only what can be seen or heard: no smell, thought, or backstory.
+- A subject that exits frame is absent for the rest of that shot.
+- Compose movement past mirrors, never into them.
 
-1. Props from the selected character card’s wardrobe states.
-2. The board’s declared `sceneProps`.
+## Standing prompt rules
 
-A newly required object is added to `sceneProps` with a reason and `approved: false`. Studio blocks production until every pending prop is explicitly approved. Prompt assembly emits the resulting closed prop set and forbids new objects or weapons.
+`FILM_LOOK_LINE` is appended to every image and video prompt.
+`SKIN_REALISM_BLOCK` is also appended when skin is visible. Every video prompt
+ends exactly with `No music. No subtitles.`
 
-## Sensitive framing
+The following phrases are hard failures in every prompt:
 
-A slot involving a minor, visible injury, or a weapon pointed at a person is forced to `framingConstraint: "non_readable"`. Prompt negatives prohibit a readable minor in violence, graphic injury detail, and weapon impact on a readable person. The dramatic beat remains; only coverage changes.
+- ultra sharp
+- hyper detailed
+- crisp
+- razor sharp
+- 8K clarity
+- HDR
+- ultra-realistic detail
 
-## Continuity and motion mode
+Bare lens or aperture numbers such as `50mm` or `f/1.8` warn unless paired with
+a visible effect such as perspective compression or background blur. Portraits
+reuse `STANDARD_PORTRAIT_NEGATIVES`.
 
-| Intent | Motion mode |
-| --- | --- |
-| `CONTINUOUS` heading or physically carried action | `chain` |
-| New or non-continuous beat | `forward` |
+## Provider gate
 
-Chain mode extracts the real last frame of its rendered source clip and uses that persisted frame as the next clip’s starting reference. Chains are capped at three links; the next slot re-anchors as `forward` to control drift.
+The configured account currently exposes Seedance 2.0, not a verified 2.5
+structured multi-shot API. The internal contract therefore compiles to current
+single-shot submissions on the 2.0 branch. A single multi-shot submission is
+enabled only when an authenticated capability probe explicitly reports
+`structuredMultiShot: true`; model naming alone never activates it. See
+`docs/SEEDANCE_CAPABILITY.md`.
 
-## Lint contract
-
-Direction lint runs after normalization and again through prompt lint as `L10`. It checks:
-
-- identity budget;
-- camera against energy state;
-- exact board duration;
-- dialogue placement, one-speaker limit, and off-face rule;
-- closed props;
-- sensitive framing;
-- explicit motion mode, valid chain source, and chain depth;
-- at least one behavior tell per selected hero.
-
-The war-drop regression fixture starts with four dramatic beats and asserts five safe render slots after the two-hero action split, 15000 ms total, safe action cameras, no combat dialogue, closed weapons, a non-readable child beat, and real chain intent on the continuous descent.
+The war-drop regression fixture is a single internal 15000 ms job with four
+shots, two tracked heroes and their sheets, generic extras, timecoded beats, and
+assigned seams. On the current account the adapter safely emits four 2.0
+submissions; a future verified transport emits the one job.

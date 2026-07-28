@@ -7,6 +7,12 @@ import {
   lintDirectionBoard,
   type DirectionCharacter,
 } from "@/lib/direction-safety";
+import {
+  bannedPromptWord,
+  FILM_LOOK_LINE,
+  hasUnpairedGearToken,
+  VIDEO_PROMPT_ENDING,
+} from "@/lib/prompt-standards";
 
 export const promptConsumerSchema = z.enum(["runtime", "sheet", "voice", "dialogue", "sfx", "theme", "image", "video"]);
 export const recognitionLockSchema = z.object({
@@ -86,6 +92,19 @@ export function lintPromptHandoff(rawInput: PromptLintInput): PromptLintResult {
   const allowedGarments = garmentSet(input.wardrobe);
 
   for (const artifact of input.artifacts) {
+    const banned = bannedPromptWord(artifact.prompt);
+    if (banned) {
+      failures.push({ rule: "L11", cardId: artifact.id, message: `Banned prompt phrase: "${banned}".` });
+    }
+    if (hasUnpairedGearToken(artifact.prompt)) {
+      warnings.push({ rule: "L12", cardId: artifact.id, message: "A lens or aperture number must name its visible effect, or be removed." });
+    }
+    if (["image", "video"].includes(artifact.consumer) && !artifact.prompt.includes(FILM_LOOK_LINE)) {
+      failures.push({ rule: "L13", cardId: artifact.id, message: "Visual prompt is missing the standing film-look injection." });
+    }
+    if (artifact.consumer === "video" && !artifact.prompt.trim().endsWith(VIDEO_PROMPT_ENDING)) {
+      failures.push({ rule: "L14", cardId: artifact.id, message: `Every video prompt must end with "${VIDEO_PROMPT_ENDING}"` });
+    }
     // Advisory, not a gate. Composed prompts legitimately repeat persona and
     // performance boilerplate across slots, so a repeated 21-word window is a
     // quality smell rather than proof the prompt is broken.

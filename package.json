@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.53",
+  "version": "0.2.54",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -35,6 +35,7 @@
     "test:audio-scene": "node --import tsx --test src/lib/audio-scene.test.ts",
     "test:seedance-audio": "node --import tsx --test src/lib/seedance-audio.test.ts",
     "test:theme-plan": "node --import tsx --test src/lib/theme-composition-plan.test.ts",
+    "test:shot-job": "node --import tsx --test src/lib/shot-job.test.ts",
     "test:feed-visibility": "node --import tsx --test src/lib/feed-visibility.test.ts",
     "migrate:agni-maya": "tsx scripts/migrate-agni-maya.ts",
     "version:current": "node scripts/version.mjs current",

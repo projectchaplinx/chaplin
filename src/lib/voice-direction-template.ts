@@ -85,7 +85,7 @@ export const ARCHETYPE_VOICE_DELIVERY: Record<string, VoiceDeliveryDefaults> = {
   },
   "comic-relief": {
     PITCH: "Bright and mobile", TONE: "quick, buoyant",
-    PACE: "brisk with sharp pauses", ARTICULATION: "crisp", BREATH_STYLE: "light, quick",
+    PACE: "brisk with sharp pauses", ARTICULATION: "precise", BREATH_STYLE: "light, quick",
     DICTION: "casual, playful", EMOTIONAL_STYLE: "Fast wit that lands the joke without pushing it",
   },
   horror: {

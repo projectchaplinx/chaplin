@@ -3,6 +3,27 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.54 - 2026-07-29 - Version-gated multi-shot direction
+
+- Probed the configured ModelArk account and documented that it currently
+  exposes Seedance 2.0 multimodal generation, but no verified Seedance 2.5 or
+  structured storyboard request contract.
+- Added a strict provider-neutral `ShotJob` with timecoded one-action beats,
+  one camera move, separate semantic references and moment frames, five seams,
+  exact duration sums, a three-character cap, and VO-first timing.
+- Kept live production on the existing 2.0 single-shot transport while gating
+  a future one-job multi-shot submission behind an explicit authenticated
+  capability instead of a guessed model name.
+- Added versioned three-panel character-sheet and selected self-tape audition
+  primitives; renamed the Studio's first actor-production stage to Audition.
+- Enforced standing film and skin prompt blocks, reusable portrait negatives,
+  banned quality-slop phrases, lens-effect warnings, and the final video rule
+  `No music. No subtitles.` in both prompt lint and the live generation route.
+- Rebuilt war-drop as one internal four-shot, 15000 ms contract with both hero
+  sheets and selected performance references, plus regression coverage for
+  actions, cameras, timecodes, references, seams, identity caps, prompts,
+  adapter gating, and duration.
+
 ## v0.2.53 - 2026-07-29 - Focused output selection
 
 - Made the large Spark, Punch, and Episode format cards a one-time choice:

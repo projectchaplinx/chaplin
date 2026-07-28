@@ -9,20 +9,21 @@ import { WAR_DROP_CHARACTERS, warDropBoard } from "@/lib/direction-safety-fixtur
 import { buildShotVideoPrompt, validateShotSequence } from "@/lib/shot-director";
 import type { CameraMovementId } from "@/lib/camera-movements";
 
-test("war-drop safety fixture preserves four beats while splitting unsafe action into five timed slots", () => {
+test("war-drop safety fixture preserves four beats and tracks both heroes under the corrected job budget", () => {
   const board = warDropBoard();
   assert.equal(board.arcTemplate, "hook_escalate_reverse_cliffhanger");
-  assert.equal(board.slots.length, 5);
-  assert.deepEqual(board.slots.filter((slot) => slot.sourceSlotId === "3").map((slot) => slot.slotId), ["3a", "3b"]);
+  assert.equal(board.slots.length, 4);
+  assert.deepEqual(board.slots.filter((slot) => slot.sourceSlotId === "3").map((slot) => slot.slotId), ["3"]);
   assert.equal(board.slots.reduce((sum, slot) => sum + slot.durationMs, 0), 15_000);
   assert.deepEqual(lintDirectionBoard(board, WAR_DROP_CHARACTERS), []);
   assert.deepEqual(validateShotSequence(
     board.slots.map((slot) => ({ ...slot, cameraMovementId: slot.cameraMovementId as CameraMovementId })),
-    5,
+    4,
   ), { valid: true });
 
   const actionSlots = board.slots.filter((slot) => slot.energyState === "action");
-  assert.ok(actionSlots.every((slot) => slot.lockedCharacterIds.length <= 1));
+  assert.ok(actionSlots.every((slot) => slot.lockedCharacterIds.length <= 3));
+  assert.deepEqual(board.slots.find((slot) => slot.slotId === "3")?.lockedCharacterIds, ["hero-a", "hero-b"]);
   assert.ok(actionSlots.every((slot) => slot.lines.length === 0));
   assert.ok(actionSlots.every((slot) => cameraAllowedForEnergy("action", slot.cameraMovementId)));
   assert.ok(actionSlots.every((slot) => slot.durationMs >= 3000 && slot.durationMs <= 4000));
@@ -46,14 +47,14 @@ test("war-drop safety fixture preserves four beats while splitting unsafe action
 });
 
 test("controlled motion prompt names one moving subject and keeps camera motion in the camera field", () => {
-  const slot = warDropBoard().slots.find((candidate) => candidate.slotId === "3a");
+  const slot = warDropBoard().slots.find((candidate) => candidate.slotId === "2");
   assert.ok(slot);
   const prompt = buildShotVideoPrompt({
     productionTitle: "War Drop",
     productionLogline: "A hot landing reverses who holds the battlefield.",
     scene: { ...slot, cameraMovementId: slot.cameraMovementId as CameraMovementId },
-    sceneIndex: 2,
-    sceneCount: 5,
+    sceneIndex: 1,
+    sceneCount: 4,
     format: "punch",
     actorName: "Rhea",
     actorIdentity: "The locked Rhea identity.",
@@ -61,8 +62,8 @@ test("controlled motion prompt names one moving subject and keeps camera motion 
   assert.match(prompt, /Exactly one named moving subject: Rhea/);
   assert.match(prompt, /Every other person and all dressing remain explicitly still/);
   assert.match(prompt, /Camera drift: none; the camera is completely locked/);
-  assert.match(prompt, /MOTION MODE: chain from rendered slot 2/);
-  assert.match(prompt, /--duration 3\.000 --camerafixed true/);
+  assert.match(prompt, /MOTION MODE: chain from rendered slot 1/);
+  assert.match(prompt, /--duration 4\.000 --camerafixed true/);
   assert.doesNotMatch(prompt, /Kade leaps/i);
 });
 

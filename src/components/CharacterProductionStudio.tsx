@@ -168,7 +168,7 @@ async function revealTextProgressively(text: string, update: (value: string) => 
 }
 
 const WORKFLOW_STEPS = [
-  { id: 1, stage: "voice", label: "Voice", title: "Define the voice" },
+  { id: 1, stage: "voice", label: "Audition", title: "Create the performance reference" },
   { id: 2, stage: "dialogue", label: "Dialogue", title: "Build the dialogue" },
   { id: 3, stage: "sfx", label: "SFX", title: "Add signature SFX" },
   { id: 4, stage: "theme", label: "Theme", title: "Create the music score" },
@@ -2394,7 +2394,7 @@ export default function CharacterProductionStudio({
             <div className="relative border-b border-line bg-[radial-gradient(circle_at_top_right,rgba(53,210,190,0.12),transparent_42%),linear-gradient(145deg,rgba(244,72,112,0.08),transparent_55%)] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-accent">Voice identity</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-accent">Audition · performance reference</p>
                   <h3 className="mt-1 text-base font-semibold">{character.name}&apos;s voice</h3>
                 </div>
                 {lockedVoiceId && (
@@ -2413,7 +2413,7 @@ export default function CharacterProductionStudio({
                   data-intelligence-action
                   aria-busy={busy === "voice"}
                 >
-                  <span className="block text-sm font-semibold">✦ Generate three voice takes</span>
+                  <span className="block text-sm font-semibold">✦ Generate 2–3 audition takes</span>
                   <span className="text-lg" aria-hidden="true">→</span>
                 </button>
               )}
@@ -2495,8 +2495,8 @@ export default function CharacterProductionStudio({
 
               {previews.length > 0 && (
                 <div className="rounded-sm border border-accent-secondary/35 bg-accent-secondary/[0.05] px-3 py-2.5">
-                  <p className="text-xs font-semibold">Three voice takes are ready in Generated.</p>
-                  <p className="mt-1 text-[10px] text-grey">Listen and choose below on mobile, or from the Asset Canvas on desktop.</p>
+                  <p className="text-xs font-semibold">Audition takes are ready in Generated.</p>
+                  <p className="mt-1 text-[10px] text-grey">Choose the performance reference that will travel with this actor into future scenes.</p>
                 </div>
               )}
               {lockedVoiceId && (

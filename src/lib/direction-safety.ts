@@ -37,7 +37,7 @@ export const directionSlotSchema = z.object({
   objective: z.string().trim().min(1),
   action: z.string().trim().min(1),
   energyState: energyStateSchema,
-  lockedCharacterIds: z.array(z.string().trim().min(1)).max(2),
+  lockedCharacterIds: z.array(z.string().trim().min(1)).max(3),
   dressing: z.string().trim().min(1),
   behaviorTell: z.object({
     characterId: z.string().trim().min(1),
@@ -116,9 +116,9 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 
 export const IDENTITY_BUDGET: Record<EnergyState, number> = {
-  action: 1,
-  sustained: 1,
-  static: 2,
+  action: 3,
+  sustained: 3,
+  static: 3,
 };
 
 export const CAMERA_BY_ENERGY: Record<EnergyState, readonly CameraMovementId[]> = {
@@ -289,24 +289,11 @@ export function applyDirectionSafety(input: {
 }): DirectionBoard {
   const declaredProps = [...(input.board.sceneProps ?? [])];
   const cardPropSet = new Set(input.characters.flatMap(cardProps).map((prop) => prop.toLowerCase()));
-  const requestedSlots = input.board.scenes.flatMap((scene, index) => {
+  const requestedSlots = input.board.scenes.map((scene, index) => {
     const sourceSlotId = scene.slotId || String(index + 1);
     const energyState = energyFor(scene);
     const identities = namedCharacterIds(scene, input.characters);
-    if (energyState !== "action" || identities.length <= 1) {
-      return [{ scene, sourceSlotId, slotId: sourceSlotId, energyState, identities }];
-    }
-    return identities.map((identity, splitIndex) => ({
-      scene: {
-        ...scene,
-        action: focusedSplitAction(scene.action, identity, input.characters),
-        lines: scene.lines.filter((line) => line.characterId === identity),
-      },
-      sourceSlotId,
-      slotId: `${sourceSlotId}${String.fromCharCode(97 + splitIndex)}`,
-      energyState,
-      identities: [identity],
-    }));
+    return { scene, sourceSlotId, slotId: sourceSlotId, energyState, identities };
   });
 
   const tellCoverage = new Set<string>();
@@ -338,9 +325,7 @@ export function applyDirectionSafety(input: {
       sourceSlotId: entry.sourceSlotId,
       setting: entry.scene.setting,
       objective: entry.scene.objective,
-      action: entry.energyState === "action" && focusId
-        ? focusedSplitAction(entry.scene.action, focusId, input.characters)
-        : entry.scene.action,
+      action: entry.scene.action,
       energyState: entry.energyState,
       lockedCharacterIds,
       dressing: "Every other human is anonymous dressing only: no identity assertion or recognition locks; faces remain unreadable through backlight, smoke, distance, motion blur, or turned-away staging.",

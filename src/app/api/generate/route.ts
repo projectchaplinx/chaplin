@@ -69,6 +69,7 @@ import {
   type ThemePlanKind,
 } from "@/lib/theme-composition-plan";
 import { compactVisualDirection, requestsStylizedImage } from "@/lib/prompt-compaction";
+import { bannedPromptWord, finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
 import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { PromptLintError } from "@/lib/prompt-lint";
 import {
@@ -1500,11 +1501,16 @@ export async function POST(request: Request) {
         ? [configuredNegativePrompt, cardNegativePrompt].filter(Boolean).join(", ")
         : [configuredNegativePrompt, cardNegativePrompt, REALISM_NEGATIVE].filter(Boolean).join(", ");
       const seedreamFive = provider === "byteplus" && /seedream-5-0/i.test(imageConfig.model);
-      const effectivePrompt = provider === "byteplus"
+      const providerReadyPrompt = provider === "byteplus"
         ? seedreamFive
           ? `${prompt}\n\nEXCLUDE: ${exclusions}`
           : prompt
         : `${prompt}\n\nEXCLUDE: ${exclusions}`;
+      const effectivePrompt = withStandingInjections(providerReadyPrompt, Boolean(requestCharacter));
+      const bannedImagePhrase = bannedPromptWord(effectivePrompt);
+      if (bannedImagePhrase) {
+        throw new RequestValidationError(`Image prompt contains banned phrase "${bannedImagePhrase}".`);
+      }
       const consistencyWarnings = mediaPromptWarnings(requestCharacter, effectivePrompt, "image");
       jobId = await startGeneration({
         characterId,
@@ -1777,13 +1783,18 @@ export async function POST(request: Request) {
               : undefined,
           })
         : null;
-      const prompt = resolvedAudioPlan
+      const audioReadyPrompt = resolvedAudioPlan
         ? `${basePrompt}\n${buildAudioSceneBlock({
             plan: resolvedAudioPlan,
             durationMs: boardSlot!.duration_ms,
             delivery: boardSlot!.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
           })}`
         : audioScene?.block ? `${basePrompt}\n${audioScene.block}` : basePrompt;
+      const prompt = finalizeVideoPrompt(audioReadyPrompt, Boolean(requestCharacter));
+      const bannedVideoPhrase = bannedPromptWord(prompt);
+      if (bannedVideoPhrase) {
+        throw new RequestValidationError(`Video prompt contains banned phrase "${bannedVideoPhrase}".`);
+      }
       if (resolvedAudioPlan && boardSlot) {
         const audioFailures = lintAudioPlan({
           slot: boardSlot,

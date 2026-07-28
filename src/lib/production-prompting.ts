@@ -29,6 +29,7 @@ import {
   fillVoiceDirectionTemplate,
   voiceAgeDescriptor,
 } from "@/lib/voice-direction-template";
+import { finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
 
 export type CharacterIdentityInput = Pick<Character, "name" | "archetype" | "tagline" | "personality" | "voiceGender"> &
   Partial<Pick<Character, "voiceDesc" | "sfxDesc" | "themeDesc" | "productionBible" | "cardV2" | "brollLine" | "brollScene">> & {
@@ -786,7 +787,7 @@ export function assertSignatureSfxPrompt(prompt: string) {
 
 /** Builds one provider request. Timeline and other events are deliberately absent. */
 export function composeSignatureSfxEventPrompt(event: SignatureSfxEvent) {
-  const prompt = `${event.prompt.replace(/\s+/g, " ").trim()}. Premium cinematic Foley, single concrete physical event only. Capture a crisp transient, weighty material body, microscopic texture, and short controlled natural tail as one coherent high-resolution sound. Blend close and room-mic perspective; polished, full-spectrum, clean stop. No repeated variation, sequence, ambience bed, music, speech, generic whoosh, or trailer braam.`;
+  const prompt = `${event.prompt.replace(/\s+/g, " ").trim()}. Premium cinematic Foley, single concrete physical event only. Capture a clean transient, weighty material body, microscopic texture, and short controlled natural tail as one coherent high-resolution sound. Blend close and room-mic perspective; polished, full-spectrum, clean stop. No repeated variation, sequence, ambience bed, music, speech, generic whoosh, or trailer braam.`;
   assertSignatureSfxPrompt(prompt);
   return prompt;
 }
@@ -929,7 +930,7 @@ const MODERN_THEME_PALETTES: Record<AudioIdentityFamily, ModernThemePalette> = {
     groove: "a nimble two-step pocket with one deliberate rhythmic fake-out and a clean payoff",
     production: "punchy dry drums, elastic bass, bright transient detail, quick stereo gestures, and a witty motif that never becomes novelty music",
     sfxLayers: [
-      { label: "Tactile mistake", prompt: "one small metal object skitters into an unexpectedly perfect stop, crisp close Foley, lively material detail, dry room" },
+      { label: "Tactile mistake", prompt: "one small metal object skitters into an unexpectedly perfect stop, precise close Foley, lively material detail, dry room" },
       { label: "Comic lock", prompt: "one compact spring mechanism releases with a precise elastic clack, close mic, bright transient, clean stop" },
     ],
   },
@@ -963,7 +964,7 @@ const MODERN_THEME_PALETTES: Record<AudioIdentityFamily, ModernThemePalette> = {
     production: "punchy transient architecture, controlled cinematic sub, detailed hybrid acoustics, wide but focused imaging, and an original ascending identity motif",
     sfxLayers: [
       { label: "Readiness", prompt: "one reinforced garment fastening pulls tight under a deliberate hand, dense fabric and metal detail, close exterior mic" },
-      { label: "Resolve", prompt: "one controlled weighted impact lands on a solid composite surface, compact sub body, crisp transient, short open-space reflection" },
+      { label: "Resolve", prompt: "one controlled weighted impact lands on a solid composite surface, compact sub body, clean transient, short open-space reflection" },
     ],
   },
   grounded: {
@@ -1313,12 +1314,12 @@ export function composeVideoPrompt(
       })}`
     : prompt;
   if (card) {
-    return withAudio(buildCardVideoPrompt(card, {
+    return finalizeVideoPrompt(withAudio(buildCardVideoPrompt(card, {
       scene_beat: shot.dramaticBeat,
       motion: `${shot.actionTimeline[0]}; ${shot.actionTimeline[1]}; ${shot.actionTimeline[2]}; ${shot.environmentalMotion}`,
       camera: simpleCameraMove(shot.cameraMovement),
       timing: `Five seconds. End on: ${shot.finalFrame}`,
-    }));
+    })), true);
   }
   const closeFrame = /extreme close|close[- ]?up|headshot|tight portrait/i.test(shot.framing);
   const camera = simpleCameraMove(shot.cameraMovement);
@@ -1335,10 +1336,13 @@ export function composeVideoPrompt(
     "--duration 5",
   ].join("\n");
   const wardrobe = buildProductionBible(_character).visual.wardrobe;
-  return withAudio(/\bcoat\b/i.test(wardrobe) ? prompt : prompt.replace(/\bcoat hem\b/gi, "garment edge"));
+  return finalizeVideoPrompt(
+    withAudio(/\bcoat\b/i.test(wardrobe) ? prompt : prompt.replace(/\bcoat hem\b/gi, "garment edge")),
+    true,
+  );
 }
 export function composeLegacyVideoPrompt(_character: CharacterIdentityInput, shot: ShotBlueprint) {
-  return [
+  return finalizeVideoPrompt([
     "IMAGE-TO-VIDEO — 5 SECONDS. The supplied image is the exact first frame and the only source of truth for face, body, wardrobe, set, composition, color, and lighting. Do not redescribe or redesign them.",
     `INTENT: ${shot.dramaticBeat}.`,
     `0.0-1.2s — ${shot.actionTimeline[0]}`,
@@ -1348,7 +1352,7 @@ export function composeLegacyVideoPrompt(_character: CharacterIdentityInput, sho
     `LIGHT CONTINUITY: keep the source key direction and shadow pattern fixed; only animate motivated practical flicker or environmental changes.`,
     `SECONDARY MOTION: ${shot.environmentalMotion}. Natural blink, breath, cloth inertia, hair response, and grounded body weight; subtle motion beats over constant movement.`,
     "LOCKS: exact identity and facial geometry; stable hands, limbs, wardrobe, background architecture, and object count. No morphing, new props, new people, camera teleport, lip-sync, speech, subtitles, text, logo, or watermark. Silent visual plate; audio is produced separately. --duration 5 --camerafixed false"
-  ].join("\n");
+  ].join("\n"), true);
 }
 
 export type ProductShotPromptInput = {
@@ -1408,7 +1412,7 @@ export function composeProductImagePrompt(input: ProductShotPromptInput) {
     base.push(`BRAND SPOT GRAMMAR: cinematic narrative around ${input.narrativeBeat ?? "ritual"}; the product appears only at the slot-four pivot and slot-eight close unless an operator records an override reason; the final shot is a pack shot with actor.`);
   }
   base.push(`NEGATIVE: ${mergedProductNegative(input)}.`);
-  return base.join("\n");
+  return withStandingInjections(base.join("\n"), Boolean(input.actor));
 }
 
 export function composeProductVideoPrompt(input: ProductShotPromptInput) {
@@ -1424,7 +1428,7 @@ export function composeProductVideoPrompt(input: ProductShotPromptInput) {
   if (input.videoType === VideoType.ProductHero) base.push("PRODUCT HERO: no humans, no hands, no actor audio. Slow macro push, circle, or rise only; finish on a readable pack shot and logo lockup.");
   if (input.videoType === VideoType.BrandSpot) base.push("BRAND SPOT: product appears only at slot four and slot eight unless an operator records an override reason; final shot is product pack shot with actor. Do not invent claims.");
   base.push(`NEGATIVE: ${mergedProductNegative(input)}, no morphing, relabeling. --duration 5`);
-  return base.join("\n");
+  return finalizeVideoPrompt(base.join("\n"), Boolean(input.actor));
 }
 
 export function productDialogueAllowlist(product: ProductCard, hookText?: string, ctaText?: string) {

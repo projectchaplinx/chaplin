@@ -126,7 +126,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       enabled: true,
       provider: "elevenlabs",
       model: "eleven_text_to_sound_v2",
-      promptPrelude: "Premium high-resolution cinematic Foley. Render one physical event with a crisp transient, weighty material body, microscopic texture, blended close and room perspective, full-spectrum polish, and a clean controlled tail.",
+      promptPrelude: "Premium high-resolution cinematic Foley. Render one physical event with a clean transient, weighty material body, microscopic texture, blended close and room perspective, full-spectrum polish, and a controlled tail.",
       temperature: null,
       maxTokens: null,
       settings: {

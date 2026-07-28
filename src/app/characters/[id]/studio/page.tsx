@@ -6,8 +6,15 @@ import { listCharacters } from "@/lib/server/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-export default async function CharacterStudioPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CharacterStudioPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ mode?: string }>;
+}) {
   const { id } = await params;
+  const mode = (await searchParams).mode === "scene" ? "scene" : "actor";
   const nextPath = `/characters/${id}/studio`;
   const identity = await getServerAuthIdentity();
   if (!identity) redirect(`/auth?next=${encodeURIComponent(nextPath)}`);
@@ -18,5 +25,5 @@ export default async function CharacterStudioPage({ params }: { params: Promise<
     redirect(`/characters/${id}`);
   }
 
-  return <CharacterStudioScreen character={character} />;
+  return <CharacterStudioScreen character={character} initialMode={mode} />;
 }

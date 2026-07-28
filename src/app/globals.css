@@ -471,6 +471,11 @@ body:has([data-home-shell]) > main {
     overflow: hidden;
   }
 
+  .studio-projects-scroll {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
   .studio-workspace-header {
     position: relative;
     z-index: 80;
@@ -737,6 +742,10 @@ body:has([data-home-shell]) > main {
   .unified-studio-shell__body {
     min-height: 0;
     flex: 1 1 auto;
+  }
+
+  .studio-projects-scroll {
+    overflow-y: auto;
   }
 
   .studio-workspace-header {

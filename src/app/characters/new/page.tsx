@@ -839,21 +839,6 @@ export default function NewCharacterPage() {
             projectName={name.trim() || "Untitled actor"}
             status="Actor studio · autosaved"
             backHref="/studio"
-            middle={
-              <div className="flex w-full min-w-[30rem] max-w-[40rem] items-center px-3">
-              {["Identity", "Look", "Voice", "Spark", "Publish"].map((step, index) => (
-                <div key={step} className="flex min-w-0 flex-1 items-center">
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
-                    index === 0 ? "border-accent bg-accent text-white" : "border-white/30 text-grey"
-                  }`}>
-                    {index + 1}
-                  </span>
-                  <span className={`ml-2 text-[9px] font-medium ${index === 0 ? "text-accent" : "text-grey"}`}>{step}</span>
-                  {index < 4 && <span className="mx-3 h-px min-w-4 flex-1 bg-white/20" />}
-                </div>
-              ))}
-              </div>
-            }
             actions={
               <>
               <button

@@ -3,6 +3,20 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.39 - 2026-07-28 - Persistent Studio mode switch
+
+- Fixed the Actor / Scene / Projects control so it remains visible and active
+  on every Studio surface. Actor creation no longer replaces it with a progress
+  strip, and Projects no longer drops back into the old site shell.
+- Brought the Projects dashboard into the same full-height Studio canvas with
+  its drafts, actors, productions, earnings, and New Scene action intact.
+- Existing actors now switch between Actor and Scene on their own Studio URL.
+  Scene mode retains the locked actor plus the complete Voice, Dialogue, SFX,
+  Theme, Still, Video, Magic Scene, and asset workspace instead of opening a
+  detached blank story builder.
+- Preserved the separate multi-actor Concept / Cast / Script builder for new
+  stories while keeping its transition to rendering inside the Studio shell.
+
 ## v0.2.38 - 2026-07-28 - One persistent creative Studio
 
 - Introduced a shared Studio bar and workspace language across actor creation,

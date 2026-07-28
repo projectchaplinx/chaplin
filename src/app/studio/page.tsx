@@ -16,6 +16,7 @@ import Avatar from "@/components/Avatar";
 import CharacterCard from "@/components/CharacterCard";
 import StoryCard from "@/components/StoryCard";
 import SectionHeading from "@/components/SectionHeading";
+import StudioWorkspaceHeader from "@/components/studio/StudioWorkspaceHeader";
 import { getClientAuthIdentity } from "@/lib/client-auth";
 import { money, formatDate, compactNumber } from "@/lib/format";
 import { composeCharacterMasterPrompt } from "@/lib/production-prompting";
@@ -156,6 +157,18 @@ export default function StudioPage() {
   }
 
   return (
+    <section className="unified-studio-shell" data-unified-studio-shell data-studio-mode="projects">
+      <StudioWorkspaceHeader
+        mode="projects"
+        projectName={user?.name ? `${user.name}'s projects` : "My projects"}
+        status="Projects · drafts, actors, productions and earnings"
+        actions={
+          <Link href="/studio/write" className="studio-workspace-header__saved">
+            New scene
+          </Link>
+        }
+      />
+      <div className="unified-studio-shell__body studio-projects-scroll">
     <div className="max-w-6xl mx-auto px-6 py-10 w-full">
       <div className="flex items-center gap-4 mb-8">
         {user && (
@@ -401,5 +414,7 @@ export default function StudioPage() {
       )}
       </section>
     </div>
+      </div>
+    </section>
   );
 }

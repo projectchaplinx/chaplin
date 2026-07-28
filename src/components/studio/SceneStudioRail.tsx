@@ -28,6 +28,7 @@ export default function SceneStudioRail({
   onStartProduction,
   blockedReason,
   starting,
+  productionMode = false,
 }: {
   stages: SceneStage[];
   step: 1 | 2 | 3;
@@ -41,6 +42,7 @@ export default function SceneStudioRail({
   onStartProduction: () => void;
   blockedReason?: string;
   starting?: boolean;
+  productionMode?: boolean;
 }) {
   const complete = stages.filter((stage) => stage.state === "done").length;
 
@@ -140,21 +142,35 @@ export default function SceneStudioRail({
         see, which is the bug it was added to fix.
       */}
       <div className="sticky bottom-0 mt-auto -mx-3 border-t border-line/70 bg-[#070a08]/95 px-3 pb-3 pt-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={onStartProduction}
-          disabled={starting}
-          className={`w-full rounded-lg px-3 py-2.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-            blockedReason
-              ? "border border-line/70 bg-white/[0.04] text-grey hover:border-accent/40 hover:text-ink"
-              : "bg-accent text-paper hover:bg-accent-light"
-          }`}
-        >
-          {starting ? "Starting…" : `${actionLabel} →`}
-        </button>
-        <p className="mt-1.5 text-center text-[9.5px] leading-4 text-grey">
-          {blockedReason ?? `${sceneCount} ${sceneCount === 1 ? "scene" : "scenes"} · ${durationSeconds}s master`}
-        </p>
+        {productionMode ? (
+          <div className="rounded-lg border border-accent/40 bg-accent/[0.08] px-3 py-2.5" aria-live="polite">
+            <p className="flex items-center gap-2 text-[11px] font-semibold text-ink">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+              Production is in this Studio
+            </p>
+            <p className="mt-1 text-[9.5px] leading-4 text-grey">
+              Frames, motion, master, and approval update in the center canvas.
+            </p>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onStartProduction}
+              disabled={starting}
+              className={`w-full rounded-lg px-3 py-2.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                blockedReason
+                  ? "border border-line/70 bg-white/[0.04] text-grey hover:border-accent/40 hover:text-ink"
+                  : "bg-accent text-paper hover:bg-accent-light"
+              }`}
+            >
+              {starting ? "Starting…" : `${actionLabel} →`}
+            </button>
+            <p className="mt-1.5 text-center text-[9.5px] leading-4 text-grey">
+              {blockedReason ?? `${sceneCount} ${sceneCount === 1 ? "scene" : "scenes"} · ${durationSeconds}s master`}
+            </p>
+          </>
+        )}
       </div>
     </aside>
   );

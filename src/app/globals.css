@@ -685,6 +685,11 @@ body:has([data-home-shell]) > main {
     scrollbar-gutter: stable;
   }
 
+  .scene-studio-shell > .studio-production-content:has([data-production-canvas]) {
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
   .unified-studio-shell .scene-studio-shell {
     height: 100%;
   }
@@ -727,6 +732,19 @@ body:has([data-home-shell]) > main {
     background: rgba(7, 10, 8, 0.95);
     padding: 0.8rem 1.5rem;
     backdrop-filter: blur(18px);
+  }
+
+  .studio-production-canvas {
+    padding: 0.85rem 1rem 2rem;
+  }
+
+  .studio-production-canvas .studio-embedded-production__actionbar {
+    margin: -0.85rem -1rem 0;
+    padding-inline: 1rem;
+  }
+
+  .studio-production-canvas [data-production-preview-primary] {
+    margin-top: 0.85rem;
   }
 }
 

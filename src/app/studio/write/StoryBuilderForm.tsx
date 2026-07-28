@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -1153,11 +1153,23 @@ export default function StoryBuilderForm() {
     lineCount: scene.lines.filter((line) => line.text.trim()).length,
     authored: Boolean(scene.setting.trim() || scene.action.trim()),
   }));
+  const handleProductionFrames = useCallback((urls: string[]) => {
+    setScenes((current) => {
+      let changed = false;
+      const next = current.map((scene, index) => {
+        const url = urls[index];
+        if (!url || scene.previewImageUrl === url) return scene;
+        changed = true;
+        return { ...scene, previewImageUrl: url };
+      });
+      return changed ? next : current;
+    });
+  }, []);
 
   /*
-    Once a production starts the studio becomes the render surface. The
-    workspace owns its own three-column layout, so it replaces the authoring
-    shell rather than nesting inside it - same page, same route, no navigation.
+    Once production starts, keep the exact Scene Studio frame in place. Only
+    the center authoring canvas changes into live production; the stage rail
+    and asset canvas remain spatial anchors and receive generated frames.
   */
   if (productionStoryId) {
     return (
@@ -1169,7 +1181,40 @@ export default function StoryBuilderForm() {
           actions={<span className="studio-workspace-header__saved">Script locked</span>}
         />
         <div className="unified-studio-shell__body">
-          <ProductionWorkspace storyId={productionStoryId} embedded autoStart />
+          <div className="scene-studio-shell" data-scene-studio-shell data-scene-production-active>
+            <SceneStudioRail
+              stages={sceneStages.map((stage) => ({ ...stage, state: "done" as const }))}
+              step={3}
+              onSelect={() => undefined}
+              cast={castCharacters}
+              formatLabel={formatDefinition.label}
+              durationSeconds={durationSeconds}
+              sceneCount={scenes.length}
+              framesReady={framesReady}
+              actionLabel="Production running"
+              onStartProduction={() => undefined}
+              productionMode
+            />
+            <div className="studio-production-content min-w-0">
+              <ProductionWorkspace
+                storyId={productionStoryId}
+                embedded
+                autoStart
+                autoRender
+                canvasOnly
+                onFrameUrlsChange={handleProductionFrames}
+              />
+            </div>
+            <SceneStudioAssets
+              assets={sceneAssets}
+              busyIndex={null}
+              onSelect={() => undefined}
+              onGenerateAll={() => undefined}
+              canGenerate={false}
+              productImageUrl={productImageUrl || undefined}
+              productionMode
+            />
+          </div>
         </div>
       </section>
     );

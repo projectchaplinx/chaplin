@@ -3,6 +3,20 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.42 - 2026-07-28 - Scene generation stays in Studio
+
+- Kept the Scene Studio stage rail, center canvas, and asset panel mounted when
+  a locked script enters production. The interface no longer swaps to the
+  separate Landing Zone production-detail composition.
+- Made the original Generate in Studio action initialize the production plan
+  and immediately begin the authorized 15-second Punch render, removing the
+  second Generate master click.
+- Streamed newly created production frames back into the existing right asset
+  panel and kept retry plus final human approval in the center canvas.
+- Removed the duplicate title, cast, output promise, workflow crawl, and locked
+  script recap from the embedded Studio render view. Direct production URLs
+  retain the complete detail page for deliberate inspection.
+
 ## v0.2.41 - 2026-07-28 - Live actor room layout guard
 
 - Fixed the cinematic actor profile clipping its Cast and production actions

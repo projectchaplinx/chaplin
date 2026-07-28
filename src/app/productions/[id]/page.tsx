@@ -195,10 +195,16 @@ export function ProductionWorkspace({
   storyId,
   embedded = false,
   autoStart = false,
+  autoRender = false,
+  canvasOnly = false,
+  onFrameUrlsChange,
 }: {
   storyId: string;
   embedded?: boolean;
   autoStart?: boolean;
+  autoRender?: boolean;
+  canvasOnly?: boolean;
+  onFrameUrlsChange?: (urls: string[]) => void;
 }) {
   const id = storyId;
   const world = useChaplinStore((state) => state);
@@ -223,6 +229,7 @@ export function ProductionWorkspace({
   const [selectedShotIndex, setSelectedShotIndex] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
   const autoInitializeRef = useRef(false);
+  const autoRenderRef = useRef(false);
   const referenceStep = run?.steps.find((step) => step.key === "reference-frame");
   const referenceImageUrl = typeof referenceStep?.output.url === "string"
     ? referenceStep.output.url
@@ -1342,6 +1349,30 @@ export function ProductionWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, busy, contract?.scopeId, hydrated, loading, run?.id, story?.id]);
 
+  useEffect(() => {
+    if (
+      !autoRender
+      || autoRenderRef.current
+      || !run
+      || busy
+      || contract?.format !== "punch"
+      || finalVideoUrl
+    ) return;
+    autoRenderRef.current = true;
+    void renderPunchOutput();
+    // The Generate in Studio click authorizes this one render attempt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRender, busy, contract?.format, finalVideoUrl, run?.id]);
+
+  useEffect(() => {
+    if (!onFrameUrlsChange) return;
+    const count = Math.max(persistedFrameUrls.length, renderShots.length);
+    const urls = Array.from({ length: count }, (_, index) => (
+      renderShots[index]?.frameUrl ?? persistedFrameUrls[index] ?? ""
+    ));
+    if (urls.some(Boolean)) onFrameUrlsChange(urls);
+  }, [onFrameUrlsChange, persistedFrameUrls, renderShots]);
+
   if (!hydrated) {
     return <main className={embedded ? "studio-embedded-production p-6 text-sm text-grey" : "mx-auto max-w-5xl px-6 py-16 text-sm text-grey"}>Opening production...</main>;
   }
@@ -1357,8 +1388,11 @@ export function ProductionWorkspace({
 
   return (
     <main
-      className={embedded ? "studio-embedded-production" : "app-width px-5 py-10 sm:px-8"}
+      className={embedded
+        ? `studio-embedded-production${canvasOnly ? " studio-production-canvas" : ""}`
+        : "app-width px-5 py-10 sm:px-8"}
       data-embedded-production={embedded || undefined}
+      data-production-canvas={canvasOnly || undefined}
     >
       <div className={embedded ? "hidden" : "flex items-center justify-between gap-4"}>
         <Link href="/studio" className="text-xs text-grey hover:text-accent">Back to My Studio</Link>
@@ -1367,7 +1401,7 @@ export function ProductionWorkspace({
         </span>
       </div>
 
-      <header className={embedded ? "studio-embedded-production__summary" : "mt-8 border-b border-line pb-8"}>
+      {!canvasOnly && <header className={embedded ? "studio-embedded-production__summary" : "mt-8 border-b border-line pb-8"}>
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-3xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">{contract.definition.label} production</p>
@@ -1379,7 +1413,7 @@ export function ProductionWorkspace({
             <div><p className="font-mono text-4xl text-accent-secondary">{contract.shotCount}</p><p className="text-[9px] uppercase text-grey">Shot packages</p></div>
           </div>
         </div>
-      </header>
+      </header>}
 
       {embedded && run && contract.format === "punch" && !finalVideoUrl && (
         <section className="studio-embedded-production__actionbar" data-studio-render-action>
@@ -1402,7 +1436,7 @@ export function ProductionWorkspace({
         </section>
       )}
 
-      <section className="hidden gap-3 border-b border-line py-6 sm:grid sm:grid-cols-3">
+      <section className={canvasOnly ? "hidden" : "hidden gap-3 border-b border-line py-6 sm:grid sm:grid-cols-3"}>
         {[
           ["01", "Script locked", `${story.scenes.length} playable beat${story.scenes.length === 1 ? "" : "s"}`],
           ["02", "Cast locked", `${cast.length} production identit${cast.length === 1 ? "y" : "ies"}`],
@@ -1785,7 +1819,75 @@ export function ProductionWorkspace({
         </section>
       )}
 
-      <div className={`mt-8 grid gap-8 ${run ? "lg:grid-cols-[0.72fr_1.28fr]" : ""}`}>
+      {canvasOnly && run && (error || (reviewStep?.key === "creative-review" && finalVideoUrl)) && (
+        <section
+          className={`mt-4 rounded-2xl border p-4 ${
+            error
+              ? "border-red-400/35 bg-red-400/[0.06]"
+              : "border-amber-300/45 bg-amber-300/[0.06]"
+          }`}
+          data-studio-production-decision
+        >
+          {error ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-red-300">Production needs attention</p>
+                <p className="mt-1 text-xs leading-5 text-grey">{error}</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void renderPunchOutput()}
+                  disabled={busy}
+                  className="magic-action rounded-full px-4 py-2 text-[10px] font-bold disabled:opacity-40"
+                  data-intelligence-action
+                >
+                  Retry generation
+                </button>
+                {/no active locked voice|custom-voice limit|maximum amount of custom voices/i.test(error) && cast[0] && (
+                  <Link
+                    href={`/characters/${cast[0].id}/studio`}
+                    className="rounded-full border border-red-300/55 px-4 py-2 text-[10px] font-semibold text-red-200"
+                  >
+                    Open voice lock
+                  </Link>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-200">Human approval</p>
+                <h2 className="mt-1 text-sm font-semibold">Review the exact 15-second cut</h2>
+                <p className="mt-1 text-[10px] leading-4 text-grey">
+                  Approve this master here, or regenerate it without leaving the Scene Studio.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void approveFinalShot()}
+                  disabled={busy}
+                  className="rounded-full bg-emerald-400 px-4 py-2 text-[10px] font-bold text-[#07160a] disabled:opacity-40"
+                >
+                  {busy ? "Approving…" : "Approve this cut"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void renderPunchOutput()}
+                  disabled={busy}
+                  className="magic-action rounded-full px-4 py-2 text-[10px] font-semibold disabled:opacity-40"
+                  data-intelligence-action
+                >
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {!canvasOnly && <div className={`mt-8 grid gap-8 ${run ? "lg:grid-cols-[0.72fr_1.28fr]" : ""}`}>
         <aside>
           <p className="text-[10px] uppercase tracking-[0.2em] text-grey">Locked cast</p>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -2295,9 +2397,9 @@ export function ProductionWorkspace({
             </div>
           )}
         </section>}
-      </div>
+      </div>}
 
-      <section className="mt-10 border-t border-line pt-8">
+      {!canvasOnly && <section className="mt-10 border-t border-line pt-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="reel-title text-3xl">Locked script</h2>
           <span className="text-[9px] uppercase tracking-wide text-grey">{story.scenes.length} beats · expands to {contract.shotCount} shots</span>
@@ -2324,7 +2426,7 @@ export function ProductionWorkspace({
             );
           })}
         </div>
-      </section>
+      </section>}
     </main>
   );
 }

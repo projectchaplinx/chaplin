@@ -23,6 +23,7 @@ export default function SceneStudioAssets({
   onGenerateAll,
   canGenerate,
   productImageUrl,
+  productionMode = false,
 }: {
   assets: SceneAsset[];
   busyIndex: number | null;
@@ -30,6 +31,7 @@ export default function SceneStudioAssets({
   onGenerateAll: () => void;
   canGenerate: boolean;
   productImageUrl?: string;
+  productionMode?: boolean;
 }) {
   const ready = assets.filter((asset) => asset.previewImageUrl).length;
 
@@ -37,17 +39,21 @@ export default function SceneStudioAssets({
     <aside className="studio-asset-panel flex flex-col gap-3 border-l border-line/70 p-3" data-scene-studio-assets>
       <div className="flex shrink-0 items-center justify-between gap-2">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent-secondary">Asset canvas</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent-secondary">
+            {productionMode ? "Production assets" : "Asset canvas"}
+          </p>
           <p className="mt-0.5 text-[10px] text-grey">{ready} of {assets.length} frames rendered</p>
         </div>
-        <button
-          type="button"
-          onClick={onGenerateAll}
-          disabled={!canGenerate || busyIndex !== null}
-          className="shrink-0 rounded-full border border-accent-secondary/55 px-3 py-1.5 text-[10px] font-semibold text-accent-secondary transition-colors hover:bg-accent-secondary/10 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {busyIndex !== null ? `Framing ${busyIndex + 1}…` : "Render all"}
-        </button>
+        {!productionMode && (
+          <button
+            type="button"
+            onClick={onGenerateAll}
+            disabled={!canGenerate || busyIndex !== null}
+            className="shrink-0 rounded-full border border-accent-secondary/55 px-3 py-1.5 text-[10px] font-semibold text-accent-secondary transition-colors hover:bg-accent-secondary/10 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busyIndex !== null ? `Framing ${busyIndex + 1}…` : "Render all"}
+          </button>
+        )}
       </div>
 
       {/*

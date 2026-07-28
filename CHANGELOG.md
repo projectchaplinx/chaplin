@@ -3,6 +3,19 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.30 - 2026-07-28 - Safe ElevenLabs voice-capacity recovery
+
+- Added a guarded recovery when ElevenLabs reports that the custom-voice limit
+  has been reached while locking a newly designed voice.
+- Chaplin now finds at most two of the oldest superseded generated voices
+  labeled for the same actor, excludes the actor's current locked voice, removes
+  those old copies, and retries the lock once.
+- Refuses cleanup when no actor-specific superseded voice is safe to remove;
+  unrelated voices, other actors' voices, cloned voices, and unlabelled voices
+  are never deletion candidates.
+- Added focused selection-policy tests and a creator-facing confirmation when
+  capacity was safely reclaimed.
+
 ## v0.2.29 - 2026-07-28 - Single voice audition player
 
 - Replaced three repeated voice-preview cards with one audition player and

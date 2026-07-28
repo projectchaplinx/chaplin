@@ -57,11 +57,16 @@ import {
 import { compactVisualDirection, requestsStylizedImage } from "@/lib/prompt-compaction";
 import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { PromptLintError } from "@/lib/prompt-lint";
+import {
+  supersededChaplinVoices,
+  type ElevenLabsVoiceSummary,
+} from "@/lib/elevenlabs-voices";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const ELEVEN_API = "https://api.elevenlabs.io/v1";
+const ELEVEN_ROOT = "https://api.elevenlabs.io";
+const ELEVEN_API = `${ELEVEN_ROOT}/v1`;
 const MODEL_ARK_API = "https://ark.ap-southeast.bytepluses.com/api/v3";
 /** Marker so a caller can tell an orphaned voice from any other provider error. */
 export const ORPHANED_VOICE = "ORPHANED_VOICE";
@@ -78,6 +83,16 @@ const DIALOGUE_VOICE_SETTINGS = {
 type Input = Record<string, unknown>;
 
 class RequestValidationError extends Error {}
+
+class ElevenLabsRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(message);
+  }
+}
 
 function text(input: Input, key: string, min = 1, max = 4000) {
   const value = input[key];
@@ -451,9 +466,52 @@ async function eleven(pathname: string, body: Record<string, unknown>) {
     if (response.status === 404 || /voice_not_found|voice does not exist/i.test(detail)) {
       throw new Error(`${ORPHANED_VOICE}: this actor's locked voice does not exist on the current ElevenLabs account. Re-lock the voice to restore their dialogue.`);
     }
-    throw new Error(`ElevenLabs returned ${response.status}: ${detail.slice(0, 500)}`);
+    throw new ElevenLabsRequestError(
+      `ElevenLabs returned ${response.status}: ${detail.slice(0, 500)}`,
+      response.status,
+      detail,
+    );
   }
   return response;
+}
+
+function voiceLimitReached(error: unknown) {
+  return error instanceof ElevenLabsRequestError
+    && /voice_limit_reached|maximum amount of custom voices/i.test(error.detail);
+}
+
+async function reclaimSupersededActorVoices(
+  characterId: string,
+  activeVoiceId: string | null | undefined,
+) {
+  const key = elevenKey();
+  if (!key) throw new Error("ELEVEN_LABS_API_KEY is not configured.");
+  const listResponse = await fetch(
+    `${ELEVEN_ROOT}/v2/voices?page_size=100&voice_type=personal&category=generated&sort=created_at_unix&sort_direction=asc`,
+    { headers: { "xi-api-key": key }, cache: "no-store" },
+  );
+  if (!listResponse.ok) {
+    const detail = await listResponse.text();
+    throw new Error(`ElevenLabs could not list older voices (${listResponse.status}): ${detail.slice(0, 300)}`);
+  }
+  const payload = await listResponse.json() as { voices?: ElevenLabsVoiceSummary[] };
+  const candidates = supersededChaplinVoices(
+    Array.isArray(payload.voices) ? payload.voices : [],
+    characterId,
+    activeVoiceId,
+    2,
+  );
+  for (const candidate of candidates) {
+    const deleteResponse = await fetch(
+      `${ELEVEN_API}/voices/${encodeURIComponent(candidate.voice_id)}`,
+      { method: "DELETE", headers: { "xi-api-key": key } },
+    );
+    if (!deleteResponse.ok) {
+      const detail = await deleteResponse.text();
+      throw new Error(`ElevenLabs could not remove superseded voice ${candidate.voice_id} (${deleteResponse.status}): ${detail.slice(0, 300)}`);
+    }
+  }
+  return candidates;
 }
 
 async function imageInput(reference: string) {
@@ -860,22 +918,44 @@ export async function POST(request: Request) {
         return Response.json({ voice_id: generatedVoiceId, already_locked: true });
       }
       jobId = await startGeneration({ characterId, kind: "voice-lock", provider: "elevenlabs", model: "text-to-voice", prompt: description });
-      const response = await eleven("/text-to-voice", {
+      const saveVoice = () => eleven("/text-to-voice", {
         voice_name: text(input, "name", 1, 100),
         voice_description: description,
         generated_voice_id: generatedVoiceId,
         labels: { project: "chaplin", character_id: characterId },
       });
+      let response: Response;
+      let reclaimedVoices: ElevenLabsVoiceSummary[] = [];
+      try {
+        response = await saveVoice();
+      } catch (error) {
+        if (!voiceLimitReached(error)) throw error;
+        reclaimedVoices = await reclaimSupersededActorVoices(characterId, currentProduction.voiceId);
+        if (!reclaimedVoices.length) {
+          throw new Error(
+            "This ElevenLabs account has reached its custom-voice limit, and Chaplin found no superseded voice for this actor that is safe to remove. Delete an unused custom voice in ElevenLabs or raise the account limit.",
+          );
+        }
+        response = await saveVoice();
+      }
       const data = await response.json();
       await saveCharacterVoice({ characterId, voiceId: data.voice_id, description, previewUrl: data.preview_url });
       await completeGeneration(
         jobId,
         undefined,
-        { voiceId: data.voice_id },
+        {
+          voiceId: data.voice_id,
+          ...(reclaimedVoices.length
+            ? { reclaimedVoiceIds: reclaimedVoices.map((voice) => voice.voice_id) }
+            : {}),
+        },
         await calculateGenerationBilling({ kind: "voice-lock" }),
         response.headers.get("request-id")
       );
-      return Response.json(data);
+      return Response.json({
+        ...data,
+        reclaimed_voice_count: reclaimedVoices.length,
+      });
     }
 
     if (action === "speech") {

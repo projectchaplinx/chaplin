@@ -1056,13 +1056,15 @@ export default function CharacterProductionStudio({
         description: voiceDescription,
         generatedVoiceId: preview.generated_voice_id,
         characterId: character.id,
-      })) as { voice_id: string; already_locked?: boolean };
+      })) as { voice_id: string; already_locked?: boolean; reclaimed_voice_count?: number };
       setLockedVoiceId(data.voice_id);
       setCharacterVoice(character.id, data.voice_id);
       setPreviews([]);
       setMessage(
         data.already_locked
           ? `${character.name}'s voice was already locked. It is ready for dialogue.`
+          : data.reclaimed_voice_count
+            ? `Voice locked to ${character.name}. Chaplin safely removed ${data.reclaimed_voice_count} superseded ${data.reclaimed_voice_count === 1 ? "voice" : "voices"} for this actor to free ElevenLabs capacity.`
           : `Voice locked to ${character.name}. Every future line can now use the same voice ID.`
       );
       advanceAfterCompletion(2);

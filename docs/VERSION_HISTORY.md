@@ -222,10 +222,15 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.14 | `0fa937c` | 2026-07-27T21:57:29+05:30 | Stop the actor page opening on nothing but a playing clip |
 | v0.2.15 | `72db047` | 2026-07-27T22:12:13+05:30 | Close the Super Admin default credential |
 | v0.2.16 | `514e733` | 2026-07-27T22:15:22+05:30 | Let a viewer step back to the actor that just passed |
-| v0.2.17 | `03740df` | 2026-07-28T19:52:29+05:30 | Gate creation and grant welcome credits |
-| v0.2.18 | `0952e99` | 2026-07-28T19:57:05+05:30 | Redesign character profile hero stage |
-| v0.2.19 | `de7a82e` | 2026-07-28T20:01:31+05:30 | Hide Super Admin behind private entry |
-| v0.2.20 | `b9f6a5d` | 2026-07-28T20:23:51+05:30 | Harden Chaplin for public launch |
-| v0.2.21 | `78e11ca` | 2026-07-28T20:31:50+05:30 | Give AI actions a magic RGB edge |
-| v0.2.22 | `aa44caf` | 2026-07-28T20:34:42+05:30 | Fix desktop sign-in footer layout |
-| v0.2.23 | `f21fccf` | 2026-07-28T20:40:29+05:30 | Enforce owner-only actor controls |
+| v0.2.17 | `c037be6` | 2026-07-27T23:32:45+05:30 | Stop cropping the actor on their own page |
+| v0.2.18 | `41af553` | 2026-07-27T23:47:49+05:30 | Take the sound controls off the actor's face |
+| v0.2.19 | `336c929` | 2026-07-28T00:08:09+05:30 | One "Talk to", not two |
+| v0.2.20 | `03740df` | 2026-07-28T19:52:29+05:30 | Gate creation and grant welcome credits |
+| v0.2.21 | `0952e99` | 2026-07-28T19:57:05+05:30 | Redesign character profile hero stage |
+| v0.2.22 | `de7a82e` | 2026-07-28T20:01:31+05:30 | Hide Super Admin behind private entry |
+| v0.2.23 | `b9f6a5d` | 2026-07-28T20:23:51+05:30 | Harden Chaplin for public launch |
+| v0.2.24 | `78e11ca` | 2026-07-28T20:31:50+05:30 | Give AI actions a magic RGB edge |
+| v0.2.25 | `aa44caf` | 2026-07-28T20:34:42+05:30 | Fix desktop sign-in footer layout |
+| v0.2.26 | `f21fccf` | 2026-07-28T20:40:29+05:30 | Enforce owner-only actor controls |
+| v0.2.27 | `412b5e0` | 2026-07-28T20:45:30+05:30 | Remove glow from Chaplin wordmark |
+| v0.2.28 | `a6dd629` | 2026-07-28T21:15:10+05:30 | Merge projectchaplinx main and preserve launch fixes |

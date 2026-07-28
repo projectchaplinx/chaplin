@@ -13,7 +13,7 @@ import CharacterGallery from "@/components/CharacterGallery";
 import CharacterConversationPanel from "@/components/CharacterConversationPanel";
 import DeveloperAccessCard from "@/components/DeveloperAccessCard";
 import CharacterBroll from "@/components/CharacterBroll";
-import CharacterProfileHero from "@/components/CharacterProfileHero";
+import CharacterProfileStage from "@/components/CharacterProfileStage";
 import { IconArrowLeft } from "@/components/Icons";
 import {
   ARCHETYPE_HUE,
@@ -170,7 +170,7 @@ export default function CharacterProfilePage({
           Master prompt
         </Link>
       )}
-      {legacyHeroEnabled && canProduce && (
+      {canProduce && (
         <button
           type="button"
           onClick={openProductionStudio}
@@ -180,13 +180,14 @@ export default function CharacterProfilePage({
         </button>
       )}
 
-      <CharacterProfileHero
+      <CharacterProfileStage
         character={character}
         makerName={maker?.name}
-        canProduce={canProduce}
-        canCast={canCast}
-        onOpenProduction={openProductionStudio}
       />
+
+      <div className="mt-6 scroll-mt-24" id="talk">
+        <CharacterConversationPanel character={character} />
+      </div>
 
       {/* Every actor gets the same casting stage, so profile cards never change
           size by media. 16:9 is the shape, but height is capped against the

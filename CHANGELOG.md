@@ -3,6 +3,17 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.28 - 2026-07-28 - Project Chaplin X main reconciliation
+
+- Reconciled the public-launch, owner-access, footer, Magic-action, and crisp
+  wordmark work with the three actor-profile commits already on
+  `projectchaplinx/chaplin`.
+- Preserved the target repository's uncropped, natural-ratio actor frame and
+  moved voice, theme, effects, and scene-mix controls beside the performance
+  instead of over the actor's face.
+- Kept one conversation room, retained server-derived owner-only production
+  controls, and made the combined profile use the shared responsive stage.
+
 ## v0.2.24 - 2026-07-28 - Crisp Chaplin wordmark
 
 - Removed the glow-baked full-logo raster from every live navigation and footer
@@ -93,7 +104,44 @@ provider integrations, and the validation boundary for each major Chaplin update
 - Applied the wallet migration and passed focused ESLint, strict TypeScript,
   credit-contract tests, the production build, and live HTTP checks for the
   creation redirect, welcome offer, and unauthenticated API rejection.
+## v0.2.19 - 2026-07-28 - One "Talk to", not two
 
+- Removed the "Talk to <name>" card added to the left column in v0.2.18. The
+  Live character room below the hero already is the way to talk to an actor,
+  so the card was a second invitation to the same thing on the same screen.
+- `(pending)`
+
+## v0.2.18 - 2026-07-27 - Nothing sits on the actor's face
+
+- Scene mix, the voice/theme/effects track buttons and Sound details move off
+  the frame and into the left column, in normal flow. They were floating over
+  the right of the shot, which is where the actor is.
+- `CharacterBroll` now owns the two-column layout as well as the audio state.
+  That is what lets the controls sit beside the details rather than on top of
+  the performance — the state they read never leaves the component.
+- The left column gains a "Talk to <name>" card linking to the conversation
+  panel further down, so the space is used and the actor is offered rather
+  than only described.
+- User-facing: the actor's face is completely unobstructed. Every sound control
+  is still one click away, on the left.
+- `(41af553)`
+
+## v0.2.17 - 2026-07-27 - Stop cropping the actor on their own page
+
+- The profile hero is now two columns: name, tagline, chips and all six stats
+  sit beside the frame instead of on top of it.
+- The frame sizes itself from the media's real dimensions rather than imposing
+  a shape. Desktop fixes the height and the width follows; phone fixes the
+  width and the height follows. Pinning both is what caused the crop.
+- User-facing: nothing is cut off any more. A 1280x720 clip renders as a
+  967x544 frame, a 4:3 still as 725x544 — measured, not assumed.
+- The left-to-right scrim inside `CharacterBroll` is now optional and off here.
+  It exists to keep overlaid text legible; with the text moved off the media it
+  was only dimming a third of the performance.
+- Fixes the regression in v0.2.14, where capping the height of a full-width
+  16:9 frame produced a ~3:1 letterbox that `object-cover` filled by slicing
+  the sides off the shot.
+- `(pending)`
 ## v0.2.16 - 2026-07-27 - Step back through the hero
 
 - The hero now has previous / next controls. It advances on its own — when a
@@ -101,7 +149,7 @@ provider integrations, and the validation boundary for each major Chaplin update
   just passed had to hunt for it in the rail, and could not reach it at all
   once it scrolled out of the rail. Wraps in both directions.
 - User-facing: `‹` and `›` sit beside the mute button, top-right of the hero.
-- `(pending)`
+- `(514e733)`
 
 ## v0.2.15 - 2026-07-27 - Close the Super Admin default credential; hero typography
 

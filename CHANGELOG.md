@@ -3,6 +3,15 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.51 - 2026-07-29 - Playable character file browser
+
+- Rebuilt Super Admin character files as counted All, Images, Videos, Audio,
+  and conditional Other tabs so large actor libraries can be reviewed by type.
+- Added full-size in-page image inspection, native video playback with seek and
+  volume controls, inline audio playback, and direct access for other files.
+- Kept per-file permanent deletion alongside each playable asset and verified
+  every current live media kind maps to the correct review tab.
+
 ## v0.2.50 - 2026-07-29 - Reliable permanent character deletion
 
 - Corrected permanent deletion to remove an actor from

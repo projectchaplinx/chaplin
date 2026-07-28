@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Avatar from "@/components/Avatar";
+import SceneStudioAssets from "@/components/studio/SceneStudioAssets";
+import SceneStudioRail, { type SceneStage } from "@/components/studio/SceneStudioRail";
 import StudioWorkspaceHeader from "@/components/studio/StudioWorkspaceHeader";
 import { useChaplinStore } from "@/lib/store";
 import { castForStory, getStory } from "@/lib/selectors";
@@ -2433,16 +2435,105 @@ export function ProductionWorkspace({
 
 export default function ProductionDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const world = useChaplinStore((state) => state);
+  const hydrated = useChaplinStore((state) => state.hydrated);
+  const story = getStory(world, id);
+  const cast = useMemo(
+    () => story ? castForStory(world, story.id).map((item) => item.character) : [],
+    [story, world],
+  );
+  const [frameUrls, setFrameUrls] = useState<string[]>([]);
+  const handleFrameUrls = useCallback((urls: string[]) => {
+    setFrameUrls((current) => (
+      current.length === urls.length && current.every((url, index) => url === urls[index])
+        ? current
+        : urls
+    ));
+  }, []);
+  const format = normalizeProductionFormat(story?.format);
+  const definition = PRODUCTION_FORMATS[format];
+  const durationSeconds = story?.durationSeconds ?? definition.durationSeconds;
+  const sceneCount = story?.scenes.length ?? productionShotCount(format, durationSeconds);
+  const sceneStages: SceneStage[] = [
+    {
+      id: 1,
+      label: "Concept",
+      hint: "Title, logline and format.",
+      state: "done",
+      detail: "Locked",
+    },
+    {
+      id: 2,
+      label: "Cast",
+      hint: "Who performs this story.",
+      state: "done",
+      detail: `${cast.length} cast`,
+    },
+    {
+      id: 3,
+      label: `${definition.label} production`,
+      hint: "Frames, motion, master and approval.",
+      state: "active",
+      detail: "Open in center canvas",
+    },
+  ];
+  const assets = (story?.scenes ?? []).map((scene, index) => ({
+    index,
+    setting: scene.setting,
+    action: scene.action ?? "",
+    previewImageUrl: frameUrls[index] || scene.previewImageUrl,
+    lineCount: scene.lines.filter((line) => line.text.trim()).length,
+    authored: true,
+  }));
+
   return (
     <section className="unified-studio-shell" data-unified-studio-shell data-studio-mode="render">
       <StudioWorkspaceHeader
         mode="render"
-        projectName="Production"
+        projectName={story?.title ?? "Production"}
         status="Render studio · private workspace"
         actions={<span className="studio-workspace-header__saved">Autosaved</span>}
       />
       <div className="unified-studio-shell__body">
-        <ProductionWorkspace storyId={id} embedded autoStart />
+        {!hydrated || !story ? (
+          <div className="flex h-full items-center justify-center text-sm text-grey">
+            {hydrated ? "This production is not available in this Studio." : "Opening production…"}
+          </div>
+        ) : (
+          <div className="scene-studio-shell" data-scene-studio-shell data-scene-production-active>
+            <SceneStudioRail
+              stages={sceneStages}
+              step={3}
+              onSelect={() => undefined}
+              cast={cast}
+              formatLabel={definition.label}
+              durationSeconds={durationSeconds}
+              sceneCount={sceneCount}
+              framesReady={assets.filter((asset) => Boolean(asset.previewImageUrl)).length}
+              actionLabel="Production open"
+              onStartProduction={() => undefined}
+              productionMode
+            />
+            <div className="studio-production-content min-w-0">
+              <ProductionWorkspace
+                storyId={id}
+                embedded
+                autoStart
+                canvasOnly
+                onFrameUrlsChange={handleFrameUrls}
+              />
+            </div>
+            <SceneStudioAssets
+              assets={assets}
+              busyIndex={null}
+              onSelect={() => undefined}
+              onGenerateAll={() => undefined}
+              canGenerate={false}
+              productImageUrl={story.productImageUrl}
+              productionMode
+            />
+          </div>
+        )}
       </div>
     </section>
   );

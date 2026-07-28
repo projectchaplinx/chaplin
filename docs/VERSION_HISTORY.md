@@ -248,3 +248,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.40 | `f735911` | 2026-07-28T23:49:16+05:30 | Fix repeated voice audition text |
 | v0.2.41 | `ea238d7` | 2026-07-28T23:53:02+05:30 | Fix expanded actor room layout |
 | v0.2.42 | `34998b0` | 2026-07-28T23:59:37+05:30 | Keep scene generation inside Studio |
+| v0.2.43 | `961d6a3` | 2026-07-29T00:05:30+05:30 | Show named reclaimable voice slots |

@@ -3,6 +3,17 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.44 - 2026-07-29 - Existing productions open in Studio
+
+- Removed the last route-level Landing Zone exception. Opening an existing
+  `/productions/[id]` link now uses the same persistent Scene Studio stage rail,
+  compact live production canvas, and generated-asset panel.
+- Restored predictable scrolling by keeping the Studio viewport fixed while
+  giving the center production canvas its own vertical scroll.
+- Preserved existing production plans, retry controls, live generated frames,
+  and approvals without restoring the duplicate title, cast, workflow crawl,
+  or locked-script recap.
+
 ## v0.2.43 - 2026-07-29 - Named voice-slot recovery
 
 - Expanded creator voice-capacity recovery from only the currently open actor

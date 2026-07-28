@@ -62,35 +62,35 @@ export default function HomeShell() {
     () => new Map(brolls.map((broll) => [broll.characterId, broll])),
     [brolls],
   );
+  const curatedCharacters = useMemo(() => {
+    const byId = new Map(characters.map((character) => [character.id, character]));
+    return [...slots]
+      .sort((left, right) => left.position - right.position)
+      .map((slot) => byId.get(slot.characterId))
+      .filter((character): character is Character => Boolean(character));
+  }, [characters, slots]);
 
   /*
     Featured selection, in priority order:
-      1. Slots an admin curated in the dashboard, in their chosen order.
-      2. Everyone else, ranked by whether they have a clip, then by reach.
-    The remainder rotates on a slow cycle so the shelf does not show the same
-    six actors forever; the cycle advances on a timer rather than at random so
-    a render is always reproducible.
+      1. If Admin published a homepage cast, show exactly those actors in order.
+      2. Before any curation exists, rank the full catalogue by media and reach.
+    The fallback rotates on a slow cycle so a new catalogue is not permanently
+    pinned to the same first actors.
   */
   const featured = useMemo(() => {
-    const byId = new Map(characters.map((character) => [character.id, character]));
-    const curated = slots
-      .map((slot) => byId.get(slot.characterId))
-      .filter((character): character is Character => Boolean(character));
-    const curatedIds = new Set(curated.map((character) => character.id));
-
+    if (curatedCharacters.length) return curatedCharacters.slice(0, FEATURED_LIMIT);
     const pool = characters
-      .filter((character) => !curatedIds.has(character.id))
       .sort((left, right) =>
         featureScore(right, brollByCharacter.get(right.id)) - featureScore(left, brollByCharacter.get(left.id)));
 
-    const remaining = Math.max(0, FEATURED_LIMIT - curated.length);
-    if (!pool.length || !remaining) return [...curated, ...pool].slice(0, FEATURED_LIMIT);
+    const remaining = Math.min(FEATURED_LIMIT, pool.length);
+    if (!pool.length || !remaining) return pool.slice(0, FEATURED_LIMIT);
 
     // Rotate the window through the ranked pool so later actors get airtime.
     const offset = (shuffleTick * remaining) % pool.length;
     const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
-    return [...curated, ...rotated].slice(0, FEATURED_LIMIT);
-  }, [brollByCharacter, characters, slots, shuffleTick]);
+    return rotated.slice(0, FEATURED_LIMIT);
+  }, [brollByCharacter, characters, curatedCharacters, shuffleTick]);
 
   const currentId = featured.some((character) => character.id === activeId) ? activeId : featured[0]?.id ?? null;
   const current = featured.find((character) => character.id === currentId) ?? featured[0];
@@ -139,12 +139,12 @@ export default function HomeShell() {
   }, [featured, brollByCharacter, watchNow]);
 
   const topPerformers = useMemo(
-    () => [...characters].sort((left, right) =>
+    () => [...(curatedCharacters.length ? curatedCharacters : characters)].sort((left, right) =>
       right.stats.socialImpressions - left.stats.socialImpressions
       || right.stats.socialViews - left.stats.socialViews
       || right.stats.fans - left.stats.fans
     ).slice(0, 8),
-    [characters],
+    [characters, curatedCharacters],
   );
 
   useEffect(() => {

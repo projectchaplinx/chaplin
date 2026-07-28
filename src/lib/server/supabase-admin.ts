@@ -1029,7 +1029,7 @@ export async function getHomepageSlots() {
     .order("position");
   assert(error, "Load homepage slots");
   return (data ?? [])
-    .filter((slot) => (slot.status ?? "active") === "active")
+    .filter((slot) => slot.status === "published")
     .map((slot) => ({ characterId: slot.character_id as string, position: Number(slot.position) || 0 }));
 }
 

@@ -3,6 +3,25 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.36 - 2026-07-28 - Admin character catalogue control
+
+- Replaced the read-only actor-readiness table with an expandable Admin
+  character manager covering all persisted actors and every attached media
+  asset, with previews, provider/date metadata, Studio links, and the existing
+  exact-name-confirmed complete actor deletion.
+- Added Super Admin-only individual file deletion. It confirms the exact asset
+  server-side, removes Chaplin storage when applicable, clears profile and voice
+  preview references, removes feed posts sourced from the deleted file, relies
+  on asset foreign keys to clear production selections, and records an audit
+  event without exposing provider credentials.
+- Added an ordered homepage cast selector for one to ten actors. Saving publishes
+  exactly that set and removes previous placements; position controls determine
+  the hero and shelf order.
+- Fixed homepage slot loading to use the database's real `published` state
+  instead of the nonexistent `active` state. Once Admin publishes a cast, the
+  homepage hero, Watch Now, Characters, and Top Performers surfaces use only the
+  selected actors; a never-curated catalogue retains its ranked fallback.
+
 ## v0.2.35 - 2026-07-28 - In-studio voice capacity recovery
 
 - Voice-limit failures in an actor studio now include an inline

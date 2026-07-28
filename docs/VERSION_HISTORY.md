@@ -240,3 +240,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.32 | `213be26` | 2026-07-28T22:15:23+05:30 | Add per-slot audio ownership and voice recovery |
 | v0.2.33 | `bfc2f23` | 2026-07-28T22:31:36+05:30 | Add super admin actor and voice cleanup |
 | v0.2.34 | `be64dec` | 2026-07-28T22:41:50+05:30 | Activate cinematic actor studio hero |
+| v0.2.35 | `481cbc1` | 2026-07-28T22:49:12+05:30 | Add in-studio voice capacity recovery |

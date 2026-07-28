@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, WheelEvent } from "react";
-import Link from "next/link";
 import type { Character } from "@/lib/types";
 import { useChaplinStore } from "@/lib/store";
+import VoiceCapacityRecovery from "@/components/VoiceCapacityRecovery";
 import MediaPlayer from "@/components/MediaPlayer";
 import {
   buildProductionBible,
@@ -3042,12 +3042,10 @@ export default function CharacterProductionStudio({
           <div className={`flex flex-wrap items-center justify-between gap-3 rounded-sm px-3 py-2 text-xs ${message.toLowerCase().includes("failed") || message.includes("not configured") || /custom-voice limit/i.test(message) ? "bg-red-500/10 text-red-500" : "bg-accent/10 text-ink"}`}>
             <p>{message}</p>
             {/custom-voice limit|maximum amount of custom voices/i.test(message) && (
-              <Link
-                href="/admin#voice-capacity"
-                className="shrink-0 rounded-full border border-red-500/45 px-3 py-1.5 text-[10px] font-semibold text-red-400 hover:bg-red-500/10"
-              >
-                Super Admin voice control
-              </Link>
+              <VoiceCapacityRecovery
+                characterId={character.id}
+                onDeleted={(result) => setMessage(result)}
+              />
             )}
           </div>
         )}

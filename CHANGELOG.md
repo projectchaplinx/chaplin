@@ -3,6 +3,20 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.35 - 2026-07-28 - In-studio voice capacity recovery
+
+- Voice-limit failures in an actor studio now include an inline
+  `Manage unused voices` control, so the signed-in operator can inspect and
+  permanently delete an eligible inactive ElevenLabs voice without leaving the
+  failed production step.
+- Regular creators only see inactive Chaplin-generated voices labelled for the
+  actor they manage. Super Admin can recover any inactive generated voice on
+  the connected ElevenLabs account, with voices from other apps and untracked
+  voices clearly marked before irreversible confirmation. Active Chaplin voices
+  remain protected server-side.
+- Successful deletion now also removes any matching inactive Chaplin
+  registration, freeing the provider slot without leaving stale voice metadata.
+
 ## v0.2.34 - 2026-07-28 - Cinematic actor studio
 
 - Activated the previously unused cinematic actor hero on every character

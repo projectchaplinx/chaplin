@@ -11,6 +11,7 @@ import {
   saveRemoteMediaAsset,
   listCharacters,
   listActiveVoiceIds,
+  getSupabaseAdminClient,
   selectCharacterSfxAsset,
 } from "@/lib/server/supabase-admin";
 import { calculateGenerationBilling } from "@/lib/server/billing";
@@ -71,6 +72,7 @@ import {
   supersededChaplinVoices,
   type ElevenLabsVoiceSummary,
 } from "@/lib/elevenlabs-voices";
+import { deleteElevenLabsVoice } from "@/lib/server/elevenlabs";
 import {
   adBoardSchema,
   assertAdSlotQueueable,
@@ -867,15 +869,15 @@ export async function POST(request: Request) {
       if (!candidate) {
         throw new RequestValidationError("That voice is active, outside this actor's scope, or no longer reclaimable.");
       }
-      const key = elevenKey();
-      if (!key) throw new Error("ELEVEN_LABS_API_KEY is not configured.");
-      const response = await fetch(
-        `${ELEVEN_API}/voices/${encodeURIComponent(candidate.voice_id)}`,
-        { method: "DELETE", headers: { "xi-api-key": key } },
-      );
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`ElevenLabs could not delete the selected voice (${response.status}): ${detail.slice(0, 300)}`);
+      await deleteElevenLabsVoice(candidate.voice_id);
+      const registrations = await getSupabaseAdminClient()
+        .from("character_voices")
+        .delete()
+        .eq("provider", "elevenlabs")
+        .eq("provider_voice_id", candidate.voice_id)
+        .neq("status", "active");
+      if (registrations.error) {
+        throw new Error(`Remove stale voice registration: ${registrations.error.message}`);
       }
       return Response.json({
         deleted: true,

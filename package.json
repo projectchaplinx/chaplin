@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.31",
+  "version": "0.2.32",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -27,6 +27,7 @@
     "test:screen-time": "node --import tsx --test src/lib/screen-time.test.ts",
     "test:audio-mix": "node --import tsx --test src/lib/audio-mix.test.ts",
     "test:ad-board": "node --import tsx --test src/lib/ad-board.test.ts src/lib/ad-board-assembly.test.ts",
+    "test:audio-plan": "node --import tsx --test src/lib/audio-plan.test.ts",
     "test:scene-cast": "node --import tsx --test src/lib/scene-cast.test.ts",
     "test:audio-scene": "node --import tsx --test src/lib/audio-scene.test.ts",
     "test:seedance-audio": "node --import tsx --test src/lib/seedance-audio.test.ts",

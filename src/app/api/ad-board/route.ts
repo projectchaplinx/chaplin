@@ -7,6 +7,12 @@ import {
   promoteSlotToFinal,
   reanchorOverdeepChains,
 } from "@/lib/ad-board";
+import {
+  audioLayerSchema,
+  layerOwnerSchema,
+  resolveBoardAudioPlans,
+} from "@/lib/audio-plan";
+import { seedanceAudioCapability } from "@/lib/seedance-audio";
 import { extractChainLastFrame, measureStoredAudioMs } from "@/lib/server/ad-board-media";
 import { requireOwnedCharacter, requireRequestIdentity } from "@/lib/server/auth";
 import {
@@ -14,6 +20,7 @@ import {
   enforceRateLimit,
   securityErrorStatus,
 } from "@/lib/server/request-security";
+import { getPipelineConfig } from "@/lib/server/pipeline-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -36,23 +43,27 @@ export async function POST(request: Request) {
       });
     }
     const action = input.action;
+    const pipeline = await getPipelineConfig();
+    const capability = seedanceAudioCapability(pipeline.stages.video.model);
     if (action === "create") {
+      const created = createAdBoard({
+        arcTemplate: input.arcTemplate === "journey_delivery" ? "journey_delivery" : "problem_solution",
+        mode: input.mode === "functional_explainer" ? "functional_explainer" : "emotional_counterpoint",
+        canonicalReferenceAsset: String(input.canonicalReferenceAsset ?? ""),
+        identityBlock: String(input.identityBlock ?? ""),
+        wardrobeState: String(input.wardrobeState ?? ""),
+        ageState: String(input.ageState ?? ""),
+        productId: typeof input.productId === "string" ? input.productId : null,
+        audioMode: input.audioMode === "legacy_stems" ? "legacy_stems" : "resolved",
+      });
       return Response.json({
-        board: createAdBoard({
-          arcTemplate: input.arcTemplate === "journey_delivery" ? "journey_delivery" : "problem_solution",
-          mode: input.mode === "functional_explainer" ? "functional_explainer" : "emotional_counterpoint",
-          canonicalReferenceAsset: String(input.canonicalReferenceAsset ?? ""),
-          identityBlock: String(input.identityBlock ?? ""),
-          wardrobeState: String(input.wardrobeState ?? ""),
-          ageState: String(input.ageState ?? ""),
-          productId: typeof input.productId === "string" ? input.productId : null,
-        }),
+        board: adBoardSchema.parse(resolveBoardAudioPlans(created, capability)),
       }, { status: 201 });
     }
 
     const board = adBoardSchema.parse(input.board);
     if (action === "validate") {
-      const controlled = reanchorOverdeepChains(board);
+      const controlled = adBoardSchema.parse(resolveBoardAudioPlans(reanchorOverdeepChains(board), capability));
       return Response.json({ board: controlled, issues: lintAdBoard(controlled) });
     }
     if (action === "prepare-timing") {
@@ -60,7 +71,7 @@ export async function POST(request: Request) {
         slot.id,
         slot.vo_line && slot.dialogue_url ? await measureStoredAudioMs(slot.dialogue_url) : null,
       ])));
-      const timed = applyVoiceTimings(board, measured);
+      const timed = adBoardSchema.parse(resolveBoardAudioPlans(applyVoiceTimings(board, measured), capability));
       return Response.json({ board: timed, measuredAudioMs: measured, issues: lintAdBoard(timed) });
     }
     if (action === "prepare-voice") {
@@ -77,7 +88,7 @@ export async function POST(request: Request) {
       const measuredAudioMs: Record<string, number | null> = {};
       for (const slot of board.slots) {
         if (!slot.vo_line) {
-          preparedSlots.push({ ...slot, dialogue_asset_id: null, dialogue_url: null });
+          preparedSlots.push({ ...slot, dialogue_asset_id: null, dialogue_url: null, dialogue_duration_ms: null });
           measuredAudioMs[slot.id] = null;
           continue;
         }
@@ -106,15 +117,43 @@ export async function POST(request: Request) {
           ...slot,
           dialogue_asset_id: dialogueAssetId,
           dialogue_url: dialogueUrl,
+          dialogue_duration_ms: measuredAudioMs[slot.id],
         });
       }
       const voiced = adBoardSchema.parse({ ...board, slots: preparedSlots });
-      const timed = applyVoiceTimings(voiced, measuredAudioMs);
+      const timed = adBoardSchema.parse(resolveBoardAudioPlans(applyVoiceTimings(voiced, measuredAudioMs), capability));
       return Response.json({ board: timed, measuredAudioMs, issues: lintAdBoard(timed) });
     }
     if (action === "promote") {
       const slotId = String(input.slotId ?? "");
       return Response.json({ board: promoteSlotToFinal(board, slotId) });
+    }
+    if (action === "override-audio") {
+      const slotId = String(input.slotId ?? "");
+      const layer = audioLayerSchema.parse(input.layer);
+      const owner = layerOwnerSchema.parse(input.owner);
+      const reason = String(input.reason ?? "").trim();
+      const by = String(input.by ?? identity.id).trim();
+      if (reason.length < 3) throw new Error("An audio ownership override requires a typed reason.");
+      if (layer === "dialogue" && owner === "generated") {
+        throw new Error("Actor dialogue may never be generated.");
+      }
+      const overridden = adBoardSchema.parse({
+        ...board,
+        slots: board.slots.map((slot) => slot.id === slotId ? {
+          ...slot,
+          audio_plan: {
+            ...slot.audio_plan,
+            overrides: {
+              ...slot.audio_plan.overrides,
+              [layer]: { owner, reason, by, at: new Date().toISOString() },
+            },
+          },
+        } : slot),
+      });
+      return Response.json({
+        board: adBoardSchema.parse(resolveBoardAudioPlans(overridden, capability)),
+      });
     }
     if (action === "extract-chain-frame") {
       const slotId = String(input.slotId ?? "");

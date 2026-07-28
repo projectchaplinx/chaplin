@@ -3,6 +3,29 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.32 - 2026-07-28 - Per-slot audio ownership and voice recovery
+
+- Added a strict per-slot audio plan for dialogue, ambience, SFX, and music,
+  resolved from the active Seedance capability, slot content, locked TTS asset,
+  and Character Card delivery/SFX canon.
+- Added read-only Seedance audio capabilities in Pipeline Lab, including the
+  verified 15-second reference ceiling, native-output support, and safe
+  per-model fallback behavior.
+- Video prompts now contain only natively owned audio layers, always exclude
+  music, never permit generated actor dialogue, and rebuild as post-mix/off-face
+  when a fallback cannot accept the locked voice reference.
+- Board assembly now detects native clip audio, preserves it once, adds only
+  non-native stems, safely restores locked dialogue when expected native audio
+  is absent, ducks music 15dB under narration and 20dB under character speech,
+  and records per-slot ownership and cost-avoidance metadata.
+- Added all six audio lint rules, four-row ownership tables and reasoned
+  overrides in the Scene Handoff Map, provider fixtures, mix-planning tests, and
+  a board-level `legacy_stems` escape hatch.
+- When production is blocked by a missing locked voice or full ElevenLabs
+  capacity, the UI now offers an explicitly confirmed deletion of a selected
+  inactive Chaplin-generated voice. Active voices are excluded server-side,
+  after which the creator is directed to lock the actor voice and retry.
+
 ## v0.2.31 - 2026-07-28 - Typed eight-slot ad production board
 
 - Added a strict eight-slot Brand Spot board with problem-to-solution and

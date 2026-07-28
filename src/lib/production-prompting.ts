@@ -16,6 +16,7 @@ import {
   sanitizeVoicePerformanceDirection,
 } from "@/lib/voice-language";
 import { composePromptSlots, joinPromptList, unwrapLegacyDirection } from "@/lib/prompt-composer";
+import { buildAudioSceneBlock, type AudioPlan } from "@/lib/audio-plan";
 import {
   THEME_DIRECTION_TEMPLATE,
   fillThemeDirectionTemplate,
@@ -1295,15 +1296,29 @@ function simpleCameraMove(value: string) {
   return "Slow push in";
 }
 
-export function composeVideoPrompt(_character: CharacterIdentityInput, shot: ShotBlueprint) {
+export function composeVideoPrompt(
+  _character: CharacterIdentityInput,
+  shot: ShotBlueprint,
+  audio?: { plan: AudioPlan; durationMs: number; deliveryRegister?: "at_rest" | "under_pressure" },
+) {
   const card = readCharacterCardV2(_character.cardV2);
+  const cardVoice = card ? (card.voice_slots.primary ?? Object.values(card.voice_slots)[0]) : undefined;
+  const withAudio = (prompt: string) => audio
+    ? `${prompt}\n${buildAudioSceneBlock({
+        plan: audio.plan,
+        durationMs: audio.durationMs,
+        delivery: audio.deliveryRegister === "under_pressure"
+          ? cardVoice?.pressure_delivery
+          : cardVoice?.pacing,
+      })}`
+    : prompt;
   if (card) {
-    return buildCardVideoPrompt(card, {
+    return withAudio(buildCardVideoPrompt(card, {
       scene_beat: shot.dramaticBeat,
       motion: `${shot.actionTimeline[0]}; ${shot.actionTimeline[1]}; ${shot.actionTimeline[2]}; ${shot.environmentalMotion}`,
       camera: simpleCameraMove(shot.cameraMovement),
       timing: `Five seconds. End on: ${shot.finalFrame}`,
-    });
+    }));
   }
   const closeFrame = /extreme close|close[- ]?up|headshot|tight portrait/i.test(shot.framing);
   const camera = simpleCameraMove(shot.cameraMovement);
@@ -1320,7 +1335,7 @@ export function composeVideoPrompt(_character: CharacterIdentityInput, shot: Sho
     "--duration 5",
   ].join("\n");
   const wardrobe = buildProductionBible(_character).visual.wardrobe;
-  return /\bcoat\b/i.test(wardrobe) ? prompt : prompt.replace(/\bcoat hem\b/gi, "garment edge");
+  return withAudio(/\bcoat\b/i.test(wardrobe) ? prompt : prompt.replace(/\bcoat hem\b/gi, "garment edge"));
 }
 export function composeLegacyVideoPrompt(_character: CharacterIdentityInput, shot: ShotBlueprint) {
   return [

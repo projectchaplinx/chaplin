@@ -25,6 +25,17 @@ export interface AdminVoiceRow {
   status: string;
 }
 
+export async function listActiveVoiceIds() {
+  const result = await adminClient()
+    .from("character_voices")
+    .select("provider_voice_id")
+    .eq("status", "active");
+  assert(result.error, "Load active voice IDs");
+  return new Set((result.data ?? []).flatMap((row) => (
+    typeof row.provider_voice_id === "string" && row.provider_voice_id ? [row.provider_voice_id] : []
+  )));
+}
+
 export interface AdminAssetRow {
   id: string;
   character_id: string | null;

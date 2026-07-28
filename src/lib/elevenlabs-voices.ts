@@ -32,3 +32,27 @@ export function supersededChaplinVoices(
     ))
     .slice(0, Math.max(0, limit));
 }
+
+/**
+ * Explicit capacity-recovery choices. Active voices are never candidates.
+ * Regular makers may only reclaim voices labelled for the actor in scope;
+ * Super Admin can recover another inactive Chaplin-generated voice.
+ */
+export function reclaimableChaplinVoices(
+  voices: ElevenLabsVoiceSummary[],
+  activeVoiceIds: ReadonlySet<string>,
+  characterId: string,
+  allowCrossActor: boolean,
+) {
+  return voices
+    .filter((voice) => (
+      voice.category === "generated"
+      && voice.labels?.project === "chaplin"
+      && !activeVoiceIds.has(voice.voice_id)
+      && (allowCrossActor || voice.labels?.character_id === characterId)
+    ))
+    .sort((left, right) => (
+      (left.created_at_unix ?? Number.MAX_SAFE_INTEGER)
+      - (right.created_at_unix ?? Number.MAX_SAFE_INTEGER)
+    ));
+}

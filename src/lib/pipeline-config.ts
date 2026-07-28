@@ -83,7 +83,7 @@ export const PIPELINE_STAGE_META: Record<PipelineStageId, {
   video: {
     label: "Video",
     owner: "Motion director",
-    purpose: "Five-second image-to-video plates with diegetic location sound, preserving identity and composition. Dialogue and theme remain separate stems.",
+    purpose: "Identity-locked motion plates with resolved per-slot dialogue, ambience, and SFX ownership. Music always remains a board-level post-mix stem.",
     temperatureSupported: false,
   },
 };

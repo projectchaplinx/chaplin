@@ -13,10 +13,12 @@ use the existing shot, take, generation-job, media-asset, QC, and ledger paths.
 | `description` | The visible dramatic event, not provider prose. |
 | `camera` | Framing, movement, and stability. Stability tracks the psychological state. |
 | `color_light` | Grade state: harsh contrast → neutral reset → warm white → controlled saturation. |
-| `audio.music` / `audio.sfx` | Separate score and physical-effects direction. |
+| `set` / `weather` / `location` | Physical ambience sources; biography and narrative are excluded. |
+| `audio.music` / `audio.sfx` | Legacy score and physical-effects direction. |
+| `audio_plan` | Resolved layer ownership and audited per-layer overrides. |
 | `screen_text` | Sparse overlay copy. It is null throughout chaos slots 1–3. |
 | `vo_line` / `vo_kind` | Written before picture timing. Mode A uses emotional counterpoint; Mode B may explain function. |
-| `duration_ms` | Measured TTS duration plus 350 ms after narration or 200 ms after dialogue. Silent slots are 4000 ms. |
+| `duration_ms` | Measured TTS duration plus 350 ms after narration or a 500 ms dialogue head offset. Silent slots are 4000 ms. |
 | `image_prompt` | Provider-ready first/last-frame prompt carrying identity, wardrobe, and age state verbatim. |
 | `motion` / `motion_reason` | Forward, chain, or first/last-frame contract. Target-frame mode requires a recorded reason. |
 | `tier` | `draft` is 480p and is the board default; `final` is 1080p and is promoted per slot. |
@@ -25,6 +27,29 @@ use the existing shot, take, generation-job, media-asset, QC, and ledger paths.
 `identity_block`, `wardrobe_state`, and `age_state` are immutable continuity
 fields on every slot. A chained slot inherits them from its source; a wardrobe
 change inside a chain blocks queueing.
+
+## Per-slot audio ownership
+
+Each slot carries a Zod-validated `audio_plan` with four independently owned
+layers:
+
+- dialogue is `native` only when the persisted locked ElevenLabs TTS asset is
+  attached as Seedance reference audio; otherwise it is `post_mix`
+- ambience is native when the active model produces audio, otherwise generated
+- SFX is native only for visible shot-scoped actions; signature or frame-exact
+  events stay generated through the atomic SFX path
+- music is always `post_mix`, as one continuous board-level bed
+
+Dialogue, ambience, and SFX overrides require a new owner, typed reason,
+operator, and timestamp. Music is not overridable, and dialogue can never be
+`generated`. `audio_mode: "legacy_stems"` preserves the previous all-post-mix
+behavior.
+
+Assembly probes every rendered clip for an audio stream. Confirmed native audio
+is retained once; generated and post-mix layers are added separately. Missing
+native dialogue safely falls back to the locked TTS stem. Music ducks 15dB
+under narration and 20dB under character dialogue before the master is
+normalized to -14 LUFS.
 
 ## House arc templates
 

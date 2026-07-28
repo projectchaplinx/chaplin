@@ -1,78 +1,72 @@
-# Seedance 2.0 audio capability probe
+# Seedance audio capability contract
 
-Findings from the ModelArk client as it stands, ahead of audio-aware video
-generation. Source of truth: the task-creation call in
-`src/app/api/generate/route.ts` and `src/lib/seedance-audio.ts`.
+This contract is verified against the current ModelArk task-creation API and
+enforced by `src/app/api/generate/route.ts`, `src/lib/seedance-audio.ts`, and
+`src/lib/audio-plan.ts`.
 
-## (a) Audio reference input — SUPPORTED
+## Persisted capability config
 
-The request body's `content` array is multimodal and already accepts an audio
-reference alongside the text prompt and the approved still:
+| Model family | Audio reference input | Native output | Maximum reference |
+| --- | ---: | ---: | ---: |
+| Seedance 2.0 | yes | yes | 15,000ms |
+| Seedance 1.5 | no | yes | not applicable |
+| Other/fallback | no | no | not applicable |
+
+The code-owned `SEEDANCE_AUDIO_CAPABILITIES` object is displayed read-only in
+Pipeline Lab. Routing may select a different capability profile, but an
+operator cannot claim a transport feature the provider does not expose.
+
+## Audio reference input
+
+Seedance 2.0 accepts multimodal reference content:
 
 ```js
 content: [
   { type: "text", text: prompt },
-  { type: "image_url", image_url: { url } },          // approved first frame
+  { type: "image_url", image_url: { url }, role: "reference_image" },
   { type: "audio_url", audio_url: { url }, role: "reference_audio" },
 ]
 ```
 
-It is gated on the model by `seedanceSupportsAudioReference()`, which matches
-`/dreamina-seedance-2-0/i` only. **Path A is therefore viable** and no new
-transport work is needed to attach a locked ElevenLabs line.
+Audio input must be WAV or MP3, each file must be 2–15 seconds, no more than
+three references may be supplied, and their combined duration may not exceed
+15 seconds. Chaplin additionally requires the locked TTS render to fit within
+the slot duration minus the 500ms dialogue head offset.
 
-## (b) Native audio output toggle — SUPPORTED
+Source:
+[Create a video generation task](https://docs.byteplus.com/en/docs/modelark/1520757).
 
-`generate_audio` is a top-level boolean on the task request, read from the
-pipeline config via `settingBoolean(videoConfig, "generateAudio", true)`. It is
-already on by default, so shots are not silent plates unless the config says so.
+## Native audio output
 
-`prepareSeedanceAudioPrompt()` already switches prompt grammar three ways:
-reference audio + dialogue (lip-sync brief), `generateAudio` on (diegetic-only
-brief), and off (silent plate preserved). The `kind: "silent"` path is intact.
+`generate_audio` is supported by Seedance 2.0 and Seedance 1.5. ModelArk may
+otherwise generate voice, effects, and background music, so the board resolver
+turns it on only when at least one layer is owned by `native`. Every board video
+prompt carries `no music` and either:
 
-## (c) Maximum audio reference length — UNKNOWN, UNGUARDED
+- the locked audio-reference lip-sync instruction, with no invented voices or
+  narration; or
+- a complete no-speech, no-dialogue, no-vocal-sounds negative.
 
-**No length limit is declared or asserted anywhere in the client.** The
-reference URL is passed straight through with no duration check, so an
-over-length line would fail at the provider rather than at submit time. This
-must be confirmed against BytePlus ModelArk documentation before Path A ships;
-until then the duration assertion required by TASK 1 (TTS line must fit shot
-duration minus 0.5s head/tail) has nothing to validate against on the upper
-bound.
+## First-frame exclusivity
 
-## Gap worth deciding on: the fallback model silently drops lip-sync
+ModelArk treats exact first/last-frame generation and multimodal reference
+generation as mutually exclusive scenarios:
 
-The video stage fails over across `[videoConfig.model, fallbackModel]`, where
-`fallbackModel` defaults to `seedance-1-5-pro-251215`. That model does **not**
-match `seedanceSupportsAudioReference()`, so when a Seedance 2.0 dialogue shot
-fails over, the audio reference is dropped and the shot renders without
-lip-sync — with no error and no flag on the job. Path A needs an explicit
-decision here: either refuse the fallback for dialogue shots, or mark the
-delivered shot post-mix so the FFmpeg path attaches the line instead.
-
-## Confirmed in production: a first frame excludes reference media
-
-ModelArk rejects a request carrying both with:
-
-```
-400 The parameter `content` specified in the request is not valid:
-first/last frame content cannot be mixed with reference media content.
+```text
+first/last frame content cannot be mixed with reference media content
 ```
 
-So the approved still and the locked-voice audio reference are **mutually
-exclusive**, and Path A as originally specified - approved still as first frame
-*plus* TTS audio reference - is not possible on this API.
+Native-dialogue forward and chain slots therefore use multimodal reference mode
+(`reference_image` plus `reference_audio`). Strict `ff_lf` slots keep their
+exact-frame contract and resolve dialogue to post-mix.
 
-Chaplin keeps the still. It is the identity lock and the exact frame the shot
-animates from; losing it would let the actor's face drift, which is worse than
-mixing the line in afterwards. A shot with an approved first frame therefore
-renders ambient-only and is marked post-mix with off-face framing - the Path B
-behaviour `resolveAudioScene` already describes. Path A remains available for a
-shot generated without a first frame.
+## Fallback behavior
 
-## Conclusion
+The configured Seedance 1.5 fallback cannot accept the locked audio reference.
+Before that fallback runs, Chaplin resolves the slot again for the fallback
+capability and rebuilds the prompt as post-mix dialogue with an off-face
+constraint. It never leaves a native-dialogue instruction in a request with no
+locked recording attached.
 
-Path A is unblocked on transport (a and b are supported). Two things gate it:
-confirming the reference-length ceiling in (c), and resolving the fallback
-behaviour above so voice identity cannot silently drift.
+Board-level `audio_mode: "legacy_stems"` remains the explicit all-post-mix
+escape hatch.

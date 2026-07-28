@@ -5,24 +5,28 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { adBoardSchema, expandLongAdSlots, lintAdBoard } from "@/lib/ad-board";
 import { planAdBoardPictureSources } from "@/lib/ad-board-assembly";
+import { audioPlanUsesNative, planSlotAudioMix } from "@/lib/audio-plan";
 import { DELIVERY_LOUDNESS_FILTER } from "@/lib/audio-mix";
 import { requireOwnedCharacter, requireOwnedPipelineRun, requireRequestIdentity } from "@/lib/server/auth";
 import { ffmpegExecutable, isMissingFfmpegError } from "@/lib/server/ffmpeg-runtime";
 import { attachMediaPipelineOutput, getMediaPipelineRun } from "@/lib/server/media-pipeline";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
 import { saveMediaAsset } from "@/lib/server/supabase-admin";
+import { probeMediaAudio } from "@/lib/server/ad-board-media";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const execute = promisify(execFile);
 const MUSIC_DUCK_GAIN = Math.pow(10, -15 / 20);
+const DISTINCT_VOICE_DUCK_GAIN = Math.pow(10, -20 / 20);
 
 type SlotMedia = {
   slotId: string;
   videoUrl?: string;
   stillUrl?: string;
   sfxUrl?: string;
+  ambienceUrl?: string;
 };
 
 async function download(url: string, destination: string) {
@@ -48,6 +52,7 @@ function slotMedia(value: unknown): SlotMedia[] {
       videoUrl: optionalUrl("videoUrl"),
       stillUrl: optionalUrl("stillUrl"),
       sfxUrl: optionalUrl("sfxUrl"),
+      ambienceUrl: optionalUrl("ambienceUrl"),
     }];
   });
 }
@@ -93,6 +98,8 @@ export async function POST(request: Request) {
     workDirectory = await mkdtemp(path.join(tmpdir(), "chaplin-ad-board-"));
     const ffmpeg = ffmpegExecutable();
     const normalized: string[] = [];
+    const nativeAudioBySlot = new Map<string, boolean>();
+    const audioProbeLog: Array<{ slotId: string; hasAudio: boolean; method: string; nativeRequested: boolean }> = [];
     let previousFrame = "";
     const picturePlan = planAdBoardPictureSources(
       renderSlots.map((slot) => slot.id),
@@ -111,10 +118,29 @@ export async function POST(request: Request) {
       if (picture.kind === "video") {
         const source = path.join(workDirectory, `slot-${index + 1}-source.mp4`);
         await download(picture.url, source);
-        await execute(ffmpeg, [
+        const probe = await probeMediaAudio(source);
+        const nativeRequested = audioPlanUsesNative(slot.audio_plan);
+        const useNativeAudio = nativeRequested && probe.hasAudio;
+        nativeAudioBySlot.set(
+          slot.source_slot_id,
+          Boolean(nativeAudioBySlot.get(slot.source_slot_id)) || useNativeAudio,
+        );
+        audioProbeLog.push({ slotId: slot.id, hasAudio: probe.hasAudio, method: probe.method, nativeRequested });
+        const visualFilter = `tpad=stop_mode=clone:stop_duration=${durationSeconds},trim=duration=${durationSeconds},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,setsar=1`;
+        await execute(ffmpeg, useNativeAudio ? [
           "-y", "-i", source,
-          "-vf", `tpad=stop_mode=clone:stop_duration=${durationSeconds},trim=duration=${durationSeconds},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,setsar=1`,
-          "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-filter_complex", `[0:v]${visualFilter}[v];[0:a]apad,atrim=0:${durationSeconds},aresample=48000,asetpts=PTS-STARTPTS[a]`,
+          "-map", "[v]", "-map", "[a]",
+          "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+          "-t", String(durationSeconds), outputPath,
+        ] : [
+          "-y", "-i", source,
+          "-f", "lavfi", "-t", String(durationSeconds), "-i", "anullsrc=r=48000:cl=stereo",
+          "-filter_complex", `[0:v]${visualFilter}[v];[1:a]atrim=0:${durationSeconds},asetpts=PTS-STARTPTS[a]`,
+          "-map", "[v]", "-map", "[a]",
+          "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
           "-t", String(durationSeconds), outputPath,
         ], { maxBuffer: 10 * 1024 * 1024, windowsHide: true });
       } else {
@@ -126,10 +152,15 @@ export async function POST(request: Request) {
         if (!stillPath) throw new Error(`Slot ${slot.id} has no clip, still, canonical reference, or previous frame to carry forward.`);
         await execute(ffmpeg, [
           "-y", "-loop", "1", "-i", stillPath,
-          "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,setsar=1`,
-          "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-f", "lavfi", "-t", String(durationSeconds), "-i", "anullsrc=r=48000:cl=stereo",
+          "-filter_complex", `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,setsar=1[v];[1:a]atrim=0:${durationSeconds},asetpts=PTS-STARTPTS[a]`,
+          "-map", "[v]", "-map", "[a]",
+          "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
           "-t", String(durationSeconds), outputPath,
         ], { maxBuffer: 10 * 1024 * 1024, windowsHide: true });
+        nativeAudioBySlot.set(slot.source_slot_id, Boolean(nativeAudioBySlot.get(slot.source_slot_id)));
+        audioProbeLog.push({ slotId: slot.id, hasAudio: false, method: "still-silence", nativeRequested: audioPlanUsesNative(slot.audio_plan) });
       }
       await execute(ffmpeg, [
         "-y", "-sseof", "-0.1", "-i", outputPath, "-frames:v", "1", lastFramePath,
@@ -140,15 +171,31 @@ export async function POST(request: Request) {
 
     const dialogueInputs: Array<{ path: string; offsetMs: number; durationSeconds: number }> = [];
     const sfxInputs: Array<{ path: string; offsetMs: number; durationSeconds: number }> = [];
+    const ambienceInputs: Array<{ path: string; offsetMs: number; durationSeconds: number }> = [];
+    const dialogueWindows: Array<{ startSeconds: number; endSeconds: number; distinct: boolean }> = [];
     let offsetMs = 0;
     for (const slot of board.slots) {
-      if (slot.vo_line && slot.dialogue_url) {
+      const nativeAudioPresent = Boolean(nativeAudioBySlot.get(slot.id));
+      const mixPlan = planSlotAudioMix(slot, nativeAudioPresent);
+      if (slot.vo_line) {
+        dialogueWindows.push({
+          startSeconds: (offsetMs + 500) / 1000,
+          endSeconds: (offsetMs + slot.duration_ms) / 1000,
+          distinct: slot.vo_kind === "dialogue",
+        });
+      }
+      if (mixPlan.includeDialogue) {
         const sourcePath = path.join(workDirectory, `vo-${slot.slot_no}.mp3`);
-        await download(slot.dialogue_url, sourcePath);
-        dialogueInputs.push({ path: sourcePath, offsetMs, durationSeconds: slot.duration_ms / 1000 });
+        await download(slot.dialogue_url!, sourcePath);
+        dialogueInputs.push({ path: sourcePath, offsetMs: offsetMs + mixPlan.dialogueOffsetMs, durationSeconds: slot.duration_ms / 1000 });
       }
       const media = mediaBySlot.get(slot.id);
-      if (media?.sfxUrl) {
+      if (media?.ambienceUrl && mixPlan.includeAmbience) {
+        const sourcePath = path.join(workDirectory, `ambience-${slot.slot_no}.mp3`);
+        await download(media.ambienceUrl, sourcePath);
+        ambienceInputs.push({ path: sourcePath, offsetMs, durationSeconds: slot.duration_ms / 1000 });
+      }
+      if (media?.sfxUrl && mixPlan.includeSfx) {
         const sourcePath = path.join(workDirectory, `sfx-${slot.slot_no}.mp3`);
         await download(media.sfxUrl, sourcePath);
         sfxInputs.push({ path: sourcePath, offsetMs, durationSeconds: slot.duration_ms / 1000 });
@@ -167,7 +214,7 @@ export async function POST(request: Request) {
     const audioInputs: string[] = [];
     const audioFilters: string[] = [];
     const labels = ["[bed]"];
-    let inputIndex = 2;
+    let inputIndex = 1;
     for (const [index, source] of dialogueInputs.entries()) {
       audioInputs.push("-i", source.path);
       audioFilters.push(`[${inputIndex}:a]adelay=${source.offsetMs}|${source.offsetMs},apad,atrim=0:${totalDurationSeconds},asetpts=PTS-STARTPTS[vo${index}]`);
@@ -180,22 +227,30 @@ export async function POST(request: Request) {
       labels.push(`[sfx${index}]`);
       inputIndex += 1;
     }
+    for (const [index, source] of ambienceInputs.entries()) {
+      audioInputs.push("-i", source.path);
+      audioFilters.push(`[${inputIndex}:a]volume=0.55,adelay=${source.offsetMs}|${source.offsetMs},apad,atrim=0:${totalDurationSeconds},asetpts=PTS-STARTPTS[ambience${index}]`);
+      labels.push(`[ambience${index}]`);
+      inputIndex += 1;
+    }
     if (themePath) {
       audioInputs.push("-i", themePath);
-      const windows = dialogueInputs.map((source) => `between(t,${source.offsetMs / 1000},${source.offsetMs / 1000 + source.durationSeconds})`);
-      const volume = windows.length
-        ? `volume='if(gt(${windows.join("+")},0),${(0.18 * MUSIC_DUCK_GAIN).toFixed(4)},0.18)':eval=frame`
+      const distinctWindows = dialogueWindows.filter((window) => window.distinct)
+        .map((window) => `between(t,${window.startSeconds},${window.endSeconds})`);
+      const otherWindows = dialogueWindows.filter((window) => !window.distinct)
+        .map((window) => `between(t,${window.startSeconds},${window.endSeconds})`);
+      const volume = dialogueWindows.length
+        ? `volume='if(gt(${distinctWindows.length ? distinctWindows.join("+") : "0"},0),${(0.18 * DISTINCT_VOICE_DUCK_GAIN).toFixed(4)},if(gt(${otherWindows.length ? otherWindows.join("+") : "0"},0),${(0.18 * MUSIC_DUCK_GAIN).toFixed(4)},0.18))':eval=frame`
         : "volume=0.18";
       audioFilters.push(`[${inputIndex}:a]${volume},aloop=loop=-1:size=2e9,atrim=0:${totalDurationSeconds},asetpts=PTS-STARTPTS[music]`);
       labels.push("[music]");
     }
-    audioFilters.unshift(`[1:a]atrim=0:${totalDurationSeconds},asetpts=PTS-STARTPTS[bed]`);
+    audioFilters.unshift(`[0:a]atrim=0:${totalDurationSeconds},asetpts=PTS-STARTPTS[bed]`);
     audioFilters.push(`${labels.join("")}amix=inputs=${labels.length}:duration=first:dropout_transition=0,${DELIVERY_LOUDNESS_FILTER},alimiter=limit=0.95[aout]`);
 
     await execute(ffmpeg, [
       "-y",
       "-f", "concat", "-safe", "0", "-i", concatList,
-      "-f", "lavfi", "-t", String(totalDurationSeconds), "-i", "anullsrc=r=48000:cl=stereo",
       ...audioInputs,
       "-filter_complex", audioFilters.join(";"),
       "-map", "0:v", "-map", "[aout]",
@@ -223,7 +278,20 @@ export async function POST(request: Request) {
           shortVideo: "tpad clone",
           musicDuckDb: -15,
           loudnessLufs: -14,
+          nativeAudioProbe: audioProbeLog,
         },
+        audioLedger: board.slots.map((slot) => ({
+          slotId: slot.id,
+          dialogue: slot.audio_plan.dialogue.owner,
+          ambience: slot.audio_plan.ambience.owner,
+          sfx: slot.audio_plan.sfx.owner,
+          music: slot.audio_plan.music.owner,
+          ttsCharacters: slot.vo_line?.length ?? 0,
+          sfxJobs: slot.audio_plan.sfx.owner === "generated" ? slot.audio_plan.sfx.events.length : 0,
+          nativeAudioUsed: Boolean(nativeAudioBySlot.get(slot.id)),
+          nativeAudioCostAvoided: Boolean(nativeAudioBySlot.get(slot.id)),
+          dialogueFallbackToPostMix: slot.audio_plan.dialogue.owner === "native" && !nativeAudioBySlot.get(slot.id),
+        })),
         estimatedSpendUsd: board.estimated_spend_usd,
         actualSpendUsd: board.actual_spend_usd,
       },

@@ -10,6 +10,7 @@ import {
   saveMediaAsset,
   saveRemoteMediaAsset,
   listCharacters,
+  listActiveVoiceIds,
   selectCharacterSfxAsset,
 } from "@/lib/server/supabase-admin";
 import { calculateGenerationBilling } from "@/lib/server/billing";
@@ -45,9 +46,17 @@ import { assembleSignatureSfx } from "@/lib/server/signature-sfx";
 import { enforceThemeDuration } from "@/lib/server/audio-postprocess";
 import {
   prepareSeedanceAudioPrompt,
+  seedanceAudioCapability,
   seedanceSupportsAudioReference,
 } from "@/lib/seedance-audio";
 import { resolveAudioScene } from "@/lib/audio-scene";
+import {
+  audioPlanUsesNative,
+  buildAudioSceneBlock,
+  lintAudioPlan,
+  resolveAudioPlan,
+  type AudioPlan,
+} from "@/lib/audio-plan";
 import {
   buildElevenMusicRequest,
   buildThemePlan,
@@ -58,6 +67,7 @@ import { compactVisualDirection, requestsStylizedImage } from "@/lib/prompt-comp
 import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { PromptLintError } from "@/lib/prompt-lint";
 import {
+  reclaimableChaplinVoices,
   supersededChaplinVoices,
   type ElevenLabsVoiceSummary,
 } from "@/lib/elevenlabs-voices";
@@ -488,23 +498,29 @@ function voiceLimitReached(error: unknown) {
     && /voice_limit_reached|maximum amount of custom voices/i.test(error.detail);
 }
 
+async function listPersonalGeneratedVoices() {
+  const key = elevenKey();
+  if (!key) throw new Error("ELEVEN_LABS_API_KEY is not configured.");
+  const response = await fetch(
+    `${ELEVEN_ROOT}/v2/voices?page_size=100&voice_type=personal&category=generated&sort=created_at_unix&sort_direction=asc`,
+    { headers: { "xi-api-key": key }, cache: "no-store" },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`ElevenLabs could not list older voices (${response.status}): ${detail.slice(0, 300)}`);
+  }
+  const payload = await response.json() as { voices?: ElevenLabsVoiceSummary[] };
+  return Array.isArray(payload.voices) ? payload.voices : [];
+}
+
 async function reclaimSupersededActorVoices(
   characterId: string,
   activeVoiceId: string | null | undefined,
 ) {
   const key = elevenKey();
   if (!key) throw new Error("ELEVEN_LABS_API_KEY is not configured.");
-  const listResponse = await fetch(
-    `${ELEVEN_ROOT}/v2/voices?page_size=100&voice_type=personal&category=generated&sort=created_at_unix&sort_direction=asc`,
-    { headers: { "xi-api-key": key }, cache: "no-store" },
-  );
-  if (!listResponse.ok) {
-    const detail = await listResponse.text();
-    throw new Error(`ElevenLabs could not list older voices (${listResponse.status}): ${detail.slice(0, 300)}`);
-  }
-  const payload = await listResponse.json() as { voices?: ElevenLabsVoiceSummary[] };
   const candidates = supersededChaplinVoices(
-    Array.isArray(payload.voices) ? payload.voices : [],
+    await listPersonalGeneratedVoices(),
     characterId,
     activeVoiceId,
     2,
@@ -809,6 +825,63 @@ export async function POST(request: Request) {
     if (action === "sfx-select") {
       const assetId = text(input, "assetId", 1, 100);
       return Response.json(await selectCharacterSfxAsset({ characterId, assetId }));
+    }
+
+    if (action === "voice-capacity-list") {
+      const [voices, activeVoiceIds] = await Promise.all([
+        listPersonalGeneratedVoices(),
+        listActiveVoiceIds(),
+      ]);
+      const candidates = reclaimableChaplinVoices(
+        voices,
+        activeVoiceIds,
+        characterId,
+        identity.role === "admin",
+      ).slice(0, 20);
+      return Response.json({
+        candidates: candidates.map((voice) => ({
+          voiceId: voice.voice_id,
+          name: voice.name || "Unnamed Chaplin voice",
+          characterId: voice.labels?.character_id ?? null,
+          createdAtUnix: voice.created_at_unix ?? null,
+        })),
+      });
+    }
+
+    if (action === "voice-capacity-delete") {
+      const voiceId = text(input, "voiceId", 1, 200);
+      const confirmedVoiceId = text(input, "confirmedVoiceId", 1, 200);
+      if (voiceId !== confirmedVoiceId) {
+        throw new RequestValidationError("Voice deletion requires confirmation of the exact selected voice.");
+      }
+      const [voices, activeVoiceIds] = await Promise.all([
+        listPersonalGeneratedVoices(),
+        listActiveVoiceIds(),
+      ]);
+      const candidate = reclaimableChaplinVoices(
+        voices,
+        activeVoiceIds,
+        characterId,
+        identity.role === "admin",
+      ).find((voice) => voice.voice_id === voiceId);
+      if (!candidate) {
+        throw new RequestValidationError("That voice is active, outside this actor's scope, or no longer reclaimable.");
+      }
+      const key = elevenKey();
+      if (!key) throw new Error("ELEVEN_LABS_API_KEY is not configured.");
+      const response = await fetch(
+        `${ELEVEN_API}/voices/${encodeURIComponent(candidate.voice_id)}`,
+        { method: "DELETE", headers: { "xi-api-key": key } },
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`ElevenLabs could not delete the selected voice (${response.status}): ${detail.slice(0, 300)}`);
+      }
+      return Response.json({
+        deleted: true,
+        voiceId: candidate.voice_id,
+        message: "One inactive Chaplin voice was deleted. Lock this actor's chosen voice, then retry production.",
+      });
     }
 
     let pipeline = await getPipelineConfig();
@@ -1584,8 +1657,10 @@ export async function POST(request: Request) {
       */
       const requestedPrompt = text(input, "prompt", 10, 12000);
       let boardSlot: AdSlot | null = null;
+      let adBoard: import("@/lib/ad-board").AdBoard | null = null;
       if (input.adBoard !== undefined) {
         const board = adBoardSchema.parse(input.adBoard);
+        adBoard = board;
         const boardSlotId = text(input, "boardSlotId", 1, 200);
         assertAdSlotQueueable(board, boardSlotId);
         boardSlot = board.slots.find((slot) => slot.id === boardSlotId) ?? null;
@@ -1613,8 +1688,8 @@ export async function POST(request: Request) {
       if (boardSlot?.motion.mode === "ff_lf" && !requestedLastFrame) {
         throw new RequestValidationError("First/last-frame motion requires the supplied last-frame asset URL.");
       }
-      const referenceAudio = typeof input.referenceAudio === "string" ? input.referenceAudio.trim() : "";
-      const dialogueText = typeof input.dialogueText === "string" ? input.dialogueText.trim() : "";
+      const requestedReferenceAudio = typeof input.referenceAudio === "string" ? input.referenceAudio.trim() : "";
+      const requestedDialogueText = typeof input.dialogueText === "string" ? input.dialogueText.trim() : "";
       const production = await getCharacterProductionState(characterId);
       const canonicalReference = production.visualReference;
       // A production-approved frame is more specific than the actor's general
@@ -1624,14 +1699,39 @@ export async function POST(request: Request) {
         throw new RequestValidationError("First/last-frame motion requires the supplied first-frame asset URL.");
       }
       // Applied after compaction so the audio brief is never trimmed away.
-      const wantsSceneAudio = settingBoolean(videoConfig, "generateAudio", true);
+      const durationSeconds = boardSlot
+        ? boardSlot.duration_ms / 1000
+        : settingNumber(videoConfig, "durationSeconds", 5);
+      const card = readCharacterCardV2(requestCharacter?.cardV2);
+      const voiceSlot = card ? (card.voice_slots.primary ?? Object.values(card.voice_slots)[0]) : undefined;
+      const resolvedAudioPlan = boardSlot && adBoard
+        ? resolveAudioPlan(
+            boardSlot,
+            seedanceAudioCapability(videoConfig.model),
+            {
+              delivery_at_rest: voiceSlot?.pacing,
+              delivery_under_pressure: voiceSlot?.pressure_delivery,
+              signature_sfx: card?.signature_sfx_events?.flatMap((event) => [event.label, event.prompt]) ?? [],
+            },
+            adBoard.audio_mode,
+          )
+        : null;
+      const referenceAudio = resolvedAudioPlan
+        ? resolvedAudioPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""
+        : requestedReferenceAudio;
+      const dialogueText = boardSlot?.vo_line ?? requestedDialogueText;
+      const wantsSceneAudio = resolvedAudioPlan
+        ? audioPlanUsesNative(resolvedAudioPlan)
+        : settingBoolean(videoConfig, "generateAudio", true);
       const composedPrompt = visualGenerationPrompt(videoConfig, silentPrompt, "video");
-      const basePrompt = prepareSeedanceAudioPrompt({
-        prompt: composedPrompt,
-        generateAudio: wantsSceneAudio,
-        referenceAudioUrl: referenceAudio,
-        dialogueText,
-      });
+      const basePrompt = resolvedAudioPlan
+        ? composedPrompt
+        : prepareSeedanceAudioPrompt({
+            prompt: composedPrompt,
+            generateAudio: wantsSceneAudio,
+            referenceAudioUrl: referenceAudio,
+            dialogueText,
+          });
       const referenceMetadata = {
         referenceImage: reference || null,
         referenceAssetId: requestedReference ? null : canonicalReference?.assetId ?? null,
@@ -1649,7 +1749,6 @@ export async function POST(request: Request) {
             }
           : {}),
       };
-      const durationSeconds = settingNumber(videoConfig, "durationSeconds", 5);
       /*
         An explicit audio plan opts a shot into the AUDIO SCENE grammar. Without
         one the prompt is unchanged, so the silent-plate and ambient paths keep
@@ -1660,7 +1759,7 @@ export async function POST(request: Request) {
       const audioPlan = input.audioPlan && typeof input.audioPlan === "object"
         ? input.audioPlan as { ambience?: unknown; sfxMoments?: unknown }
         : null;
-      const audioScene = audioPlan?.ambience
+      const audioScene = !resolvedAudioPlan && audioPlan?.ambience
         ? resolveAudioScene({
             model: videoConfig.model,
             generateAudio: wantsSceneAudio,
@@ -1690,7 +1789,24 @@ export async function POST(request: Request) {
               : undefined,
           })
         : null;
-      const prompt = audioScene?.block ? `${basePrompt}\n${audioScene.block}` : basePrompt;
+      const prompt = resolvedAudioPlan
+        ? `${basePrompt}\n${buildAudioSceneBlock({
+            plan: resolvedAudioPlan,
+            durationMs: boardSlot!.duration_ms,
+            delivery: boardSlot!.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
+          })}`
+        : audioScene?.block ? `${basePrompt}\n${audioScene.block}` : basePrompt;
+      if (resolvedAudioPlan && boardSlot) {
+        const audioFailures = lintAudioPlan({
+          slot: boardSlot,
+          plan: resolvedAudioPlan,
+          videoPrompt: prompt,
+          audioReferenceAttached: resolvedAudioPlan.dialogue.owner === "native" && Boolean(referenceAudio),
+        }).filter((issue) => issue.level === "failure");
+        if (audioFailures.length) {
+          throw new RequestValidationError(audioFailures.map((issue) => `${issue.rule}: ${issue.message}`).join(" "));
+        }
+      }
       const consistencyWarnings = mediaPromptWarnings(requestCharacter, prompt, "video");
       jobId = await startGeneration({
         characterId,
@@ -1709,6 +1825,20 @@ export async function POST(request: Request) {
                 audioMode: audioScene.mode,
                 audioPostMix: audioScene.postMix,
                 dialogueCharacters: dialogueText.length,
+              }
+            : {}),
+          ...(resolvedAudioPlan
+            ? {
+                audioPlan: resolvedAudioPlan,
+                audioLayers: {
+                  dialogue: resolvedAudioPlan.dialogue.owner,
+                  ambience: resolvedAudioPlan.ambience.owner,
+                  sfx: resolvedAudioPlan.sfx.owner,
+                  music: resolvedAudioPlan.music.owner,
+                },
+                dialogueCharacters: dialogueText.length,
+                ttsCharacters: dialogueText.length,
+                sfxJobs: resolvedAudioPlan.sfx.owner === "generated" ? resolvedAudioPlan.sfx.events.length : 0,
               }
             : {}),
         },
@@ -1740,20 +1870,30 @@ export async function POST(request: Request) {
       const wantsLipSync = boardSlot?.motion.mode !== "ff_lf"
         && Boolean(referenceAudio)
         && Boolean(dialogueText)
+        && resolvedAudioPlan?.dialogue.owner !== "post_mix"
         && seedanceSupportsAudioReference(videoConfig.model);
 
-      const runVideoTask = async (model: string, lipSync = false) => {
+      const runVideoTask = async (
+        model: string,
+        lipSync = false,
+        taskPrompt = prompt,
+        taskGenerateAudio = wantsSceneAudio,
+        taskReferenceAudio = referenceAudio,
+      ) => {
         const taskContent = tier === "final" && draftTaskId
           ? [{ type: "draft_task", draft_task: { id: draftTaskId } }]
           : lipSync
           ? [
-              { type: "text", text: prompt },
+              { type: "text", text: taskPrompt },
               ...(reference
                 ? [{ type: "image_url", image_url: { url: await imageInput(reference) }, role: "reference_image" }]
                 : []),
-              { type: "audio_url", audio_url: { url: referenceAudio }, role: "reference_audio" },
+              { type: "audio_url", audio_url: { url: taskReferenceAudio }, role: "reference_audio" },
             ]
-          : [...content];
+          : [
+              { type: "text", text: taskPrompt },
+              ...content.slice(1),
+            ];
         /*
           ModelArk rejects a request that carries both, with
           "first/last frame content cannot be mixed with reference media
@@ -1767,13 +1907,13 @@ export async function POST(request: Request) {
           post-mixed, which is the path resolveAudioScene already describes.
         */
         const canAttachAudio = !lipSync
-          && Boolean(referenceAudio)
+          && Boolean(taskReferenceAudio)
           && seedanceSupportsAudioReference(model)
           && !reference;
         if (canAttachAudio) {
           taskContent.push({
             type: "audio_url",
-            audio_url: { url: referenceAudio },
+            audio_url: { url: taskReferenceAudio },
             role: "reference_audio",
           });
         }
@@ -1783,7 +1923,7 @@ export async function POST(request: Request) {
           resolution: boardSlot ? renderResolution(tier) : settingString(videoConfig, "resolution", "720p"),
           duration: durationSeconds,
           ratio: settingString(videoConfig, "ratio", "16:9"),
-          generate_audio: wantsSceneAudio,
+          generate_audio: taskGenerateAudio,
           watermark: settingBoolean(videoConfig, "watermark", false),
           ...(boardSlot && tier === "draft" ? { draft: true } : {}),
         });
@@ -1846,18 +1986,60 @@ export async function POST(request: Request) {
       let videoProviderUsed: "byteplus" | "replicate" = "byteplus";
       let videoUsage: Record<string, unknown> | undefined;
       let videoRequestId: string | null | undefined;
+      let audioPlanUsed: AudioPlan | null = resolvedAudioPlan;
+      let nativeAudioRequested = Boolean(resolvedAudioPlan && audioPlanUsesNative(resolvedAudioPlan));
       const rejectedModels: string[] = [];
       for (const attempt of videoAttempts) {
         try {
+          const attemptPlan = boardSlot && adBoard
+            ? resolveAudioPlan(
+                boardSlot,
+                attempt.provider === "byteplus"
+                  ? seedanceAudioCapability(attempt.model)
+                  : { audio_reference_input: false, native_audio_output: false, max_audio_ref_ms: 0 },
+                {
+                  delivery_at_rest: voiceSlot?.pacing,
+                  delivery_under_pressure: voiceSlot?.pressure_delivery,
+                  signature_sfx: card?.signature_sfx_events?.flatMap((event) => [event.label, event.prompt]) ?? [],
+                },
+                adBoard.audio_mode,
+              )
+            : null;
+          const attemptPrompt = attemptPlan && boardSlot
+            ? `${basePrompt}\n${buildAudioSceneBlock({
+                plan: attemptPlan,
+                durationMs: boardSlot.duration_ms,
+                delivery: boardSlot.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
+              })}`
+            : prompt;
+          const attemptReferenceAudio = attemptPlan
+            ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""
+            : referenceAudio;
+          const attemptGenerateAudio = attemptPlan ? audioPlanUsesNative(attemptPlan) : wantsSceneAudio;
+          const attemptLipSync = attemptPlan
+            ? attemptPlan.dialogue.owner === "native"
+              && Boolean(attemptReferenceAudio)
+              && attempt.provider === "byteplus"
+              && seedanceSupportsAudioReference(attempt.model)
+            : wantsLipSync && attempt.provider === "byteplus" && seedanceSupportsAudioReference(attempt.model);
           const result = attempt.provider === "replicate"
             ? await replicateVideo({
                 entry: attempt.entry!,
-                prompt,
+                prompt: attemptPrompt,
                 imageUrl: reference,
                 pollIntervalMs,
                 maximumPolls,
               })
             : await (async () => {
+                if (attemptPlan) {
+                  return runVideoTask(
+                    attempt.model,
+                    attemptLipSync,
+                    attemptPrompt,
+                    attemptGenerateAudio,
+                    attemptReferenceAudio,
+                  );
+                }
                 /*
                   Try the speaking shot first, then fall back to the silent
                   path. If ModelArk rejects the reference-media pairing, a
@@ -1880,6 +2062,8 @@ export async function POST(request: Request) {
           videoRequestId = result.requestId;
           videoModelUsed = attempt.model;
           videoProviderUsed = attempt.provider;
+          audioPlanUsed = attemptPlan ?? resolvedAudioPlan;
+          nativeAudioRequested = Boolean(attemptPlan && audioPlanUsesNative(attemptPlan));
           break;
         } catch (error) {
           const isLastAttempt = attempt === videoAttempts[videoAttempts.length - 1];
@@ -1899,6 +2083,14 @@ export async function POST(request: Request) {
           videoModel: videoModelUsed,
           videoProvider: videoProviderUsed,
           ...(rejectedModels.length ? { safetyRejectedModels: rejectedModels } : {}),
+          ...(audioPlanUsed
+            ? {
+                audioPlan: audioPlanUsed,
+                nativeAudioRequested,
+                ttsCharacters: dialogueText.length,
+                sfxJobs: audioPlanUsed.sfx.owner === "generated" ? audioPlanUsed.sfx.events.length : 0,
+              }
+            : {}),
           ...referenceMetadata,
           ...(consistencyWarnings.length ? { characterCardConsistencyWarnings: consistencyWarnings } : {}),
         },
@@ -1912,6 +2104,14 @@ export async function POST(request: Request) {
           videoModel: videoModelUsed,
           videoProvider: videoProviderUsed,
           ...(rejectedModels.length ? { safetyRejectedModels: rejectedModels } : {}),
+          ...(audioPlanUsed
+            ? {
+                audioPlan: audioPlanUsed,
+                nativeAudioRequested,
+                ttsCharacters: dialogueText.length,
+                sfxJobs: audioPlanUsed.sfx.owner === "generated" ? audioPlanUsed.sfx.events.length : 0,
+              }
+            : {}),
           ...referenceMetadata,
           ...(consistencyWarnings.length ? { characterCardConsistencyWarnings: consistencyWarnings } : {}),
         },

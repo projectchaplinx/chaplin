@@ -11,6 +11,33 @@ import { saveMediaAsset } from "@/lib/server/supabase-admin";
 
 const execute = promisify(execFile);
 
+export async function probeMediaAudio(sourcePath: string) {
+  const configuredFfprobe = process.env.CHAPLIN_FFPROBE_PATH?.trim() || "ffprobe";
+  try {
+    const result = await execute(configuredFfprobe, [
+      "-v", "error",
+      "-select_streams", "a",
+      "-show_entries", "stream=index",
+      "-of", "csv=p=0",
+      sourcePath,
+    ], { maxBuffer: 1024 * 1024, windowsHide: true });
+    return { hasAudio: Boolean(String(result.stdout).trim()), method: "ffprobe" as const };
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== "ENOENT") throw error;
+    try {
+      await execute(ffmpegExecutable(), ["-hide_banner", "-i", sourcePath], {
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
+      });
+      return { hasAudio: false, method: "ffmpeg-metadata" as const };
+    } catch (metadataError) {
+      if (isMissingFfmpegError(metadataError)) throw metadataError;
+      const stderr = String((metadataError as { stderr?: unknown }).stderr ?? "");
+      return { hasAudio: /Stream\s+#\S+:\s+Audio:/i.test(stderr), method: "ffmpeg-metadata" as const };
+    }
+  }
+}
+
 async function downloadChaplinAsset(url: string, destination: string) {
   const parsed = new URL(url);
   const storageHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).hostname : "";

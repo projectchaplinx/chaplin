@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { supersededChaplinVoices, type ElevenLabsVoiceSummary } from "./elevenlabs-voices";
+import {
+  reclaimableChaplinVoices,
+  supersededChaplinVoices,
+  type ElevenLabsVoiceSummary,
+} from "./elevenlabs-voices";
 
 test("selects only the oldest superseded generated voices for the same Chaplin actor", () => {
   const voices: ElevenLabsVoiceSummary[] = [
@@ -25,4 +29,21 @@ test("never treats the active voice or an unlabelled voice as reclaimable", () =
   ];
 
   assert.deepEqual(supersededChaplinVoices(voices, "actor-1", "current"), []);
+});
+
+test("capacity recovery excludes every active voice and scopes regular makers to their actor", () => {
+  const voices: ElevenLabsVoiceSummary[] = [
+    { voice_id: "active", category: "generated", labels: { project: "chaplin", character_id: "actor-1" }, created_at_unix: 1 },
+    { voice_id: "same-actor", category: "generated", labels: { project: "chaplin", character_id: "actor-1" }, created_at_unix: 2 },
+    { voice_id: "other-actor", category: "generated", labels: { project: "chaplin", character_id: "actor-2" }, created_at_unix: 3 },
+    { voice_id: "foreign", category: "generated", labels: { project: "elsewhere", character_id: "actor-1" }, created_at_unix: 0 },
+  ];
+  assert.deepEqual(
+    reclaimableChaplinVoices(voices, new Set(["active"]), "actor-1", false).map((voice) => voice.voice_id),
+    ["same-actor"],
+  );
+  assert.deepEqual(
+    reclaimableChaplinVoices(voices, new Set(["active"]), "actor-1", true).map((voice) => voice.voice_id),
+    ["same-actor", "other-actor"],
+  );
 });

@@ -45,6 +45,13 @@ type ShotRenderState = {
   error?: string;
 };
 
+type VoiceCapacityCandidate = {
+  voiceId: string;
+  name: string;
+  characterId: string | null;
+  createdAtUnix: number | null;
+};
+
 /*
   Every scene in a production is independent - its own frame, its own sound, its
   own motion - yet each stage used to wait for the previous scene to finish. On
@@ -196,6 +203,11 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [voiceRecoveryOpen, setVoiceRecoveryOpen] = useState(false);
+  const [voiceRecoveryBusy, setVoiceRecoveryBusy] = useState(false);
+  const [voiceRecoveryCandidates, setVoiceRecoveryCandidates] = useState<VoiceCapacityCandidate[]>([]);
+  const [selectedRecoveryVoiceId, setSelectedRecoveryVoiceId] = useState("");
+  const [voiceRecoveryMessage, setVoiceRecoveryMessage] = useState("");
   const [renderProgress, setRenderProgress] = useState("");
   const [renderFrameUrl, setRenderFrameUrl] = useState<string | null>(null);
   const [renderShots, setRenderShots] = useState<ShotRenderState[]>([]);
@@ -662,6 +674,67 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
     const assetId = response.headers.get("X-Asset-Id");
     if (!url || !assetId) throw new Error("Generated audio was not attached to the production.");
     return { url, assetId };
+  }
+
+  async function openVoiceCapacityRecovery() {
+    if (!cast[0]) return;
+    setVoiceRecoveryBusy(true);
+    setVoiceRecoveryMessage("");
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "voice-capacity-list",
+          characterId: cast[0].id,
+        }),
+      });
+      const data = await response.json() as { candidates?: VoiceCapacityCandidate[]; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Could not inspect safe voice capacity.");
+      const candidates = data.candidates ?? [];
+      setVoiceRecoveryCandidates(candidates);
+      setSelectedRecoveryVoiceId(candidates[0]?.voiceId ?? "");
+      setVoiceRecoveryOpen(true);
+      if (!candidates.length) {
+        setVoiceRecoveryMessage("No inactive Chaplin-generated voice is safe to delete. Open the actor studio to lock a voice, or manage capacity directly in ElevenLabs.");
+      }
+    } catch (recoveryError) {
+      setVoiceRecoveryMessage(recoveryError instanceof Error ? recoveryError.message : "Could not inspect voice capacity.");
+      setVoiceRecoveryOpen(true);
+    } finally {
+      setVoiceRecoveryBusy(false);
+    }
+  }
+
+  async function deleteRecoveryVoice() {
+    if (!cast[0] || !selectedRecoveryVoiceId) return;
+    const selected = voiceRecoveryCandidates.find((candidate) => candidate.voiceId === selectedRecoveryVoiceId);
+    if (!selected) return;
+    if (!window.confirm(`Delete the inactive voice "${selected.name}" from ElevenLabs? This cannot be undone.`)) return;
+    setVoiceRecoveryBusy(true);
+    setVoiceRecoveryMessage("");
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "voice-capacity-delete",
+          characterId: cast[0].id,
+          voiceId: selected.voiceId,
+          confirmedVoiceId: selected.voiceId,
+        }),
+      });
+      const data = await response.json() as { deleted?: boolean; message?: string; error?: string };
+      if (!response.ok || !data.deleted) throw new Error(data.error ?? "The selected voice could not be deleted.");
+      const remaining = voiceRecoveryCandidates.filter((candidate) => candidate.voiceId !== selected.voiceId);
+      setVoiceRecoveryCandidates(remaining);
+      setSelectedRecoveryVoiceId(remaining[0]?.voiceId ?? "");
+      setVoiceRecoveryMessage(data.message ?? "Voice slot freed. Lock this actor's voice, then retry production.");
+    } catch (recoveryError) {
+      setVoiceRecoveryMessage(recoveryError instanceof Error ? recoveryError.message : "The selected voice could not be deleted.");
+    } finally {
+      setVoiceRecoveryBusy(false);
+    }
   }
 
   async function continueProduction(startingRun: MediaPipelineRun) {
@@ -2099,7 +2172,66 @@ export function ProductionWorkspace({ storyId }: { storyId: string }) {
               </li>
             )})}
           </ol>
-          {error && <p className="mt-4 text-xs text-red-300">{error}</p>}
+          {error && (
+            <div className="mt-4 rounded-xl border border-red-400/35 bg-red-400/[0.06] p-4">
+              <p className="text-xs text-red-300">{error}</p>
+              {/no active locked voice|custom-voice limit|maximum amount of custom voices/i.test(error) && cast[0] && (
+                <div className="mt-3">
+                  <p className="text-[10px] leading-4 text-grey">
+                    Chaplin will never invent this actor&apos;s speech. Free one confirmed inactive voice slot, lock this actor&apos;s chosen voice, and retry the failed production step.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void openVoiceCapacityRecovery()}
+                      disabled={voiceRecoveryBusy}
+                      className="rounded-full border border-red-300/60 px-4 py-2 text-[10px] font-semibold text-red-200 disabled:opacity-40"
+                    >
+                      {voiceRecoveryBusy ? "Checking voices…" : "Free a voice slot"}
+                    </button>
+                    <Link
+                      href={`/characters/${cast[0].id}/studio`}
+                      className="magic-action rounded-full px-4 py-2 text-[10px] font-semibold"
+                      data-intelligence-action
+                    >
+                      Open voice lock
+                    </Link>
+                  </div>
+                  {voiceRecoveryOpen && (
+                    <div className="mt-3 rounded-lg border border-line bg-black/20 p-3">
+                      {voiceRecoveryCandidates.length > 0 && (
+                        <>
+                          <label className="block text-[9px] font-semibold uppercase tracking-wider text-grey">
+                            Confirm an inactive voice
+                            <select
+                              value={selectedRecoveryVoiceId}
+                              onChange={(event) => setSelectedRecoveryVoiceId(event.target.value)}
+                              className="mt-2 block w-full rounded-sm border border-line bg-paper px-3 py-2 text-xs normal-case tracking-normal text-ink"
+                            >
+                              {voiceRecoveryCandidates.map((candidate) => (
+                                <option key={candidate.voiceId} value={candidate.voiceId}>
+                                  {candidate.name}{candidate.characterId ? ` · ${candidate.characterId.slice(0, 8)}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => void deleteRecoveryVoice()}
+                            disabled={voiceRecoveryBusy || !selectedRecoveryVoiceId}
+                            className="mt-3 rounded-full border border-red-300/60 px-4 py-2 text-[10px] font-semibold text-red-200 disabled:opacity-40"
+                          >
+                            {voiceRecoveryBusy ? "Deleting…" : "Delete selected inactive voice"}
+                          </button>
+                        </>
+                      )}
+                      {voiceRecoveryMessage && <p className="mt-2 text-[10px] leading-4 text-grey">{voiceRecoveryMessage}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>}
       </div>
 

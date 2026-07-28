@@ -1,12 +1,48 @@
 const SILENT_PLATE_LINE = /^AUDIO:.*$/gm;
 const SILENT_PLATE_CLAUSE = /\s*Silent visual plate[^.]*\./gi;
 
+export type SeedanceAudioCapability = {
+  audio_reference_input: boolean;
+  native_audio_output: boolean;
+  max_audio_ref_ms: number;
+};
+
+/**
+ * Provider capability config verified against the ModelArk task-creation
+ * contract. It is deliberately code-owned and read-only in Pipeline Lab:
+ * operators may route models, but cannot claim a transport feature the
+ * provider does not expose.
+ */
+export const SEEDANCE_AUDIO_CAPABILITIES = {
+  "seedance-2.0": {
+    audio_reference_input: true,
+    native_audio_output: true,
+    max_audio_ref_ms: 15_000,
+  },
+  "seedance-1.5": {
+    audio_reference_input: false,
+    native_audio_output: true,
+    max_audio_ref_ms: 0,
+  },
+  fallback: {
+    audio_reference_input: false,
+    native_audio_output: false,
+    max_audio_ref_ms: 0,
+  },
+} as const satisfies Record<string, SeedanceAudioCapability>;
+
 function withoutSilentPlateDirection(prompt: string) {
   return prompt.replace(SILENT_PLATE_LINE, "").replace(SILENT_PLATE_CLAUSE, "").trim();
 }
 
 export function seedanceSupportsAudioReference(model: string) {
   return /dreamina-seedance-2-0/i.test(model);
+}
+
+export function seedanceAudioCapability(model: string): SeedanceAudioCapability {
+  if (/dreamina-seedance-2-0/i.test(model)) return SEEDANCE_AUDIO_CAPABILITIES["seedance-2.0"];
+  if (/seedance-1-5/i.test(model)) return SEEDANCE_AUDIO_CAPABILITIES["seedance-1.5"];
+  return SEEDANCE_AUDIO_CAPABILITIES.fallback;
 }
 
 export function prepareSeedanceAudioPrompt(input: {

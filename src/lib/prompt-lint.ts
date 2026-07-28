@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defaultMarkerFailures } from "@/lib/prompt-composer";
 import { adBoardSchema, lintAdBoard } from "@/lib/ad-board";
+import type { AudioPlanIssue } from "@/lib/audio-plan";
 
 export const promptConsumerSchema = z.enum(["runtime", "sheet", "voice", "dialogue", "sfx", "theme", "image", "video"]);
 export const recognitionLockSchema = z.object({
@@ -27,7 +28,7 @@ export const promptLintInputSchema = z.object({
   adBoard: adBoardSchema.optional(),
 });
 export type PromptLintInput = z.infer<typeof promptLintInputSchema>;
-export type PromptLintIssue = { rule: `L${number}`; cardId: string; message: string };
+export type PromptLintIssue = { rule: `L${number}` | AudioPlanIssue["rule"]; cardId: string; message: string };
 export type PromptLintResult = {
   pass: boolean;
   warnings: PromptLintIssue[];
@@ -145,7 +146,7 @@ export function lintPromptHandoff(rawInput: PromptLintInput): PromptLintResult {
   if (input.adBoard) {
     for (const issue of lintAdBoard(input.adBoard)) {
       const mapped = {
-        rule: "L9" as const,
+        rule: (issue.rule.startsWith("L-audio-") ? issue.rule : "L9") as PromptLintIssue["rule"],
         cardId: issue.slotId,
         message: `${issue.rule}: ${issue.message}`,
       };

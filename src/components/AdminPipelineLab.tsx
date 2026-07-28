@@ -10,6 +10,7 @@ import {
   type PipelineStageConfig,
   type PipelineStageId,
 } from "@/lib/pipeline-config";
+import { seedanceAudioCapability } from "@/lib/seedance-audio";
 
 type RecentRun = {
   id: string;
@@ -130,6 +131,7 @@ export default function AdminPipelineLab({
   const [testPrompt, setTestPrompt] = useState("");
   const [requestPreview, setRequestPreview] = useState("");
   const stage = config.stages[activeStage];
+  const videoAudioCapability = seedanceAudioCapability(config.stages.video.model);
   const meta = PIPELINE_STAGE_META[activeStage];
   const imageModels: Array<{ value: string; label: string }> = stage.provider === "openrouter"
     ? [
@@ -369,6 +371,29 @@ export default function AdminPipelineLab({
 
           <div className="border-t border-line p-5 sm:p-6">
             <h3 className="text-sm font-semibold">Provider controls</h3>
+            {activeStage === "video" && (
+              <div className="mt-4 rounded-lg border border-line bg-black/10 p-4" data-seedance-audio-capability>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold">Verified audio capability</p>
+                    <p className="mt-1 text-[10px] text-grey">Read-only provider contract; routing changes select a different capability profile.</p>
+                  </div>
+                  <span className="rounded-full border border-line px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-grey">Read only</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {[
+                    ["Audio reference input", videoAudioCapability.audio_reference_input ? "Supported" : "Unavailable"],
+                    ["Native audio output", videoAudioCapability.native_audio_output ? "Supported" : "Unavailable"],
+                    ["Maximum audio reference", videoAudioCapability.max_audio_ref_ms ? `${videoAudioCapability.max_audio_ref_ms / 1000}s` : "Not applicable"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-md border border-line px-3 py-2">
+                      <p className="text-[9px] uppercase tracking-wider text-grey">{label}</p>
+                      <p className="mt-1 text-xs font-semibold text-ink">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid md:grid-cols-2 gap-4 mt-4">
               {STAGE_FIELDS[activeStage].map((definition) => {
                 const value = stage.settings[definition.key];

@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  audioPlanSchema,
+  DEFAULT_AUDIO_PLAN,
+  lintAudioPlan,
+  type AudioPlanIssue,
+} from "@/lib/audio-plan";
 
 export const adArcTemplateSchema = z.enum(["problem_solution", "journey_delivery"]);
 export const adBoardModeSchema = z.enum(["emotional_counterpoint", "functional_explainer"]);
@@ -47,7 +53,11 @@ export const adSlotSchema = z.object({
   description: z.string().trim().min(1),
   camera: z.string().trim().min(1),
   color_light: z.string().trim().min(1),
+  set: z.string().trim().default(""),
+  weather: z.string().trim().default(""),
+  location: z.string().trim().default(""),
   audio: adSlotAudioSchema,
+  audio_plan: audioPlanSchema.default(DEFAULT_AUDIO_PLAN),
   screen_text: z.string().trim().min(1).nullable().optional().default(null),
   vo_line: z.string().trim().min(1).nullable().optional().default(null),
   vo_kind: z.enum(["narration", "dialogue"]).default("narration"),
@@ -66,11 +76,13 @@ export const adSlotSchema = z.object({
   rendered_url: z.string().url().nullable().optional().default(null),
   dialogue_asset_id: z.string().trim().min(1).nullable().optional().default(null),
   dialogue_url: z.string().url().nullable().optional().default(null),
+  dialogue_duration_ms: z.number().int().positive().nullable().optional().default(null),
 }).strict();
 
 export const adBoardSchema = z.object({
   arc_template: adArcTemplateSchema,
   mode: adBoardModeSchema,
+  audio_mode: z.enum(["resolved", "legacy_stems"]).default("resolved"),
   slots: z.array(adSlotSchema).length(8),
   product_id: z.string().trim().min(1).nullable().optional(),
   canonical_reference_asset: assetId,
@@ -92,7 +104,7 @@ export type RenderTier = z.infer<typeof renderTierSchema>;
 
 export type AdBoardIssue = {
   level: "warning" | "failure";
-  rule: "A1" | "A2" | "A3" | "A4" | "A5" | "A6";
+  rule: "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | AudioPlanIssue["rule"];
   slotId: string;
   message: string;
 };
@@ -202,6 +214,13 @@ export function lintAdBoard(rawBoard: AdBoard): AdBoardIssue[] {
     if (slot.slot_no <= 3 && slot.screen_text) {
       issues.push({ level: "failure", rule: "A6", slotId: slot.id, message: "Screen text must remain null during the chaos opening." });
     }
+    for (const issue of lintAudioPlan({
+      slot,
+      plan: slot.audio_plan,
+      audioReferenceAttached: slot.audio_plan.dialogue.owner === "native" && Boolean(slot.dialogue_url),
+    })) {
+      issues.push({ ...issue, slotId: slot.id });
+    }
   }
   return issues;
 }
@@ -232,7 +251,7 @@ export function reanchorOverdeepChains(board: AdBoard) {
 
 export function voiceTimedDurationMs(measuredAudioMs: number | null, kind: AdSlot["vo_kind"]) {
   if (measuredAudioMs == null) return 4000;
-  const gap = kind === "dialogue" ? 200 : 350;
+  const gap = kind === "dialogue" ? 500 : 350;
   return Math.max(1, Math.ceil(measuredAudioMs + gap));
 }
 
@@ -302,11 +321,13 @@ export function createAdBoard(input: {
   wardrobeState: string;
   ageState: string;
   productId?: string | null;
+  audioMode?: AdBoard["audio_mode"];
 }): AdBoard {
   const defaults = AD_ARC_TEMPLATES[input.arcTemplate];
   return adBoardSchema.parse({
     arc_template: input.arcTemplate,
     mode: input.mode,
+    audio_mode: input.audioMode ?? "resolved",
     product_id: input.productId ?? null,
     canonical_reference_asset: input.canonicalReferenceAsset,
     estimated_spend_usd: 0,
@@ -315,7 +336,11 @@ export function createAdBoard(input: {
       id: `slot-${index + 1}`,
       slot_no: index + 1,
       ...slot,
+      set: "the established practical set visible in the slot",
+      weather: "none",
+      location: "the established story location",
       audio: { music: "", sfx: "" },
+      audio_plan: DEFAULT_AUDIO_PLAN,
       screen_text: index < 3 ? null : null,
       vo_line: null,
       vo_kind: "narration",
@@ -339,6 +364,7 @@ export function createAdBoard(input: {
       rendered_url: null,
       dialogue_asset_id: null,
       dialogue_url: null,
+      dialogue_duration_ms: null,
     })),
   });
 }

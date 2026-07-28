@@ -61,6 +61,14 @@ import {
   supersededChaplinVoices,
   type ElevenLabsVoiceSummary,
 } from "@/lib/elevenlabs-voices";
+import {
+  adBoardSchema,
+  assertAdSlotQueueable,
+  renderResolution,
+  stripForwardTargetFrameLanguage,
+  type AdSlot,
+  type RenderTier,
+} from "@/lib/ad-board";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -1575,8 +1583,36 @@ export async function POST(request: Request) {
         actually reaches the provider.
       */
       const requestedPrompt = text(input, "prompt", 10, 12000);
-      const silentPrompt = requestedPrompt;
+      let boardSlot: AdSlot | null = null;
+      if (input.adBoard !== undefined) {
+        const board = adBoardSchema.parse(input.adBoard);
+        const boardSlotId = text(input, "boardSlotId", 1, 200);
+        assertAdSlotQueueable(board, boardSlotId);
+        boardSlot = board.slots.find((slot) => slot.id === boardSlotId) ?? null;
+        if (!boardSlot) throw new RequestValidationError("Ad-board slot was not found.");
+      }
+      const tier: RenderTier = boardSlot?.tier
+        ?? (input.tier === "draft" ? "draft" : "final");
+      const draftTaskId = typeof input.draftTaskId === "string" ? input.draftTaskId.trim() : "";
+      const boardMotionPrompt = boardSlot
+        ? boardSlot.motion.mode === "forward"
+          ? stripForwardTargetFrameLanguage(boardSlot.motion.prompt)
+          : boardSlot.motion.prompt
+        : "";
+      const silentPrompt = boardSlot
+        ? [
+            boardSlot.identity_block,
+            `WARDROBE STATE: ${boardSlot.wardrobe_state}`,
+            `AGE STATE: ${boardSlot.age_state}`,
+            requestedPrompt,
+            boardMotionPrompt,
+          ].join("\n")
+        : requestedPrompt;
       const requestedReference = typeof input.referenceImage === "string" ? input.referenceImage : "";
+      const requestedLastFrame = typeof input.lastFrameImage === "string" ? input.lastFrameImage : "";
+      if (boardSlot?.motion.mode === "ff_lf" && !requestedLastFrame) {
+        throw new RequestValidationError("First/last-frame motion requires the supplied last-frame asset URL.");
+      }
       const referenceAudio = typeof input.referenceAudio === "string" ? input.referenceAudio.trim() : "";
       const dialogueText = typeof input.dialogueText === "string" ? input.dialogueText.trim() : "";
       const production = await getCharacterProductionState(characterId);
@@ -1584,6 +1620,9 @@ export async function POST(request: Request) {
       // A production-approved frame is more specific than the actor's general
       // profile image and must remain the binding source for image-to-video.
       const reference = requestedReference || canonicalReference?.url || "";
+      if (boardSlot?.motion.mode === "ff_lf" && !reference) {
+        throw new RequestValidationError("First/last-frame motion requires the supplied first-frame asset URL.");
+      }
       // Applied after compaction so the audio brief is never trimmed away.
       const wantsSceneAudio = settingBoolean(videoConfig, "generateAudio", true);
       const composedPrompt = visualGenerationPrompt(videoConfig, silentPrompt, "video");
@@ -1597,6 +1636,18 @@ export async function POST(request: Request) {
         referenceImage: reference || null,
         referenceAssetId: requestedReference ? null : canonicalReference?.assetId ?? null,
         referenceSource: requestedReference ? "production-approved-frame" : canonicalReference?.source ?? null,
+        tier,
+        resolution: boardSlot ? renderResolution(tier) : settingString(videoConfig, "resolution", "720p"),
+        ...(boardSlot
+          ? {
+              adBoardSlotId: boardSlot.id,
+              motionMode: boardSlot.motion.mode,
+              motionReason: boardSlot.motion_reason,
+              identity_block: boardSlot.identity_block,
+              wardrobe_state: boardSlot.wardrobe_state,
+              age_state: boardSlot.age_state,
+            }
+          : {}),
       };
       const durationSeconds = settingNumber(videoConfig, "durationSeconds", 5);
       /*
@@ -1651,6 +1702,7 @@ export async function POST(request: Request) {
         // that needs its line mixed in is identifiable without re-reading the
         // prompt.
         metadata: {
+          ...referenceMetadata,
           ...(consistencyWarnings.length ? { characterCardConsistencyWarnings: consistencyWarnings } : {}),
           ...(audioScene
             ? {
@@ -1662,7 +1714,12 @@ export async function POST(request: Request) {
         },
       });
       const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
-      if (reference) {
+      if (boardSlot?.motion.mode === "ff_lf") {
+        content.push(
+          { type: "image_url", image_url: { url: await imageInput(reference) }, role: "first_frame" },
+          { type: "image_url", image_url: { url: await imageInput(requestedLastFrame) }, role: "last_frame" },
+        );
+      } else if (reference) {
         content.push({ type: "image_url", image_url: { url: await imageInput(reference) } });
       }
       const pollIntervalMs = settingNumber(videoConfig, "pollIntervalSeconds", 5) * 1000;
@@ -1680,12 +1737,15 @@ export async function POST(request: Request) {
         speak. Exact-first-frame locking is the thing traded away, and only on
         shots where someone talks.
       */
-      const wantsLipSync = Boolean(referenceAudio)
+      const wantsLipSync = boardSlot?.motion.mode !== "ff_lf"
+        && Boolean(referenceAudio)
         && Boolean(dialogueText)
         && seedanceSupportsAudioReference(videoConfig.model);
 
       const runVideoTask = async (model: string, lipSync = false) => {
-        const taskContent = lipSync
+        const taskContent = tier === "final" && draftTaskId
+          ? [{ type: "draft_task", draft_task: { id: draftTaskId } }]
+          : lipSync
           ? [
               { type: "text", text: prompt },
               ...(reference
@@ -1720,11 +1780,12 @@ export async function POST(request: Request) {
         const createdResponse = await modelArk("/contents/generations/tasks", {
           model,
           content: taskContent,
-          resolution: settingString(videoConfig, "resolution", "720p"),
+          resolution: boardSlot ? renderResolution(tier) : settingString(videoConfig, "resolution", "720p"),
           duration: durationSeconds,
           ratio: settingString(videoConfig, "ratio", "16:9"),
           generate_audio: wantsSceneAudio,
           watermark: settingBoolean(videoConfig, "watermark", false),
+          ...(boardSlot && tier === "draft" ? { draft: true } : {}),
         });
         const taskId = createdResponse.data.id;
         if (typeof taskId !== "string") throw new Error("Seedance did not return a task ID.");
@@ -1861,7 +1922,7 @@ export async function POST(request: Request) {
         }),
         videoRequestId ?? taskId
       );
-      return Response.json({ url: asset.url, assetId: asset.id, taskId });
+      return Response.json({ url: asset.url, assetId: asset.id, taskId, tier });
     }
 
     return Response.json({ error: "Unknown generation action." }, { status: 400 });

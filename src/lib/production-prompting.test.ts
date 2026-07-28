@@ -116,7 +116,7 @@ test("product hero rejects actors and explicitly forbids humans", () => {
 
 test("brand spot grammar requires an actor and product", () => {
   const prompt = composeProductVideoPrompt({ videoType: VideoType.BrandSpot, product, actor, shot, narrativeBeat: "reveal" });
-  assert.match(prompt, /product enters by shot two/i);
+  assert.match(prompt, /product appears only at slot four and slot eight/i);
   assert.match(prompt, /final shot is product pack shot with actor/i);
   assert.throws(() => composeProductVideoPrompt({ videoType: VideoType.BrandSpot, product, shot }), /requires an actor/i);
 });

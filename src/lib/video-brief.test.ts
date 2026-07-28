@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveVideoBrief, selectedCharacterIds, VideoBriefInputSchema, VideoType } from "./video-brief";
+import { buildTypedShotPlan, resolveVideoBrief, selectedCharacterIds, VideoBriefInputSchema, VideoType } from "./video-brief";
 
 const productId = "00000000-0000-4000-8000-000000000001";
 
@@ -48,6 +48,22 @@ test("type defaults and UGC duration map to typed shot counts", () => {
   }));
   assert.equal(ugc.shot_count, 5);
   assert.equal(ugc.aspect_ratio, "9:16");
+});
+
+test("Brand Spot uses the eight-slot house board with product only at the pivot and close", () => {
+  const brand = resolveVideoBrief(VideoBriefInputSchema.parse({
+    video_type: VideoType.BrandSpot,
+    title: "House board",
+    character_id: "character-1",
+    product_id: productId,
+    narrative_beat: "ritual",
+  }));
+  const plan = buildTypedShotPlan(brand);
+  assert.equal(brand.shot_count, 8);
+  assert.equal(plan.length, 8);
+  assert.match(plan[3].visualAction, /product appears for the first time/i);
+  assert.match(plan[7].visualAction, /product lockup/i);
+  assert.ok(plan.filter((shot, index) => ![3, 7].includes(index)).every((shot) => /without showing the product/i.test(shot.visualAction)));
 });
 
 test("episode preserves a full cast while supporting the legacy singular actor", () => {

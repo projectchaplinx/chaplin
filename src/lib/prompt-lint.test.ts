@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { lintPromptHandoff } from "@/lib/prompt-lint";
 import { RUKHSAR_RU_FIXTURE } from "@/lib/prompt-lint-fixtures";
+import { BOAT_PROBLEM_SOLUTION_BOARD } from "@/lib/ad-board-fixtures";
 
 test("Ru golden handoff renders source direction once and removes legacy defaults", () => {
   const handoff = buildPromptHandoff(RUKHSAR_RU_FIXTURE, { presentationConfirmed: true });
@@ -45,4 +46,23 @@ test("linter detects B1-B10 structural failures without an LLM", () => {
   const rules = new Set([...result.failures, ...result.warnings].map((issue) => issue.rule));
   for (const rule of ["L1", "L2", "L4", "L5", "L6", "L7"]) assert.ok(rules.has(rule as never), rule);
   assert.ok(result.durationMs < 100, `lint took ${result.durationMs}ms`);
+});
+
+test("ad-board motion and counterpoint rules flow through the existing prompt linter", () => {
+  const board = structuredClone(BOAT_PROBLEM_SOLUTION_BOARD);
+  board.slots[0].motion = {
+    mode: "forward",
+    first_frame_asset: "asset-mira-canonical",
+    prompt: "She steadies herself and ends on the compass.",
+    no_target: true,
+  };
+  board.slots[0].vo_line = "A loose sail snaps across the listing deck.";
+  const result = lintPromptHandoff({
+    artifacts: [],
+    recognitionLocks: [],
+    presentationConfirmed: false,
+    adBoard: board,
+  });
+  assert.ok(result.failures.some((issue) => issue.rule === "L9" && /Forward motion/i.test(issue.message)));
+  assert.ok(result.warnings.some((issue) => issue.rule === "L9" && /counterpointing/i.test(issue.message)));
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defaultMarkerFailures } from "@/lib/prompt-composer";
+import { adBoardSchema, lintAdBoard } from "@/lib/ad-board";
 
 export const promptConsumerSchema = z.enum(["runtime", "sheet", "voice", "dialogue", "sfx", "theme", "image", "video"]);
 export const recognitionLockSchema = z.object({
@@ -23,6 +24,7 @@ export const promptLintInputSchema = z.object({
   canonPresentation: z.string().optional(),
   voicePresentation: z.string().optional(),
   presentationConfirmed: z.boolean().default(false),
+  adBoard: adBoardSchema.optional(),
 });
 export type PromptLintInput = z.infer<typeof promptLintInputSchema>;
 export type PromptLintIssue = { rule: `L${number}`; cardId: string; message: string };
@@ -138,6 +140,18 @@ export function lintPromptHandoff(rawInput: PromptLintInput): PromptLintResult {
     && !input.presentationConfirmed
   ) {
     warnings.push({ rule: "L7", cardId: "voice", message: `Canon presentation “${input.canonPresentation}” differs from voice presentation “${input.voicePresentation}”. Confirm before locking the voice.` });
+  }
+
+  if (input.adBoard) {
+    for (const issue of lintAdBoard(input.adBoard)) {
+      const mapped = {
+        rule: "L9" as const,
+        cardId: issue.slotId,
+        message: `${issue.rule}: ${issue.message}`,
+      };
+      if (issue.level === "failure") failures.push(mapped);
+      else warnings.push(mapped);
+    }
   }
 
   const dedupe = (issues: PromptLintIssue[]) => [...new Map(issues.map((issue) => [`${issue.rule}:${issue.cardId}:${issue.message}`, issue])).values()];

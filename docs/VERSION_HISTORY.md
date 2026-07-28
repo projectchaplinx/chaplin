@@ -235,3 +235,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.27 | `412b5e0` | 2026-07-28T20:45:30+05:30 | Remove glow from Chaplin wordmark |
 | v0.2.28 | `ffe4ac9` | 2026-07-28T21:15:20+05:30 | Merge projectchaplinx main and preserve launch fixes |
 | v0.2.29 | `69b05a2` | 2026-07-28T21:23:25+05:30 | Consolidate voice audition previews |
+| v0.2.30 | `3c9cb2f` | 2026-07-28T21:32:37+05:30 | Recover safely from ElevenLabs voice limits |

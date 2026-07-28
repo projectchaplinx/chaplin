@@ -56,7 +56,7 @@ export const VIDEO_TYPES: Record<VideoType, VideoTypeDefinition> = {
     required_inputs: ["product_id"], optional_inputs: [], prompt_grammar_id: "product_hero_v1", aspect_ratio: "9:16", aspect_ratio_default: "9:16",
   },
   [VideoType.BrandSpot]: {
-    type: VideoType.BrandSpot, label: "Brand Spot", duration: 30, shot_count: 6,
+    type: VideoType.BrandSpot, label: "Brand Spot", duration: 30, shot_count: 8,
     required_inputs: ["character_id", "product_id", "narrative_beat"], optional_inputs: [], prompt_grammar_id: "brand_spot_v1", aspect_ratio: "16:9", aspect_ratio_default: "16:9",
   },
 };
@@ -159,8 +159,22 @@ export function buildTypedShotPlan(input: ReturnType<typeof resolveVideoBrief>):
     return selected.map((shot, index) => ({ shotNumber: index + 1, beat: shot[0], visualAction: shot[1], cameraDirection: shot[2], lightingDirection: shot[3], dialogue: index === 0 ? input.hook_text : undefined }));
   }
   if (input.video_type === VideoType.BrandSpot) {
-    const beats = ["Problem", "Product entrance", "Ritual", "Visible change", "Human reaction", "Pack shot with actor"];
-    return beats.map((beat, index) => ({ shotNumber: index + 1, beat, visualAction: index === 1 ? "The product enters the frame clearly by shot two." : index === 5 ? "Final pack shot with actor; product is the hero." : `${input.narrative_beat} narrative beat advances through visible action.`, cameraDirection: index === 5 ? "50mm composed pack-shot frame" : "40mm cinematic narrative frame", lightingDirection: "Motivated cinematic light preserving product readability" }));
+    const beats = ["Chaos I", "Chaos II", "Chaos III", "The turn", "Payoff I", "Payoff II", "Payoff III", "The close"];
+    return beats.map((beat, index) => ({
+      shotNumber: index + 1,
+      beat,
+      visualAction: index === 3
+        ? "Silence and neutral reset; the product appears for the first time as the decisive turn."
+        : index === 7
+          ? "Glamour material detail resolves into the final product lockup."
+          : `${input.narrative_beat} narrative beat advances through visible action without showing the product.`,
+      cameraDirection: index === 7 ? "Macro ECUs resolved into a static 50mm pack-shot frame" : "Camera stability follows the authored eight-slot arc.",
+      lightingDirection: index < 3
+        ? "Harsh high-contrast pressure state"
+        : index === 3
+          ? "Flat neutral gray reset"
+          : "Soft warm white building into controlled saturation",
+    }));
   }
   return Array.from({ length: count }, (_, index) => ({ shotNumber: index + 1, beat: `Shot ${index + 1}`, visualAction: "Character-led story action.", cameraDirection: "40mm controlled cinematic frame", lightingDirection: "Motivated scene lighting" }));
 }

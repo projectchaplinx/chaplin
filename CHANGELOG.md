@@ -3,6 +3,25 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.31 - 2026-07-28 - Typed eight-slot ad production board
+
+- Added a strict eight-slot Brand Spot board with problem-to-solution and
+  journey-to-delivery house arcs, a fixed slot-four pivot, Mode A emotional
+  counterpoint, Mode B explainer structure, and product appearances limited to
+  slots four and eight unless an explicit creative reason is recorded.
+- Added guarded forward, chained-last-frame, and first/last-frame motion modes
+  with continuity metadata, prompt linting, chain-depth protection, and real
+  FFmpeg last-frame extraction from completed source renders.
+- Made board timing voice-first: persisted speech is measured with ffprobe,
+  editorial gaps are added, and slots longer than five seconds are split into
+  renderable sub-clips.
+- Added per-slot 480p draft and 1080p final promotion, tier and spend metadata,
+  and a board-aware assembler that trims or holds picture, carries the previous
+  frame instead of cutting to black, mixes VO/SFX/music, ducks music by 15 dB
+  under speech, and delivers at -14 LUFS.
+- Preserved the existing single-shot generation path and documented the new
+  board contract, decision tree, timing order, and assembly behavior.
+
 ## v0.2.30 - 2026-07-28 - Safe ElevenLabs voice-capacity recovery
 
 - Added a guarded recovery when ElevenLabs reports that the custom-voice limit

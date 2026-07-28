@@ -7,6 +7,7 @@ import {
   enforceRateLimit,
   securityErrorStatus,
 } from "@/lib/server/request-security";
+import { adBoardSchema } from "@/lib/ad-board";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,9 @@ export async function POST(request: Request) {
     const spec = body.spec && typeof body.spec === "object" && !Array.isArray(body.spec)
       ? body.spec as Record<string, unknown>
       : {};
+    if (spec.adBoard !== undefined) {
+      spec.adBoard = adBoardSchema.parse(spec.adBoard);
+    }
     const run = await createMediaPipelineRun({
       scopeType,
       scopeId,

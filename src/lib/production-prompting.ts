@@ -1390,7 +1390,7 @@ export function composeProductImagePrompt(input: ProductShotPromptInput) {
   } else if (input.videoType === VideoType.ProductHero) {
     base.push("PRODUCT HERO GRAMMAR: no humans. Macro material detail, slow push/circle/rise only, readable label and a final pack shot with logo lockup frame.");
   } else {
-    base.push(`BRAND SPOT GRAMMAR: cinematic narrative around ${input.narrativeBeat ?? "ritual"}; product enters no later than shot two and the final shot is a pack shot with actor.`);
+    base.push(`BRAND SPOT GRAMMAR: cinematic narrative around ${input.narrativeBeat ?? "ritual"}; the product appears only at the slot-four pivot and slot-eight close unless an operator records an override reason; the final shot is a pack shot with actor.`);
   }
   base.push(`NEGATIVE: ${mergedProductNegative(input)}.`);
   return base.join("\n");
@@ -1407,7 +1407,7 @@ export function composeProductVideoPrompt(input: ProductShotPromptInput) {
   ];
   if (input.videoType === VideoType.UgcAd) base.push(`UGC: eye-level handheld and natural light; direct-to-camera speech may not exceed two seconds. Dialogue/VO may use only these approved product claims plus the provided hook and CTA: ${input.product.claims_allowed.join(" | ") || "none supplied; do not make a product claim"}.`);
   if (input.videoType === VideoType.ProductHero) base.push("PRODUCT HERO: no humans, no hands, no actor audio. Slow macro push, circle, or rise only; finish on a readable pack shot and logo lockup.");
-  if (input.videoType === VideoType.BrandSpot) base.push("BRAND SPOT: product enters by shot two; final shot is product pack shot with actor. Do not invent claims.");
+  if (input.videoType === VideoType.BrandSpot) base.push("BRAND SPOT: product appears only at slot four and slot eight unless an operator records an override reason; final shot is product pack shot with actor. Do not invent claims.");
   base.push(`NEGATIVE: ${mergedProductNegative(input)}, no morphing, relabeling. --duration 5`);
   return base.join("\n");
 }

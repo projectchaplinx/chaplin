@@ -1358,7 +1358,27 @@ function extensionFor(contentType: string) {
 
 export async function saveMediaAsset(input: {
   characterId: string;
-  kind: "avatar" | "banner" | "gallery" | "dialogue" | "sfx" | "theme" | "video";
+  kind:
+    | "avatar"
+    | "banner"
+    | "gallery"
+    | "dialogue"
+    | "sfx"
+    | "theme"
+    | "video"
+    | "poster"
+    | "backdrop"
+    | "episode"
+    | "reference"
+    | "room_tone"
+    | "mixed_audio"
+    | "shot"
+    | "captions"
+    | "manifest"
+    | "trailer"
+    | "spark"
+    | "punch"
+    | "spot";
   provider: string;
   bytes: ArrayBuffer;
   contentType: string;

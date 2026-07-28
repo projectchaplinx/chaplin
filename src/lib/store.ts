@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { SEED_WORLD } from "@/data/seed";
 import { buildProductionBible } from "@/lib/production-prompting";
 import type { CameraMovementId } from "@/lib/camera-movements";
+import type { EnergyState, FramingConstraint, SceneProp } from "@/lib/direction-safety";
 import type {
   Character,
   Story,
@@ -34,13 +35,26 @@ export type NewCharacterInput = Pick<
 > & { makerId: string };
 
 export interface NewSceneInput {
+  slotId?: string;
+  sourceSlotId?: string;
   setting: string;
   objective?: string;
   action?: string;
+  energyState?: EnergyState;
+  lockedCharacterIds?: string[];
+  dressing?: string;
+  behaviorTell?: { characterId: string; tell: string } | null;
   durationSeconds?: number;
+  durationMs?: number;
   previewImageUrl?: string;
   previewAssetId?: string;
   cameraMovementId?: CameraMovementId;
+  motionMode?: "forward" | "chain";
+  motionFromSlotId?: string | null;
+  framingConstraint?: FramingConstraint;
+  sensitiveNegatives?: string[];
+  referencedProps?: string[];
+  dialogueFramingConstraint?: "off_face" | null;
   lines: Array<{ characterId: string; text: string }>;
 }
 
@@ -51,6 +65,7 @@ export interface NewStoryInput {
   durationSeconds?: number;
   status?: "production" | "published";
   creativeDirection?: string;
+  sceneProps?: SceneProp[];
   productImageUrl?: string;
   productImageName?: string;
   authorId: string;
@@ -187,13 +202,26 @@ export const useChaplinStore = create<ChaplinState>((set, get) => ({
 
     const scenes = input.scenes.map((sc, si) => ({
       id: `${storyId}-sc${si}`,
+      slotId: sc.slotId,
+      sourceSlotId: sc.sourceSlotId,
       setting: sc.setting,
       objective: sc.objective,
       action: sc.action,
+      energyState: sc.energyState,
+      lockedCharacterIds: sc.lockedCharacterIds,
+      dressing: sc.dressing,
+      behaviorTell: sc.behaviorTell,
       durationSeconds: sc.durationSeconds,
+      durationMs: sc.durationMs,
       previewImageUrl: sc.previewImageUrl,
       previewAssetId: sc.previewAssetId,
       cameraMovementId: sc.cameraMovementId,
+      motionMode: sc.motionMode,
+      motionFromSlotId: sc.motionFromSlotId,
+      framingConstraint: sc.framingConstraint,
+      sensitiveNegatives: sc.sensitiveNegatives,
+      referencedProps: sc.referencedProps,
+      dialogueFramingConstraint: sc.dialogueFramingConstraint,
       lines: sc.lines.map((ln, li) => ({
         id: `${storyId}-sc${si}-l${li}`,
         characterId: ln.characterId,
@@ -214,6 +242,7 @@ export const useChaplinStore = create<ChaplinState>((set, get) => ({
       durationSeconds: input.durationSeconds,
       status: input.status ?? "published",
       creativeDirection: input.creativeDirection,
+      sceneProps: input.sceneProps,
       productImageUrl: input.productImageUrl,
       productImageName: input.productImageName,
       coverHue: input.coverHue,

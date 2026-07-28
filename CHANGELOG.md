@@ -3,6 +3,22 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.47 - 2026-07-29 - Production-safe Direction Brain
+
+- Added a typed Direction Brain safety contract that preserves the
+  hook-escalate-reverse-cliffhanger arc while enforcing per-slot energy,
+  identity budgets, hero behavior tells, anonymous NPC dressing, safe cameras,
+  closed props, sensitive framing, and dialogue placement.
+- Made timing authoritative from writing through rendering and FFmpeg assembly:
+  explicit shot counts win, action beats can split into lettered sub-slots, and
+  solved slot durations sum exactly to the requested master duration.
+- Connected continuous action to real chain rendering with persisted last-frame
+  extraction, a three-link re-anchor cap, and controlled-motion prompts that
+  name one moving subject and isolate camera drift.
+- Added Studio approval for newly required scene props, `L10` direction lint,
+  a five-slot 15-second war-drop regression fixture, and the complete constraint
+  tables in `docs/DIRECTION_RULES.md`.
+
 ## v0.2.46 - 2026-07-29 - Complete credit and usage control
 
 - Defined one canonical Chaplin rate card: 100 welcome credits, 25 credits per

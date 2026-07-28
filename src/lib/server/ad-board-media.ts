@@ -105,11 +105,35 @@ export async function extractChainLastFrame(input: {
   if (input.sourceSlot.wardrobe_state !== input.targetSlot.wardrobe_state) {
     throw new Error("Wardrobe state cannot change inside a motion chain.");
   }
+  return extractStoredVideoLastFrame({
+    characterId: input.characterId,
+    sourceUrl: input.sourceSlot.rendered_url,
+    sourceAssetId: input.sourceSlot.rendered_asset_id,
+    targetSlotId: input.targetSlot.id,
+    prompt: input.targetSlot.image_prompt,
+    metadata: {
+      adBoardSlotId: input.targetSlot.id,
+      chainedFromSlotId: input.sourceSlot.id,
+      identity_block: input.sourceSlot.identity_block,
+      wardrobe_state: input.sourceSlot.wardrobe_state,
+      age_state: input.sourceSlot.age_state,
+    },
+  });
+}
+
+export async function extractStoredVideoLastFrame(input: {
+  characterId: string;
+  sourceUrl: string;
+  sourceAssetId: string;
+  targetSlotId: string;
+  prompt?: string;
+  metadata?: Record<string, unknown>;
+}) {
   const workDirectory = await mkdtemp(path.join(tmpdir(), "chaplin-board-chain-"));
   const sourcePath = path.join(workDirectory, "source.mp4");
   const framePath = path.join(workDirectory, "last-frame.png");
   try {
-    await downloadChaplinAsset(input.sourceSlot.rendered_url, sourcePath);
+    await downloadChaplinAsset(input.sourceUrl, sourcePath);
     await execute(ffmpegExecutable(), [
       "-y",
       "-sseof", "-0.1",
@@ -124,15 +148,12 @@ export async function extractChainLastFrame(input: {
       provider: "ffmpeg",
       bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
       contentType: "image/png",
-      prompt: input.targetSlot.image_prompt,
+      prompt: input.prompt,
       metadata: {
-        adBoardSlotId: input.targetSlot.id,
-        chainedFromSlotId: input.sourceSlot.id,
-        chainedFromAssetId: input.sourceSlot.rendered_asset_id,
+        targetSlotId: input.targetSlotId,
+        chainedFromAssetId: input.sourceAssetId,
         extraction: "ffmpeg -sseof -0.1 -frames:v 1",
-        identity_block: input.sourceSlot.identity_block,
-        wardrobe_state: input.sourceSlot.wardrobe_state,
-        age_state: input.sourceSlot.age_state,
+        ...input.metadata,
       },
     });
   } finally {

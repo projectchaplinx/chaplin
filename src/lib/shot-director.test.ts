@@ -60,13 +60,13 @@ test("narrative first-frame prompt depicts one authored scene without ad or cont
   assert.doesNotMatch(prompt, /OFFERING LOCK|business|storefront hero|advertised product/i);
 });
 
-test("video prompt animates the exact first frame as a five-second source with a four-second edit point", () => {
+test("video prompt animates the exact first frame for the scene's authoritative duration", () => {
   const prompt = buildShotVideoPrompt(basePromptInput);
   assert.match(prompt, /supplied image is the exact first frame/i);
-  assert.match(prompt, /usable action lands by four seconds/i);
-  assert.match(prompt, /master edit uses the first four seconds/i);
-  assert.match(prompt, /--duration 5/);
-  assert.match(prompt, /STORY ANCHOR/i);
+  assert.match(prompt, /one continuous 4000ms silent source clip/i);
+  assert.match(prompt, /Exactly one named moving subject: Sprocket/i);
+  assert.match(prompt, /--duration 4\.000/);
+  assert.match(prompt, /CLOSED PROP SET/i);
   assert.doesNotMatch(prompt, /OFFERING ANCHOR/i);
 });
 
@@ -112,11 +112,9 @@ test("a shot is directed to perform, not to stand and wait", () => {
     actorIdentity: "VANTA-9: a gunmetal enforcement android.",
   } as Parameters<typeof buildShotVideoPrompt>[0]);
 
-  assert.match(prompt, /PERFORMANCE:/);
-  assert.match(prompt, /human timing/i);
-  assert.match(prompt, /waiting to speak/i);
-  assert.match(prompt, /DYNAMICS:/);
-  assert.match(prompt, /Something visible must change/i);
+  assert.match(prompt, /CONTROLLED MOTION:/);
+  assert.match(prompt, /Every other person and all dressing remain explicitly still/i);
+  assert.match(prompt, /PHYSICS:/);
   // Held signage is a common invented artefact.
   assert.match(prompt, /No held poster, sign, placard/i);
   assert.match(prompt, /No robotic or mechanical motion/i);
@@ -137,7 +135,7 @@ test("reverse motion is prohibited even when the caller supplies its own continu
 
   assert.match(prompt, /No reversed, rewound, or time-inverted motion/i);
   assert.match(prompt, /wheels roll in the direction of travel/i);
-  assert.match(prompt, /Motion runs forward in time/i);
+  assert.match(prompt, /forward-time momentum/i);
   // The caller's own note is still honoured.
   assert.match(prompt, /Preserve the approved frame's actor/);
 });

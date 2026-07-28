@@ -1,5 +1,6 @@
 import type { CameraMovementId } from "@/lib/camera-movements";
 import type { CharacterCardV2 } from "@/lib/character-card";
+import type { EnergyState, FramingConstraint, SceneProp } from "@/lib/direction-safety";
 
 // Project Chaplin: core data model.
 // This is the traceability spine: every entity below carries the IDs that
@@ -218,13 +219,26 @@ export interface Line {
 
 export interface Scene {
   id: string;
+  slotId?: string;
+  sourceSlotId?: string;
   setting: string;
   objective?: string;
   action?: string;
+  energyState?: EnergyState;
+  lockedCharacterIds?: string[];
+  dressing?: string;
+  behaviorTell?: { characterId: string; tell: string } | null;
   durationSeconds?: number;
+  durationMs?: number;
   previewImageUrl?: string;
   previewAssetId?: string;
   cameraMovementId?: CameraMovementId;
+  motionMode?: "forward" | "chain";
+  motionFromSlotId?: string | null;
+  framingConstraint?: FramingConstraint;
+  sensitiveNegatives?: string[];
+  referencedProps?: string[];
+  dialogueFramingConstraint?: "off_face" | null;
   lines: Line[];
 }
 
@@ -237,6 +251,7 @@ export interface Story {
   durationSeconds?: number;
   status?: "production" | "published";
   creativeDirection?: string;
+  sceneProps?: SceneProp[];
   productImageUrl?: string;
   productImageName?: string;
   coverHue: number; // fallback gradient when backdropUrl is unset

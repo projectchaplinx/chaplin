@@ -3,11 +3,30 @@ import {
   type CameraMovementId,
   type CameraPlan,
 } from "@/lib/camera-movements";
+import {
+  safeCameraForEnergy,
+  type EnergyState,
+  type FramingConstraint,
+} from "@/lib/direction-safety";
 
 export type ShotSceneInput = {
+  slotId?: string;
+  sourceSlotId?: string;
   setting?: string;
   objective?: string;
   action?: string;
+  energyState?: EnergyState;
+  lockedCharacterIds?: string[];
+  dressing?: string;
+  behaviorTell?: { characterId: string; tell: string } | null;
+  durationSeconds?: number;
+  durationMs?: number;
+  motionMode?: "forward" | "chain";
+  motionFromSlotId?: string | null;
+  framingConstraint?: FramingConstraint;
+  sensitiveNegatives?: string[];
+  referencedProps?: string[];
+  dialogueFramingConstraint?: "off_face" | null;
   cameraMovementId?: CameraMovementId;
 };
 
@@ -157,7 +176,9 @@ export function auditShotScene(scene: ShotSceneInput): ShotRisk[] {
 
 export function cameraPlanForShot(input: ShotPromptInput): CameraPlan {
   return planCameraForScene({
-    movementId: input.scene.cameraMovementId,
+    movementId: input.scene.energyState
+      ? safeCameraForEnergy(input.scene.energyState, input.scene.cameraMovementId)
+      : input.scene.cameraMovementId,
     setting: input.scene.setting,
     objective: input.scene.objective,
     action: input.scene.action,
@@ -238,7 +259,12 @@ export function validateShotSequence(
 
   const signatures = scenes.map(normalizedSceneSignature);
   const repeatedIndex = signatures.findIndex((signature, index) => (
-    signature.length > 2 && signatures.indexOf(signature) !== index
+    signature.length > 2
+    && signatures.some((candidate, earlier) => (
+      earlier < index
+      && candidate === signature
+      && (!scenes[index].sourceSlotId || scenes[index].sourceSlotId !== scenes[earlier].sourceSlotId)
+    ))
   ));
   if (repeatedIndex >= 0) {
     return {
@@ -256,6 +282,7 @@ export function validateShotSequence(
   */
   for (let index = 1; index < scenes.length; index += 1) {
     for (let earlier = 0; earlier < index; earlier += 1) {
+      if (scenes[index].sourceSlotId && scenes[index].sourceSlotId === scenes[earlier].sourceSlotId) continue;
       if (beatSimilarity(scenes[index], scenes[earlier]) >= BEAT_REPEAT_THRESHOLD) {
         return {
           valid: false,
@@ -282,6 +309,11 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
     `SETTING: ${input.scene.setting || "A specific location grounded in the locked production."}`,
     `DRAMATIC OBJECTIVE: ${input.scene.objective || "Create one visible situation change."}`,
     `FIRST-FRAME ACTION: Compose the instant immediately before ${input.scene.action || `${actors[0].name} begins one concise, camera-readable action.`}`,
+    input.scene.energyState ? `ENERGY STATE: ${input.scene.energyState}. Identity budget is already resolved for this frame.` : "",
+    input.scene.behaviorTell ? `CARD BEHAVIOR TELL: ${input.scene.behaviorTell.tell}. Make this visible without explaining it.` : "",
+    input.scene.dressing ? `HUMAN DRESSING: ${input.scene.dressing}` : "",
+    input.scene.framingConstraint === "non_readable" ? "FRAMING CONSTRAINT: NON-READABLE. Use silhouette, partial framing, off-frame action, or reaction-only coverage." : "",
+    input.scene.referencedProps?.length ? `CLOSED PROP SET: ${input.scene.referencedProps.join(", ")}. Add no other prop or weapon.` : "CLOSED PROP SET: no new props or weapons.",
     "DISTINCT SHOT RULE: Represent only this scene's authored setting, objective, and starting action. Do not copy the pose, staging, camera angle, or background of another scene in the sequence.",
     "SINGLE-FRAME RULE: Return one full-bleed camera view only. No split screen, tiled variants, storyboard, contact sheet, diptych, triptych, or collage.",
     ...(ensemble ? [castingComposition(actors)] : []),
@@ -298,11 +330,11 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
     `CONTINUITY: ${input.continuityNote || "Preserve identity, wardrobe, props, product, screen direction, background geography, palette, and time of day across adjacent shots."}`,
     "REALISM: Photoreal live-action captured through a physical camera unless the concept explicitly requests animation, manga, illustration, or another stylized medium.",
     ...(risks.length ? [`DIRECTOR CHECK: ${risks.map((risk) => risk.message).join(" ")}`] : []),
-    `EXCLUSIONS: ${SHOT_KNOWLEDGE_BASE.negative.join(" ")}`,
-  ].join("\n");
+    `EXCLUSIONS: ${[...SHOT_KNOWLEDGE_BASE.negative, ...(input.scene.sensitiveNegatives ?? [])].join(" ")}`,
+  ].filter(Boolean).join("\n");
 }
 
-export function buildShotVideoPrompt(input: ShotPromptInput): string {
+export function buildLegacyUnsafeShotVideoPrompt(input: ShotPromptInput): string {
   const camera = cameraPlanForShot(input);
   const actors = shotActors(input);
   const ensemble = actors.length > 1;
@@ -337,4 +369,49 @@ export function buildShotVideoPrompt(input: ShotPromptInput): string {
     `NEGATIVE: ${SHOT_KNOWLEDGE_BASE.negative.join(" ")}`,
     "AUDIO: Silent visual plate only. No lip-sync, speech, effects, ambience, or music; audio is generated and mixed separately. --duration 5 --camerafixed false",
   ].join("\n");
+}
+
+export function buildShotVideoPrompt(input: ShotPromptInput): string {
+  const camera = cameraPlanForShot(input);
+  const actors = shotActors(input);
+  const movingSubject = actors[0]?.name ?? input.actorName;
+  const durationMs = Math.max(1000, Math.round(input.scene.durationMs ?? (input.scene.durationSeconds ?? 4) * 1000));
+  const durationSeconds = durationMs / 1000;
+  const establishEnd = Math.max(0.5, Math.min(1, durationSeconds * 0.2));
+  const performEnd = Math.max(establishEnd + 0.5, durationSeconds * 0.82);
+  const cameraDrift = input.scene.cameraMovementId === "locked-off"
+    ? "none; the camera is completely locked"
+    : `${camera.movementName} only; no unplanned drift`;
+  const risks = auditShotScene(input.scene);
+  return [
+    `Animate slot ${input.scene.slotId ?? input.sceneIndex + 1} of ${input.sceneCount} for "${input.productionTitle}" as one continuous ${durationMs}ms silent source clip.`,
+    `STORY PROMISE: ${input.productionLogline || input.scene.objective || "One visible action creates one visible change."}`,
+    "SOURCE FRAME: The supplied image is the exact first frame and complete art direction. Do not redesign, recompose, or invent a second angle.",
+    `SCENE BEAT: ${input.scene.setting || "The established location"}; ${input.scene.objective || "one visible situation change"}.`,
+    `0.0-${establishEnd.toFixed(2)}s - ESTABLISH: Read the locked subject, location, important object, and starting body position.`,
+    `${establishEnd.toFixed(2)}-${performEnd.toFixed(2)}s - PERFORM: ${input.scene.action || `${movingSubject} completes one concise, physically plausible action.`}`,
+    `${performEnd.toFixed(2)}-${durationSeconds.toFixed(2)}s - LAND: Finish the action, settle body and camera motion, and hold the changed situation.`,
+    `CONTROLLED MOTION: Exactly one named moving subject: ${movingSubject}. Every other person and all dressing remain explicitly still except for passive physical inertia. Camera drift: ${cameraDrift}.`,
+    input.scene.energyState ? `ENERGY STATE: ${input.scene.energyState}. Do not exceed its camera or identity budget.` : "",
+    `MOTION MODE: ${input.scene.motionMode ?? "forward"}${input.scene.motionMode === "chain" && input.scene.motionFromSlotId ? ` from rendered slot ${input.scene.motionFromSlotId}` : ""}.`,
+    `CAMERA PATH - ${camera.movementName}: ${camera.movementPrompt}`,
+    `CAMERA LOCK: Preserve ${camera.angle}, ${camera.lens}, source-image axis, horizon, lens character, subject scale, and screen direction. No second move and no cut.`,
+    input.scene.behaviorTell ? `CARD BEHAVIOR TELL: ${input.scene.behaviorTell.tell}.` : "",
+    `IDENTITY ANCHOR: Keep only ${actors.map((actor) => actor.name).join(" and ")} readable and identity-locked. Never blend, duplicate, beautify, age-shift, or substitute them.`,
+    input.scene.dressing ? `HUMAN DRESSING: ${input.scene.dressing}` : "",
+    input.scene.framingConstraint === "non_readable"
+      ? "SENSITIVE FRAMING: Keep the minor, injury, or threatened person non-readable through silhouette, partial framing, off-frame action, or reaction-only coverage."
+      : "",
+    input.scene.dialogueFramingConstraint === "off_face"
+      ? "DIALOGUE FRAMING: OFF-FACE. Hold on hands, profile, listener, rear three-quarter, or reaction coverage; the locked TTS performance is mixed separately."
+      : "",
+    input.scene.referencedProps?.length
+      ? `CLOSED PROP SET: ${input.scene.referencedProps.join(", ")}. No new prop or weapon may appear.`
+      : "CLOSED PROP SET: no new props or weapons.",
+    "PHYSICS: Natural blink, breath, grounded weight, cloth inertia, plausible contact, and forward-time momentum. Every moving object has one explicit owner or support.",
+    `CONTINUITY: ${input.continuityNote || "Do not reverse travel direction, swap positions, rebuild the background, add people, or change object count."}`,
+    ...(risks.length ? [`SIMPLIFY BEFORE RENDER: ${risks.map((risk) => risk.message).join(" ")}`] : []),
+    `NEGATIVE: ${[...SHOT_KNOWLEDGE_BASE.negative, ...(input.scene.sensitiveNegatives ?? [])].join(" ")}`,
+    `AUDIO: Silent visual plate only. No lip-sync, speech, effects, ambience, or music; audio is generated and mixed separately. --duration ${durationSeconds.toFixed(3)} --camerafixed ${input.scene.cameraMovementId === "locked-off" ? "true" : "false"}`,
+  ].filter(Boolean).join("\n");
 }

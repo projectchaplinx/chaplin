@@ -80,7 +80,17 @@ export async function POST(request: Request) {
     const requestedSfxUrl = typeof input.sfxUrl === "string" ? input.sfxUrl : "";
     const requestedThemeUrl = typeof input.themeUrl === "string" ? input.themeUrl : "";
     const sceneDurationSeconds = Math.min(5, Math.max(1, Number(input.sceneDurationSeconds) || 4));
-    const finalDurationSeconds = Math.min(120, Math.max(1, Number(input.finalDurationSeconds) || shotUrls.length * sceneDurationSeconds));
+    const requestedSceneDurations = Array.isArray(input.sceneDurationsSeconds)
+      ? input.sceneDurationsSeconds.slice(0, shotUrls.length).map((value) => Math.min(12, Math.max(1, Number(value) || sceneDurationSeconds)))
+      : [];
+    const sceneDurationsSeconds = requestedSceneDurations.length === shotUrls.length
+      ? requestedSceneDurations
+      : shotUrls.map(() => sceneDurationSeconds);
+    const sceneOffsetsSeconds = sceneDurationsSeconds.map((_, index) => (
+      sceneDurationsSeconds.slice(0, index).reduce((sum, value) => sum + value, 0)
+    ));
+    const solvedDurationSeconds = sceneDurationsSeconds.reduce((sum, value) => sum + value, 0);
+    const finalDurationSeconds = Math.min(120, Math.max(1, Number(input.finalDurationSeconds) || solvedDurationSeconds));
     if (!runId || !characterId || shotUrls.length < 1 || shotUrls.length > 20) {
       throw new Error("A pipeline run, actor, and between one and twenty scene URLs are required.");
     }
@@ -183,15 +193,15 @@ export async function POST(request: Request) {
     shotPaths.forEach((_, index) => {
       if (!shotHasAudio[index]) return;
       const label = `aloc${index}`;
-      const delay = Math.round(index * sceneDurationSeconds * 1000);
+      const delay = Math.round(sceneOffsetsSeconds[index] * 1000);
       // Under the locked voice: this is the room, not the performance.
-      audioFilters.push(`[${index}:a]volume=0.55,atrim=0:${sceneDurationSeconds},asetpts=PTS-STARTPTS,adelay=${delay}|${delay},apad,atrim=0:${finalDurationSeconds},asetpts=PTS-STARTPTS[${label}]`);
+      audioFilters.push(`[${index}:a]volume=0.55,atrim=0:${sceneDurationsSeconds[index]},asetpts=PTS-STARTPTS,adelay=${delay}|${delay},apad,atrim=0:${finalDurationSeconds},asetpts=PTS-STARTPTS[${label}]`);
       stemLabels.push(`[${label}]`);
     });
 
     for (const source of dialogueFiles) {
       const label = `adlg${source.sceneIndex}`;
-      const delay = Math.round(source.sceneIndex * sceneDurationSeconds * 1000);
+      const delay = Math.round(sceneOffsetsSeconds[source.sceneIndex] * 1000);
       stemInputs.push("-i", source.path);
       audioFilters.push(`[${inputIndex}:a]volume=1.0,adelay=${delay}|${delay},apad,atrim=0:${finalDurationSeconds},asetpts=PTS-STARTPTS[${label}]`);
       stemLabels.push(`[${label}]`);
@@ -199,7 +209,7 @@ export async function POST(request: Request) {
     }
     for (const source of sfxFiles) {
       const label = `asfx${source.sceneIndex}`;
-      const delay = Math.round(source.sceneIndex * sceneDurationSeconds * 1000 + 180);
+      const delay = Math.round(sceneOffsetsSeconds[source.sceneIndex] * 1000 + 180);
       stemInputs.push("-i", source.path);
       audioFilters.push(`[${inputIndex}:a]volume=0.7,adelay=${delay}|${delay},apad,atrim=0:${finalDurationSeconds},asetpts=PTS-STARTPTS[${label}]`);
       stemLabels.push(`[${label}]`);
@@ -216,8 +226,8 @@ export async function POST(request: Request) {
         line's own level.
       */
       const speechWindows = dialogueFiles.map((source) => {
-        const start = source.sceneIndex * sceneDurationSeconds;
-        return { start, end: start + sceneDurationSeconds };
+        const start = sceneOffsetsSeconds[source.sceneIndex];
+        return { start, end: start + sceneDurationsSeconds[source.sceneIndex] };
       });
       const duckedGain = (0.18 * DUCK_UNDER_SPEECH).toFixed(4);
       const themeVolume = speechWindows.length
@@ -239,7 +249,7 @@ export async function POST(request: Request) {
       "-filter_complex",
       [
         ...shotPaths.map((_, index) => (
-          `[${index}:v]trim=duration=${sceneDurationSeconds},scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,fps=24,setsar=1,setpts=PTS-STARTPTS[v${index}]`
+          `[${index}:v]trim=duration=${sceneDurationsSeconds[index]},scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,fps=24,setsar=1,setpts=PTS-STARTPTS[v${index}]`
         )),
         `${shotPaths.map((_, index) => `[v${index}]`).join("")}concat=n=${shotPaths.length}:v=1:a=0[vout]`,
         ...audioFilters,
@@ -273,6 +283,7 @@ export async function POST(request: Request) {
         sourceUrls: shotUrls,
         sourceFrameUrls: frameUrls,
         sceneDurationSeconds,
+        sceneDurationsSeconds,
         finalDurationSeconds,
         audioManifest: {
           lockedVoice: dialogueFiles.map((source) => ({ sceneIndex: source.sceneIndex, url: source.url })),
@@ -287,6 +298,7 @@ export async function POST(request: Request) {
       shotUrls,
       frameUrls,
       sceneDurationSeconds,
+      sceneDurationsSeconds,
       audioManifest: {
         lockedVoiceCount: dialogueFiles.length,
         sceneEffectCount: sfxFiles.length,

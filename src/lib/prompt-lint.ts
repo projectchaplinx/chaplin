@@ -2,6 +2,11 @@ import { z } from "zod";
 import { defaultMarkerFailures } from "@/lib/prompt-composer";
 import { adBoardSchema, lintAdBoard } from "@/lib/ad-board";
 import type { AudioPlanIssue } from "@/lib/audio-plan";
+import {
+  directionBoardSchema,
+  lintDirectionBoard,
+  type DirectionCharacter,
+} from "@/lib/direction-safety";
 
 export const promptConsumerSchema = z.enum(["runtime", "sheet", "voice", "dialogue", "sfx", "theme", "image", "video"]);
 export const recognitionLockSchema = z.object({
@@ -26,6 +31,8 @@ export const promptLintInputSchema = z.object({
   voicePresentation: z.string().optional(),
   presentationConfirmed: z.boolean().default(false),
   adBoard: adBoardSchema.optional(),
+  directionBoard: directionBoardSchema.optional(),
+  directionCharacters: z.array(z.custom<DirectionCharacter>()).optional(),
 });
 export type PromptLintInput = z.infer<typeof promptLintInputSchema>;
 export type PromptLintIssue = { rule: `L${number}` | AudioPlanIssue["rule"]; cardId: string; message: string };
@@ -152,6 +159,16 @@ export function lintPromptHandoff(rawInput: PromptLintInput): PromptLintResult {
       };
       if (issue.level === "failure") failures.push(mapped);
       else warnings.push(mapped);
+    }
+  }
+
+  if (input.directionBoard) {
+    for (const issue of lintDirectionBoard(input.directionBoard, input.directionCharacters ?? [])) {
+      failures.push({
+        rule: "L10",
+        cardId: issue.slotId,
+        message: `${issue.rule}: ${issue.message}`,
+      });
     }
   }
 

@@ -18,6 +18,15 @@ import {
   productionShotCount,
   type ProductionFormat,
 } from "@/lib/production-formats";
+import {
+  applyDirectionSafety,
+  DIRECTION_ARC_TEMPLATE,
+  explicitShotCountFromBrief,
+  lintDirectionBoard,
+  type EnergyState,
+  type FramingConstraint,
+  type SceneProp,
+} from "@/lib/direction-safety";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // json_schema output on a full scene draft can run 35-55s; give real headroom over the wall clock
@@ -31,6 +40,7 @@ type PromptCharacter = {
   voiceGender: VoiceGender;
   voiceDesc: string;
   productionBible: CharacterProductionBible;
+  cardV2?: unknown;
 };
 
 type MagicDraft = {
@@ -38,11 +48,27 @@ type MagicDraft = {
   logline: string;
   creativeDirection: string;
   castIds: string[];
+  arcTemplate?: typeof DIRECTION_ARC_TEMPLATE;
+  targetDurationMs?: number;
+  sceneProps?: SceneProp[];
   scenes: Array<{
+    slotId?: string;
+    sourceSlotId?: string;
     setting: string;
     objective: string;
     action: string;
+    energyState?: EnergyState;
+    lockedCharacterIds?: string[];
+    dressing?: string;
+    behaviorTell?: { characterId: string; tell: string } | null;
     cameraMovementId?: CameraMovementId;
+    durationMs?: number;
+    motionMode?: "forward" | "chain";
+    motionFromSlotId?: string | null;
+    framingConstraint?: FramingConstraint;
+    sensitiveNegatives?: string[];
+    referencedProps?: string[];
+    dialogueFramingConstraint?: "off_face" | null;
     lines: Array<{ characterId: string; text: string }>;
   }>;
 };
@@ -75,6 +101,7 @@ function parseCharacters(value: unknown): PromptCharacter[] {
       productionBible: row.productionBible && typeof row.productionBible === "object"
         ? row.productionBible as CharacterProductionBible
         : buildProductionBible(base),
+      cardV2: row.cardV2,
     }];
   });
 }
@@ -98,9 +125,74 @@ function attachCameraMovements(draft: MagicDraft, format: ProductionFormat): Mag
   };
 }
 
+function finalizeDirectionDraft(
+  draft: MagicDraft,
+  input: {
+    format: ProductionFormat;
+    durationSeconds: number;
+    requiredSceneCount: number;
+    characters: PromptCharacter[];
+    castIds: string[];
+  },
+) {
+  const authoredScenes = draft.scenes.slice(0, input.requiredSceneCount);
+  while (authoredScenes.length < input.requiredSceneCount && draft.scenes.length) {
+    const source = draft.scenes[authoredScenes.length % draft.scenes.length];
+    authoredScenes.push({
+      ...source,
+      setting: `${source.setting.replace(/\s+â€”\s+CONTINUOUS.*$/i, "")} â€” CONTINUOUS ${authoredScenes.length + 1}`,
+      lines: source.lines.map((line) => ({ ...line })),
+    });
+  }
+  const directed = attachCameraMovements({ ...draft, scenes: authoredScenes }, input.format);
+  const selected = (input.castIds.length
+    ? input.castIds.map((id) => input.characters.find((character) => character.id === id)).filter((character): character is PromptCharacter => Boolean(character))
+    : input.characters.slice(0, input.format === "episode" ? 2 : 1)
+  ).slice(0, 6);
+  const board = applyDirectionSafety({
+    board: {
+      scenes: directed.scenes,
+      sceneProps: directed.sceneProps,
+    },
+    characters: selected,
+    targetDurationMs: input.durationSeconds * 1000,
+  });
+  const safetyIssues = lintDirectionBoard(board, selected);
+  if (safetyIssues.length) {
+    throw new Error(`Direction safety failed: ${safetyIssues.map((issue) => `${issue.rule} ${issue.message}`).join("; ")}`);
+  }
+  return {
+    ...directed,
+    arcTemplate: board.arcTemplate,
+    targetDurationMs: board.targetDurationMs,
+    sceneProps: board.sceneProps,
+    scenes: board.slots.map((slot) => ({
+      slotId: slot.slotId,
+      sourceSlotId: slot.sourceSlotId,
+      setting: slot.setting,
+      objective: slot.objective,
+      action: slot.action,
+      energyState: slot.energyState,
+      lockedCharacterIds: slot.lockedCharacterIds,
+      dressing: slot.dressing,
+      behaviorTell: slot.behaviorTell,
+      cameraMovementId: slot.cameraMovementId as CameraMovementId,
+      durationMs: slot.durationMs,
+      motionMode: slot.motionMode,
+      motionFromSlotId: slot.motionFromSlotId,
+      framingConstraint: slot.framingConstraint,
+      sensitiveNegatives: slot.sensitiveNegatives,
+      referencedProps: slot.referencedProps,
+      dialogueFramingConstraint: slot.dialogueFramingConstraint,
+      lines: slot.lines,
+    })),
+  } satisfies MagicDraft;
+}
+
 function fallbackDraft(input: {
   format: ProductionFormat;
   durationSeconds: number;
+  requiredSceneCount: number;
   brief: string;
   title: string;
   logline: string;
@@ -200,22 +292,44 @@ function fallbackDraft(input: {
 const OUTPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "logline", "creativeDirection", "castIds", "scenes"],
+  required: ["title", "logline", "creativeDirection", "arcTemplate", "sceneProps", "castIds", "scenes"],
   properties: {
     title: { type: "string" },
     logline: { type: "string" },
     creativeDirection: { type: "string" },
+    arcTemplate: { type: "string", enum: [DIRECTION_ARC_TEMPLATE] },
+    sceneProps: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "reason", "approved"],
+        properties: {
+          name: { type: "string" },
+          reason: { type: "string" },
+          approved: { type: "boolean" },
+        },
+      },
+    },
     castIds: { type: "array", items: { type: "string" } },
     scenes: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["setting", "objective", "action", "lines"],
+        required: [
+          "setting", "objective", "action", "energyState", "lockedCharacterIds",
+          "referencedProps", "motionMode", "framingConstraint", "lines",
+        ],
         properties: {
           setting: { type: "string" },
           objective: { type: "string" },
           action: { type: "string" },
+          energyState: { type: "string", enum: ["static", "sustained", "action"] },
+          lockedCharacterIds: { type: "array", items: { type: "string" } },
+          referencedProps: { type: "array", items: { type: "string" } },
+          motionMode: { type: "string", enum: ["forward", "chain"] },
+          framingConstraint: { type: "string", enum: ["readable", "non_readable"] },
           lines: {
             type: "array",
             items: {
@@ -266,7 +380,8 @@ export async function POST(request: Request) {
       format,
       durationSeconds,
       sceneDurationSeconds: 4,
-      requiredSceneCount: productionShotCount(format, durationSeconds),
+      requiredSceneCount: explicitShotCountFromBrief(clean(body.brief, 4000))
+        ?? productionShotCount(format, durationSeconds),
       brief: clean(body.brief, 4000),
       title: clean(body.title, 200),
       logline: clean(body.logline, 700),
@@ -282,7 +397,7 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return Response.json({ draft: attachCameraMovements(fallbackDraft(input), format), provider: "chaplin-local", configured: false });
+      return Response.json({ draft: finalizeDirectionDraft(fallbackDraft(input), input), provider: "chaplin-local", configured: false });
     }
 
     const writingConfig = (await getPipelineConfig()).stages.writing;
@@ -317,6 +432,10 @@ export async function POST(request: Request) {
       task: "Expand the user's partial input into a complete, editable production draft. Preserve useful supplied title and logline text, but improve weak or incomplete fields.",
       format,
       durationSeconds,
+      targetDurationMs: durationSeconds * 1000,
+      requiredSceneCount: input.requiredSceneCount,
+      arcTemplate: DIRECTION_ARC_TEMPLATE,
+      sceneProps: [],
       brief: input.brief || "Invent a strong concept suited to the selected cast.",
       existingTitle: input.title || null,
       existingLogline: input.logline || null,
@@ -371,7 +490,7 @@ export async function POST(request: Request) {
         model,
         max_tokens: Math.max(4000, writingConfig.maxTokens ?? 8000),
         thinking: { type: "disabled" },
-        system: `${writingConfig.promptPrelude} You are Chaplin's senior screenwriter and advertising creative director. Write concise, production-ready scripts for fictional AI actors using each supplied production bible and canonical reference image as binding character canon. The images are the source of truth for face, apparent age, hair, body, wardrobe, materials, palette, and physical presence; stage action, blocking, framing, and motivated light around what is actually visible instead of redesigning or generically redescribing it. For a Spot, the supplied product image is equally binding canon: preserve its exact shape, packaging, proportions, colors, materials, label placement, and recognizable details; build the idea around what is actually visible instead of inventing or redesigning the product. Never restate biography as dialogue. Every returned scene is exactly one four-second visual unit and must have a screenplay slugline, one playable objective, one concise visible action that can complete in four seconds, and dialogue short enough to perform inside that same four-second window. Do not hide camera directions inside visible action; Chaplin assigns a controlled camera plan after the dramatic beat is written. Return exactly the requiredSceneCount supplied in the task. The first scene needs a visual hook, not an explanation. Each subsequent scene must escalate cost or reverse power. A cliffhanger must introduce new pressure, reveal consequential information, or force an irreversible choice; merely withholding information is not a cliffhanger. Payoffs must answer an earlier image, gesture, object, or moral boundary. Preserve performance tells, movement grammar, recurring motifs, and moral boundaries without mechanically repeating them. Spark is a private five-second audition with one performance choice. Punch is a public fifteen-second personality proof assembled from four authored four-second scenes and trimmed to runtime. Episode is a sixty-second microdrama ending on a situation-changing cliffhanger. Spot is a managed thirty- or sixty-second brand output that dramatizes one benefit through visible proof and a specific CTA. Keep scenes realistic for the requested duration and use only supplied character IDs.`,
+        system: `${writingConfig.promptPrelude} You are Chaplin's senior screenwriter and advertising creative director. Keep the named arc template hook_escalate_reverse_cliffhanger: open with a visible hook, escalate cost, reverse power, then land a situation-changing cliffhanger. Write concise, production-ready scripts for fictional AI actors using each supplied production bible and canonical reference image as binding character canon. Reward card-to-screen fidelity: every selected hero must contribute at least one specific performance tell from their card or production bible across the board. The images are the source of truth for face, apparent age, hair, body, wardrobe, materials, palette, and physical presence. NPCs are anonymous dressing, never locked cast: no recognition locks and no readable faces. For a Spot, the supplied product image is equally binding canon. Never restate biography as dialogue. Return exactly requiredSceneCount authored beats unless safety later splits an action beat into sub-slots. Label each beat static, sustained, or action. An action beat may lock only one identity and may not contain dialogue; static may lock two, sustained one. Max one speaking character in any beat. Mark CONTINUOUS or physically carried action as chain motion; otherwise forward. Props and weapons may only come from the supplied character canon or sceneProps. Put any newly required object in sceneProps with a concrete reason and approved=false. Sensitive action involving a minor, injury, or a weapon pointed at a person must use non_readable framing. Do not hide camera directions inside visible action; Chaplin assigns and safety-checks the camera after the dramatic beat is written. Preserve performance tells, movement grammar, recurring motifs, and moral boundaries without mechanically repeating them. Keep scenes realistic for the requested duration and use only supplied character IDs.`,
         messages: [{
           role: "user",
           content: messageContent,
@@ -402,6 +521,18 @@ export async function POST(request: Request) {
       const setting = clean(scene.setting, 300);
       const objective = clean(scene.objective, 700);
       const action = clean(scene.action, 1600);
+      const energyState: EnergyState | undefined =
+        scene.energyState === "static" || scene.energyState === "sustained" || scene.energyState === "action"
+          ? scene.energyState
+          : undefined;
+      const lockedCharacterIds = Array.isArray(scene.lockedCharacterIds)
+        ? scene.lockedCharacterIds.filter((id): id is string => typeof id === "string" && allowedIds.has(id))
+        : undefined;
+      const referencedProps = Array.isArray(scene.referencedProps)
+        ? scene.referencedProps.filter((prop): prop is string => typeof prop === "string" && Boolean(clean(prop, 100)))
+        : undefined;
+      const motionMode = scene.motionMode === "chain" ? "chain" as const : "forward" as const;
+      const framingConstraint = scene.framingConstraint === "non_readable" ? "non_readable" as const : "readable" as const;
       const lines = Array.isArray(scene.lines)
         ? scene.lines
           .filter((line) => line && allowedIds.has(line.characterId) && clean(line.text, 800))
@@ -409,14 +540,14 @@ export async function POST(request: Request) {
           .map((line) => ({ characterId: line.characterId, text: clean(line.text, 800) }))
         : [];
       return setting || objective || action || lines.length
-        ? [{ setting, objective, action, lines }]
+        ? [{ setting, objective, action, energyState, lockedCharacterIds, referencedProps, motionMode, framingConstraint, lines }]
         : [];
     });
     const repairedEmptyScenes = draft.scenes.length === 0;
     if (repairedEmptyScenes) {
       draft.scenes = fallbackDraft(input).scenes;
     }
-    const requiredSceneCount = productionShotCount(format, durationSeconds);
+    const requiredSceneCount = input.requiredSceneCount;
     if (format !== "spark") {
       const fallbackScenes = fallbackDraft(input).scenes;
       while (draft.scenes.length < requiredSceneCount && fallbackScenes.length) {
@@ -432,7 +563,7 @@ export async function POST(request: Request) {
     const speakingCastIds = draft.scenes.flatMap((scene) => scene.lines.map((line) => line.characterId));
     draft.castIds = [...new Set([...draft.castIds, ...speakingCastIds])]
       .filter((id) => allowedIds.has(id));
-    const directedDraft = attachCameraMovements(draft, format);
+    const directedDraft = finalizeDirectionDraft(draft, input);
     const usage = {
       inputTokens: Number(data.usage?.input_tokens ?? 0),
       outputTokens: Number(data.usage?.output_tokens ?? 0),
@@ -461,7 +592,7 @@ export async function POST(request: Request) {
     if (jobId) await failGeneration(jobId, message);
     if (fallbackInput) {
       return Response.json({
-        draft: attachCameraMovements(fallbackDraft(fallbackInput), fallbackInput.format),
+        draft: finalizeDirectionDraft(fallbackDraft(fallbackInput), fallbackInput),
         provider: "chaplin-local",
         configured: Boolean(process.env.ANTHROPIC_API_KEY),
         warning: `Claude could not run: ${message} A complete local draft was used instead.`,

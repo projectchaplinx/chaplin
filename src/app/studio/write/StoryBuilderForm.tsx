@@ -36,19 +36,39 @@ import {
   type CameraMovementId,
 } from "@/lib/camera-movements";
 import { auditShotScene, buildShotImagePrompt, validateShotSequence } from "@/lib/shot-director";
+import {
+  cameraAllowedForEnergy,
+  explicitShotCountFromBrief,
+  type EnergyState,
+  type FramingConstraint,
+  type SceneProp,
+} from "@/lib/direction-safety";
 
 interface DraftLine {
   characterId: string;
   text: string;
 }
 interface DraftScene {
+  slotId?: string;
+  sourceSlotId?: string;
   setting: string;
   objective: string;
   action: string;
+  energyState?: EnergyState;
+  lockedCharacterIds?: string[];
+  dressing?: string;
+  behaviorTell?: { characterId: string; tell: string } | null;
   durationSeconds?: number;
+  durationMs?: number;
   previewImageUrl?: string;
   previewAssetId?: string;
   cameraMovementId?: CameraMovementId;
+  motionMode?: "forward" | "chain";
+  motionFromSlotId?: string | null;
+  framingConstraint?: FramingConstraint;
+  sensitiveNegatives?: string[];
+  referencedProps?: string[];
+  dialogueFramingConstraint?: "off_face" | null;
   lines: DraftLine[];
 }
 
@@ -57,6 +77,7 @@ type MagicDraft = {
   logline: string;
   creativeDirection: string;
   castIds: string[];
+  sceneProps?: SceneProp[];
   scenes: DraftScene[];
 };
 
@@ -70,6 +91,7 @@ type StoredDraft = {
     durationSeconds?: number;
     creativeDirection?: string;
     castIds?: string[];
+    sceneProps?: SceneProp[];
     scenes?: DraftScene[];
     step?: 1 | 2 | 3;
     productImageUrl?: string;
@@ -224,6 +246,7 @@ export default function StoryBuilderForm() {
     return preset.filter((id) => world.characters.some((c) => c.id === id));
   });
   const [scenes, setScenes] = useState<DraftScene[]>([emptyScene()]);
+  const [sceneProps, setSceneProps] = useState<SceneProp[]>([]);
   const [error, setError] = useState("");
   const [magicBusy, setMagicBusy] = useState(false);
   const [magicRunKind, setMagicRunKind] = useState<MagicRunKind>("draft");
@@ -262,7 +285,8 @@ export default function StoryBuilderForm() {
   const previewRunRef = useRef(false);
   const formatOptions = formatsForRole(activeRole);
   const formatDefinition = PRODUCTION_FORMATS[format];
-  const expectedShotCount = productionShotCount(format, durationSeconds);
+  const expectedShotCount = explicitShotCountFromBrief(brief)
+    ?? productionShotCount(format, durationSeconds);
 
   useEffect(() => {
     if (!startChoiceOpen) return;
@@ -350,9 +374,13 @@ export default function StoryBuilderForm() {
         setProductImageUrl(body.productImageUrl ?? "");
         setProductImageName(body.productImageName ?? "");
         setCastIds(Array.isArray(body.castIds) ? body.castIds : []);
+        setSceneProps(Array.isArray(body.sceneProps) ? body.sceneProps : []);
         setScenes(
           Array.isArray(body.scenes) && body.scenes.length
-            ? body.scenes.map((scene) => ({ ...scene, durationSeconds: 4 }))
+            ? body.scenes.map((scene) => ({
+                ...scene,
+                durationSeconds: scene.durationSeconds ?? (scene.durationMs ? scene.durationMs / 1000 : 4),
+              }))
             : [emptyScene()]
         );
         setActiveSceneIndex(0);
@@ -402,6 +430,7 @@ export default function StoryBuilderForm() {
             durationSeconds,
             creativeDirection,
             castIds,
+            sceneProps,
             scenes,
             step,
             productImageUrl,
@@ -432,7 +461,7 @@ export default function StoryBuilderForm() {
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [brief, castIds, creativeDirection, draftAccountId, draftAccountReady, draftId, draftReady, durationSeconds, format, logline, productImageName, productImageUrl, scenes, step, title]);
+  }, [brief, castIds, creativeDirection, draftAccountId, draftAccountReady, draftId, draftReady, durationSeconds, format, logline, productImageName, productImageUrl, sceneProps, scenes, step, title]);
 
   useEffect(() => {
     fetch("/api/write/magic", { cache: "no-store" })
@@ -648,6 +677,7 @@ export default function StoryBuilderForm() {
             voiceGender: character.voiceGender,
             voiceDesc: character.voiceDesc,
             productionBible: character.productionBible,
+            cardV2: character.cardV2,
           })),
         }),
       });
@@ -663,6 +693,7 @@ export default function StoryBuilderForm() {
       setTitle(draft.title);
       setLogline(draft.logline);
       setCreativeDirection(draft.creativeDirection);
+      setSceneProps(draft.sceneProps ?? []);
       if (!conceptOnly) {
         /*
           A cast the creator already chose is the brief, not a suggestion.
@@ -681,7 +712,10 @@ export default function StoryBuilderForm() {
           objective: `Reveal ${lead?.name ?? "the actor"} through one visible, situation-changing choice.`,
           action: `${lead?.name ?? "The actor"} enters under immediate pressure, finds the detail everyone else missed, and makes one physical choice that changes the scene.`,
           lines: [],
-        }]).map((scene) => ({ ...scene, durationSeconds: 4 }));
+        }]).map((scene) => ({
+          ...scene,
+          durationSeconds: scene.durationSeconds ?? (scene.durationMs ? scene.durationMs / 1000 : 4),
+        }));
         setScenes(nextScenes);
         /*
           The script belongs to the actors it is about, which is not always the
@@ -809,6 +843,7 @@ export default function StoryBuilderForm() {
             voiceGender: character.voiceGender,
             voiceDesc: character.voiceDesc,
             productionBible: character.productionBible,
+            cardV2: character.cardV2,
           })),
         }),
       });
@@ -830,15 +865,29 @@ export default function StoryBuilderForm() {
       };
       const validCastIds = new Set(castCharacters.map((character) => character.id));
       const shapedScene: DraftScene = {
+        slotId: playableScene.slotId,
+        sourceSlotId: playableScene.sourceSlotId,
         setting: playableScene.setting || currentScene.setting,
         objective: playableScene.objective || currentScene.objective,
         action: playableScene.action || currentScene.action,
+        energyState: playableScene.energyState,
+        lockedCharacterIds: playableScene.lockedCharacterIds,
+        dressing: playableScene.dressing,
+        behaviorTell: playableScene.behaviorTell,
         cameraMovementId: playableScene.cameraMovementId,
-        durationSeconds: 4,
+        durationMs: playableScene.durationMs,
+        durationSeconds: playableScene.durationMs ? playableScene.durationMs / 1000 : currentScene.durationSeconds ?? 4,
+        motionMode: playableScene.motionMode,
+        motionFromSlotId: playableScene.motionFromSlotId,
+        framingConstraint: playableScene.framingConstraint,
+        sensitiveNegatives: playableScene.sensitiveNegatives,
+        referencedProps: playableScene.referencedProps,
+        dialogueFramingConstraint: playableScene.dialogueFramingConstraint,
         lines: playableScene.lines
           .filter((line) => validCastIds.has(line.characterId) && line.text.trim())
           .slice(0, 3),
       };
+      setSceneProps(data.draft.sceneProps ?? sceneProps);
       updateScene(sceneIndex, shapedScene);
       await generateScenePreview(shapedScene, sceneIndex);
       setSceneAssistMessage({
@@ -875,9 +924,13 @@ export default function StoryBuilderForm() {
         sceneIndex,
         sceneCount: scenes.length,
       });
-      // Everyone in the cast shares the frame. The lead stays first so reference
+      // Only identities inside this slot's safety budget receive recognition
       // image N lines up with "ACTOR LOCK … matches reference image N".
-      const sceneCast = castCharacters.length ? castCharacters : [lead];
+      const lockedIds = scene.lockedCharacterIds?.length ? scene.lockedCharacterIds : [lead.id];
+      const sceneCast = lockedIds
+        .map((id) => castCharacters.find((actor) => actor.id === id))
+        .filter((actor): actor is Character => Boolean(actor));
+      if (!sceneCast.length) sceneCast.push(lead);
       const referenceImages = [
         ...sceneCast.map((actor) => actor.imageUrl ?? actor.galleryUrls?.[0] ?? actor.bannerUrl ?? ""),
         productImageUrl,
@@ -912,7 +965,7 @@ export default function StoryBuilderForm() {
         throw new Error(data.error || `Scene ${sceneIndex + 1} thumbnail was not created.`);
       }
       updateScene(sceneIndex, {
-        durationSeconds: 4,
+        durationSeconds: scene.durationSeconds ?? (scene.durationMs ? scene.durationMs / 1000 : 4),
         cameraMovementId: cameraPlan.movementId,
         previewImageUrl: data.url,
         previewAssetId: data.assetId,
@@ -996,7 +1049,20 @@ export default function StoryBuilderForm() {
         setting: sc.setting.trim() || "An unnamed scene",
         objective: sc.objective.trim() || undefined,
         action: sc.action.trim() || undefined,
-        durationSeconds: 4,
+        slotId: sc.slotId,
+        sourceSlotId: sc.sourceSlotId,
+        energyState: sc.energyState,
+        lockedCharacterIds: sc.lockedCharacterIds,
+        dressing: sc.dressing,
+        behaviorTell: sc.behaviorTell,
+        durationMs: sc.durationMs,
+        durationSeconds: sc.durationSeconds ?? (sc.durationMs ? sc.durationMs / 1000 : 4),
+        motionMode: sc.motionMode,
+        motionFromSlotId: sc.motionFromSlotId,
+        framingConstraint: sc.framingConstraint,
+        sensitiveNegatives: sc.sensitiveNegatives,
+        referencedProps: sc.referencedProps,
+        dialogueFramingConstraint: sc.dialogueFramingConstraint,
         previewImageUrl: sc.previewImageUrl,
         previewAssetId: sc.previewAssetId,
         lines: sc.lines.filter((ln) => ln.characterId && ln.text.trim()),
@@ -1008,8 +1074,15 @@ export default function StoryBuilderForm() {
       setStep(3);
       return;
     }
-    const expectedSceneCount = productionShotCount(format, durationSeconds);
-    const sequenceValidation = validateShotSequence(validScenes, expectedSceneCount);
+    const expectedSceneCount = explicitShotCountFromBrief(brief)
+      ?? productionShotCount(format, durationSeconds);
+    const authoredSourceCount = new Set(validScenes.map((scene, index) => scene.sourceSlotId || String(index + 1))).size;
+    if (authoredSourceCount !== expectedSceneCount) {
+      setError(`This production needs exactly ${expectedSceneCount} authored beats before safety splits. It currently has ${authoredSourceCount}.`);
+      setStep(3);
+      return;
+    }
+    const sequenceValidation = validateShotSequence(validScenes, validScenes.length);
     if (!sequenceValidation.valid) {
       setError(sequenceValidation.error ?? "The scene sequence is incomplete.");
       setStep(3);
@@ -1027,6 +1100,7 @@ export default function StoryBuilderForm() {
       durationSeconds,
       status: "production",
       creativeDirection: creativeDirection.trim() || undefined,
+      sceneProps,
       productImageUrl: productImageUrl || undefined,
       productImageName: productImageName || undefined,
       authorId: currentUserId,
@@ -1136,6 +1210,8 @@ export default function StoryBuilderForm() {
   const productionBlockedReason =
     format === "spot" && !productImageUrl
       ? "Upload the product reference first"
+      : sceneProps.some((prop) => !prop.approved)
+        ? "Approve or remove every newly introduced scene prop"
       : !conceptLocked
         ? "Needs a title and logline"
         : !castLocked
@@ -1993,6 +2069,37 @@ export default function StoryBuilderForm() {
             <MagicWritingTimeline kind="draft" elapsedSeconds={magicElapsedSeconds} />
           )}
 
+          {sceneProps.length > 0 && (
+            <section className="mb-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.045] p-3" data-scene-props>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-200">Scene props requiring approval</p>
+                  <p className="mt-1 text-[10px] text-grey">Objects outside actor-card props cannot enter production until you approve them.</p>
+                </div>
+                <span className="font-mono text-[9px] text-grey">{sceneProps.filter((prop) => prop.approved).length}/{sceneProps.length} approved</span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {sceneProps.map((prop, propIndex) => (
+                  <div key={`${prop.name}-${propIndex}`} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold">{prop.name}</p>
+                        <p className="mt-1 text-[9px] leading-4 text-grey">{prop.reason}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSceneProps((current) => current.map((item, index) => index === propIndex ? { ...item, approved: !item.approved } : item))}
+                        className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-semibold ${prop.approved ? "border-emerald-400/50 text-emerald-300" : "border-amber-300/50 text-amber-200"}`}
+                      >
+                        {prop.approved ? "Approved" : "Approve"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="rounded-xl border border-line bg-black/15 p-3" data-scene-storyboard>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -2000,7 +2107,7 @@ export default function StoryBuilderForm() {
                 <p className="mt-0.5 text-[10px] text-grey">Choose a frame to open its complete direction below.</p>
               </div>
               <span className="shrink-0 font-mono text-[10px] text-grey">
-                {scenes.length} × 4s
+                {scenes.length} slots · {(scenes.reduce((total, scene) => total + (scene.durationMs ?? (scene.durationSeconds ?? 4) * 1000), 0) / 1000).toFixed(1)}s
               </span>
             </div>
             <div className="no-scrollbar grid auto-cols-[minmax(9rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Scene timeline">
@@ -2062,7 +2169,7 @@ export default function StoryBuilderForm() {
                       <span className={`truncate text-[8px] font-semibold uppercase tracking-[0.12em] ${active ? "text-accent" : "text-grey"}`}>
                         {status}
                       </span>
-                      <span className="font-mono text-[8px] text-grey">4s</span>
+                      <span className="font-mono text-[8px] text-grey">{((scene.durationMs ?? (scene.durationSeconds ?? 4) * 1000) / 1000).toFixed(1)}s</span>
                     </span>
                     <span className={`block h-0.5 transition-colors ${active ? "bg-accent" : scene.previewImageUrl ? "bg-emerald-400/60" : "bg-white/10"}`} />
                   </button>
@@ -2077,6 +2184,9 @@ export default function StoryBuilderForm() {
             <div key={si} className="poster-card scroll-mt-24 rounded-md p-5" data-scene-card={si}>
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="accent-rule w-6" />
+                {scene.energyState && <span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-wide text-grey">{scene.energyState}</span>}
+                {scene.motionMode && <span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-wide text-accent-secondary">{scene.motionMode}</span>}
+                {scene.lockedCharacterIds?.length ? <span className="rounded-full border border-white/10 px-2 py-1 text-[8px] text-grey">{scene.lockedCharacterIds.length} identity lock{scene.lockedCharacterIds.length === 1 ? "" : "s"}</span> : null}
                 <input
                   value={scene.setting}
                   onChange={(e) => updateSceneSetting(si, e.target.value)}
@@ -2144,7 +2254,7 @@ export default function StoryBuilderForm() {
                       <p className="mt-0.5 text-xs font-semibold text-white">{scene.setting || "Untitled scene"}</p>
                     </div>
                     <span className="rounded-full border border-white/25 bg-black/55 px-2.5 py-1 font-mono text-[9px] text-white backdrop-blur">
-                      4 SEC
+                      {((scene.durationMs ?? (scene.durationSeconds ?? 4) * 1000) / 1000).toFixed(1)} SEC
                     </span>
                   </div>
                 </div>
@@ -2211,7 +2321,9 @@ export default function StoryBuilderForm() {
                           className="mt-1.5 w-full rounded-lg border border-white/10 bg-paper px-3 py-2 text-xs focus:border-accent-secondary focus:outline-none"
                           data-camera-movement={si}
                         >
-                          {CAMERA_MOVEMENTS.map((movement) => (
+                          {CAMERA_MOVEMENTS
+                            .filter((movement) => !scene.energyState || cameraAllowedForEnergy(scene.energyState, movement.id))
+                            .map((movement) => (
                             <option key={movement.id} value={movement.id}>
                               {movement.label}
                             </option>

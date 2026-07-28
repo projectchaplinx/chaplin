@@ -47,6 +47,7 @@ import {
   withThemeDurationDirection,
 } from "@/lib/production-prompting";
 import { assembleSignatureSfx } from "@/lib/server/signature-sfx";
+import { measureStoredAudioMs } from "@/lib/server/ad-board-media";
 import { enforceThemeDuration } from "@/lib/server/audio-postprocess";
 import {
   prepareSeedanceAudioPrompt,
@@ -1063,6 +1064,7 @@ export async function POST(request: Request) {
         prompt: speechText,
         metadata: voiceMetadata,
       });
+      const measuredDurationMs = await measureStoredAudioMs(asset.url).catch(() => null);
       await completeGeneration(
         jobId,
         asset.id,
@@ -1084,6 +1086,7 @@ export async function POST(request: Request) {
           "X-Asset-Id": asset.id,
           "X-Voice-Id": voiceId,
           "X-Voice-Model": dialogueModel,
+          ...(measuredDurationMs ? { "X-Audio-Duration-Ms": String(measuredDurationMs) } : {}),
         },
       });
     }
@@ -1684,7 +1687,9 @@ export async function POST(request: Request) {
       // Applied after compaction so the audio brief is never trimmed away.
       const durationSeconds = boardSlot
         ? boardSlot.duration_ms / 1000
-        : settingNumber(videoConfig, "durationSeconds", 5);
+        : Number.isFinite(Number(input.durationSeconds))
+          ? Math.min(12, Math.max(1, Number(input.durationSeconds)))
+          : settingNumber(videoConfig, "durationSeconds", 5);
       const card = readCharacterCardV2(requestCharacter?.cardV2);
       const voiceSlot = card ? (card.voice_slots.primary ?? Object.values(card.voice_slots)[0]) : undefined;
       const resolvedAudioPlan = boardSlot && adBoard

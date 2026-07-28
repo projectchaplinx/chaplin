@@ -32,6 +32,7 @@ import {
   cameraPlanForShot,
   validateShotSequence,
 } from "@/lib/shot-director";
+import { solveDirectionDurations } from "@/lib/direction-safety";
 
 type ShotRenderStatus = "queued" | "designing" | "frame_ready" | "animating" | "ready" | "failed";
 
@@ -376,7 +377,9 @@ export function ProductionWorkspace({
       format,
       definition,
       duration,
-      shotCount: productionShotCount(format, duration),
+      shotCount: format === "punch" && story.scenes.length
+        ? story.scenes.length
+        : productionShotCount(format, duration),
       scopeType,
       scopeId,
     };
@@ -395,7 +398,9 @@ export function ProductionWorkspace({
         index,
         title: scene?.setting?.trim() || `Scene ${index + 1}`,
         objective: scene?.objective?.trim() || scene?.action?.trim() || "Shot direction is ready.",
-        durationSeconds: scene?.durationSeconds ?? (contract.format === "punch" ? 4 : 5),
+        durationSeconds: scene?.durationMs
+          ? scene.durationMs / 1000
+          : scene?.durationSeconds ?? (contract.format === "punch" ? 4 : 5),
         frameUrl,
         videoUrl,
         status,
@@ -490,7 +495,7 @@ export function ProductionWorkspace({
           scopeId: contract.scopeId,
           outputType: contract.format,
           createdBy: world.currentUserId,
-          idempotencyKey: `production:${story.id}:${contract.format}:v1`,
+          idempotencyKey: `production:${story.id}:${contract.format}:v2-direction-safety`,
           spec: {
             productionId: story.id,
             title: story.title,
@@ -499,15 +504,29 @@ export function ProductionWorkspace({
             shotCount: contract.shotCount,
             castCharacterIds: cast.map((character) => character.id),
             creativeDirection: story.creativeDirection ?? null,
+            sceneProps: story.sceneProps ?? [],
             productImageUrl: story.productImageUrl ?? null,
             productImageName: story.productImageName ?? null,
             script: story.scenes.map((scene, index) => ({
               beat: index + 1,
+              slotId: scene.slotId ?? String(index + 1),
+              sourceSlotId: scene.sourceSlotId ?? String(index + 1),
               setting: scene.setting,
               objective: scene.objective ?? null,
               action: scene.action ?? null,
+              energyState: scene.energyState ?? null,
+              lockedCharacterIds: scene.lockedCharacterIds ?? [],
+              dressing: scene.dressing ?? null,
+              behaviorTell: scene.behaviorTell ?? null,
               cameraMovementId: scene.cameraMovementId ?? null,
+              durationMs: scene.durationMs ?? Math.round((scene.durationSeconds ?? 4) * 1000),
               durationSeconds: scene.durationSeconds ?? 4,
+              motionMode: scene.motionMode ?? "forward",
+              motionFromSlotId: scene.motionFromSlotId ?? null,
+              framingConstraint: scene.framingConstraint ?? "readable",
+              sensitiveNegatives: scene.sensitiveNegatives ?? [],
+              referencedProps: scene.referencedProps ?? [],
+              dialogueFramingConstraint: scene.dialogueFramingConstraint ?? null,
               previewImageUrl: scene.previewImageUrl ?? null,
               previewAssetId: scene.previewAssetId ?? null,
               lines: scene.lines.map((line) => ({ characterId: line.characterId, text: line.text })),
@@ -691,8 +710,9 @@ export function ProductionWorkspace({
     }
     const url = response.headers.get("X-Asset-Url");
     const assetId = response.headers.get("X-Asset-Id");
+    const measuredDurationMs = Number(response.headers.get("X-Audio-Duration-Ms")) || null;
     if (!url || !assetId) throw new Error("Generated audio was not attached to the production.");
-    return { url, assetId };
+    return { url, assetId, measuredDurationMs };
   }
 
   async function openVoiceCapacityRecovery() {
@@ -954,6 +974,7 @@ export function ProductionWorkspace({
           sceneIndex: index, sceneCount: contract.shotCount, format: story.format,
           actorName: sceneActorNames(sceneActors),
           actorIdentity: `${sceneActorIdentity(sceneActors)}\n${absentCastNegative(sceneActors, cast)}`.trim(),
+          actors: sceneActors.map((actor) => ({ name: actor.name, identity: actor.personality })),
           productName: story.productImageName, hasProductReference: Boolean(story.productImageUrl),
           continuityNote: "Keep every locked actor visually distinct and consistent, but obey this scene's own authored location, blocking, action, and camera. Carry geography or screen direction only when adjacent scenes explicitly remain continuous.",
         });
@@ -1080,23 +1101,69 @@ export function ProductionWorkspace({
           dialogueText,
           dialogueUrl: dialogueAsset?.url,
           dialogueAssetId: dialogueAsset?.assetId,
+          dialogueDurationMs: dialogueAsset?.measuredDurationMs ?? null,
           sfxUrl: sfxAsset.url,
           sfxAssetId: sfxAsset.assetId,
         };
       });
 
+      const solvedSlotDurations = solveDirectionDurations(
+        authoredScenes.map((scene, index) => ({
+          slotId: scene.slotId ?? String(index + 1),
+          energyState: scene.energyState ?? (scene.lines.length ? "sustained" : "static"),
+          lines: scene.lines.map((line) => ({ characterId: line.characterId, text: line.text })),
+          dialogueDurationMs: audioResults[index]?.dialogueDurationMs,
+        })),
+        contract.duration * 1000,
+      );
+      const renderedDurationMs = (sceneIndex: number) => (
+        solvedSlotDurations[authoredScenes[sceneIndex].slotId ?? String(sceneIndex + 1)]
+      );
+
       let scenesAnimated = 0;
       setRenderShots((shots) => shots.map((shot) => ({ ...shot, status: "animating", error: undefined })));
-      setRenderProgress(`Animating ${contract.shotCount} four-second scenes together`);
-      const shotResults = await mapScenes(contract.shotCount, async (index) => {
+      setRenderProgress(`Animating ${contract.shotCount} timed scenes`);
+      const shotResults: Array<{
+        frameUrl: string;
+        frameAssetId?: string;
+        url: string;
+        assetId: string;
+      }> = [];
+      for (let index = 0; index < contract.shotCount; index += 1) {
         const directedScene = authoredScenes[index];
-        const frameData = frameResults[index];
+        let frameData = frameResults[index];
+        if (directedScene.motionMode === "chain" && directedScene.motionFromSlotId) {
+          const sourceIndex = authoredScenes.findIndex((scene) => scene.slotId === directedScene.motionFromSlotId);
+          const sourceShot = sourceIndex >= 0 ? shotResults[sourceIndex] : undefined;
+          if (!sourceShot) {
+            throw new Error(`Scene ${index + 1} needs rendered slot ${directedScene.motionFromSlotId} before its chain can continue.`);
+          }
+          const chainResponse = await fetch("/api/media/chain-frame", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              characterId: resolveSceneActors(directedScene, cast).lead.id,
+              runId: activeRun.id,
+              sourceUrl: sourceShot.url,
+              sourceAssetId: sourceShot.assetId,
+              sourceSlotId: directedScene.motionFromSlotId,
+              targetSlotId: directedScene.slotId ?? String(index + 1),
+            }),
+          });
+          const chainData = await chainResponse.json() as { url?: string; assetId?: string; error?: string };
+          if (!chainResponse.ok || !chainData.url || !chainData.assetId) {
+            throw new Error(chainData.error ?? `Scene ${index + 1} could not extract its chain frame.`);
+          }
+          frameData = { frameUrl: chainData.url, frameAssetId: chainData.assetId };
+        }
         const motionActors = resolveSceneActors(directedScene, cast).present;
         const motionPrompt = buildShotVideoPrompt({
-          productionTitle: story.title, productionLogline: story.logline, scene: directedScene,
+          productionTitle: story.title, productionLogline: story.logline,
+          scene: { ...directedScene, durationMs: renderedDurationMs(index) },
           sceneIndex: index, sceneCount: contract.shotCount, format: story.format,
           actorName: sceneActorNames(motionActors),
           actorIdentity: `${sceneActorIdentity(motionActors)}\n${absentCastNegative(motionActors, cast)}`.trim(),
+          actors: motionActors.map((actor) => ({ name: actor.name, identity: actor.personality })),
           productName: story.productImageName, hasProductReference: Boolean(story.productImageUrl),
           continuityNote: "Animate only this scene's exact starting frame. Preserve every visible identity, object, spatial relationship, and screen direction inside the shot; do not borrow staging or action from another scene.",
         });
@@ -1109,6 +1176,7 @@ export function ProductionWorkspace({
             // The scene's own lead, so the actor context matches who is on screen.
             characterId: resolveSceneActors(directedScene, cast).lead.id,
             referenceImage: frameData.frameUrl,
+            durationSeconds: renderedDurationMs(index) / 1000,
             /*
               The audio plan is what engages the AUDIO SCENE grammar. Without it
               the shot rendered mute: the locked line and the location sound had
@@ -1152,13 +1220,13 @@ export function ProductionWorkspace({
               }
             : shot
         )));
-        return {
+        shotResults.push({
           frameUrl: frameData.frameUrl,
           frameAssetId: frameData.frameAssetId,
           url: videoData.url as string,
           assetId: videoData.assetId as string,
-        };
-      });
+        });
+      }
 
       activeRun = await transitionStep(activeRun, "shot-packages", "complete", {
         output: {
@@ -1170,7 +1238,7 @@ export function ProductionWorkspace({
           dialogueAssetIds: audioResults.map((audio) => audio.dialogueAssetId).filter(Boolean),
           sfxUrls: audioResults.map((audio) => audio.sfxUrl),
           sfxAssetIds: audioResults.map((audio) => audio.sfxAssetId),
-          sceneDurationSeconds: 4,
+          sceneDurationsSeconds: authoredScenes.map((_, index) => renderedDurationMs(index) / 1000),
           completedAt: new Date().toISOString(),
         },
       });
@@ -1204,7 +1272,7 @@ export function ProductionWorkspace({
           frameUrls: shotResults.map((shot) => shot.frameUrl),
           dialogueUrls: audioResults.map((audio) => audio.dialogueUrl ?? ""),
           sfxUrls: audioResults.map((audio) => audio.sfxUrl),
-          sceneDurationSeconds: 4,
+          sceneDurationsSeconds: authoredScenes.map((_, index) => renderedDurationMs(index) / 1000),
           finalDurationSeconds: contract.duration,
         }),
       });

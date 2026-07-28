@@ -3,6 +3,13 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.41 - 2026-07-28 - Live actor room layout guard
+
+- Fixed the cinematic actor profile clipping its Cast and production actions
+  after the live conversation room was opened.
+- Kept the approved fixed-height composition while the compact Talk control is
+  closed, then allows the stage and media panel to grow with the live room.
+
 ## v0.2.40 - 2026-07-28 - Clean voice auditions
 
 - Fixed Voice Design auditions that repeated the same short sentence several

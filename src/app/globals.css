@@ -1294,6 +1294,18 @@ body:has([data-home-shell]) > main {
     grid-template-columns: 35.8% 64.2%;
   }
 
+  /*
+    The closed Talk control fits the fixed cinematic viewport. Once the room
+    opens, its reply and composer add real content; let the stage grow with it
+    instead of clipping the casting actions behind the stage boundary.
+  */
+  .character-profile-stage:has(
+    .character-hero-room:not(.character-hero-room--entry)
+  ) {
+    height: auto;
+    min-height: 46.55rem;
+  }
+
   .character-profile-stage__media {
     order: 2;
     min-height: 0;

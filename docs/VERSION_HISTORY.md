@@ -254,3 +254,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.46 | `34ed6ef` | 2026-07-29T00:31:56+05:30 | Build complete credit usage control |
 | v0.2.47 | `9d22571` | 2026-07-29T01:04:15+05:30 | Add production-safe direction brain |
 | v0.2.48 | `09e69e1` | 2026-07-29T01:13:20+05:30 | Parallelize scene production |
+| v0.2.49 | `400f159` | 2026-07-29T01:17:22+05:30 | Fix clipped admin delete dialog |

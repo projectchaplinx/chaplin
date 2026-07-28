@@ -38,7 +38,7 @@ export async function deleteCharacterCompletely(input: {
     throw new Error(`Type ${character.data.name} exactly to confirm permanent deletion.`);
   }
 
-  const [voiceRows, assetRows, actorPipelineRuns, castPipelineRuns] = await Promise.all([
+  const [voiceRows, assetRows, actorPipelineRuns, castEpisodeShots] = await Promise.all([
     supabase
       .from("character_voices")
       .select("provider_voice_id,provider")
@@ -54,14 +54,14 @@ export async function deleteCharacterCompletely(input: {
       .eq("scope_type", "actor")
       .eq("scope_id", input.characterId),
     supabase
-      .from("media_pipeline_runs")
+      .from("episode_shots")
       .select("id,cast_character_ids")
       .contains("cast_character_ids", [input.characterId]),
   ]);
   assert(voiceRows.error, "Load AI actor voices");
   assert(assetRows.error, "Load AI actor media");
   assert(actorPipelineRuns.error, "Load AI actor pipeline runs");
-  assert(castPipelineRuns.error, "Load cast pipeline references");
+  assert(castEpisodeShots.error, "Load cast shot references");
 
   const registeredVoiceIds = new Set(
     (voiceRows.data ?? [])
@@ -105,17 +105,15 @@ export async function deleteCharacterCompletely(input: {
     assert(storage.error, "Remove AI actor media");
   }
 
-  const actorRunIds = new Set((actorPipelineRuns.data ?? []).map((run) => run.id));
-  for (const run of castPipelineRuns.data ?? []) {
-    if (actorRunIds.has(run.id)) continue;
-    const cast = Array.isArray(run.cast_character_ids)
-      ? run.cast_character_ids.filter((id): id is string => typeof id === "string" && id !== input.characterId)
+  for (const shot of castEpisodeShots.data ?? []) {
+    const cast = Array.isArray(shot.cast_character_ids)
+      ? shot.cast_character_ids.filter((id): id is string => typeof id === "string" && id !== input.characterId)
       : [];
     const update = await supabase
-      .from("media_pipeline_runs")
+      .from("episode_shots")
       .update({ cast_character_ids: cast, updated_at: new Date().toISOString() })
-      .eq("id", run.id);
-    assert(update.error, "Remove AI actor from pipeline cast");
+      .eq("id", shot.id);
+    assert(update.error, "Remove AI actor from shot cast");
   }
 
   const [briefs, memberships, runs] = await Promise.all([

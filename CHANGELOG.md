@@ -3,6 +3,14 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.50 - 2026-07-29 - Reliable permanent character deletion
+
+- Corrected permanent deletion to remove an actor from
+  `episode_shots.cast_character_ids`, the deployed cast-membership column,
+  instead of querying a nonexistent field on media pipeline runs.
+- Verified the corrected cleanup query and every related Sunanda Kulkarni
+  deletion table read-only against the configured live database.
+
 ## v0.2.49 - 2026-07-29 - Unclipped admin deletion
 
 - Moved the permanent character-deletion confirmation to a viewport-level

@@ -254,6 +254,9 @@ export default function StoryBuilderForm() {
   const [magicMessage, setMagicMessage] = useState("");
   const [magicWriterOpen, setMagicWriterOpen] = useState(false);
   const [startChoiceOpen, setStartChoiceOpen] = useState(false);
+  const [outputChooserOpen, setOutputChooserOpen] = useState(
+    () => !searchParams.get("draft") && !searchParams.get("format"),
+  );
   const [sceneAssistBusy, setSceneAssistBusy] = useState<number | null>(null);
   const [sceneAssistMessage, setSceneAssistMessage] = useState<{ index: number; text: string } | null>(null);
   const [scenePreviewBusy, setScenePreviewBusy] = useState<number | null>(null);
@@ -302,13 +305,21 @@ export default function StoryBuilderForm() {
     };
   }, [startChoiceOpen]);
 
+  useEffect(() => {
+    if (!searchParams.get("format") || searchParams.get("draft")) return;
+    const timer = window.setTimeout(() => {
+      const input = document.querySelector<HTMLTextAreaElement>("[data-concept-magic-brief]");
+      input?.scrollIntoView({ behavior: "smooth", block: "center" });
+      input?.focus({ preventScroll: true });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [searchParams]);
+
   function chooseSparkStart(path: "magic" | "manual") {
     setStartChoiceOpen(false);
     if (path === "magic") {
       setStep(1);
-      window.setTimeout(() => {
-        document.querySelector("[data-concept-magic]")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 0);
+      focusCreationArea();
       return;
     }
     setStep(1);
@@ -1296,6 +1307,26 @@ export default function StoryBuilderForm() {
     );
   }
 
+  function focusCreationArea() {
+    window.setTimeout(() => {
+      const input = document.querySelector<HTMLTextAreaElement>("[data-concept-magic-brief]");
+      input?.scrollIntoView({ behavior: "smooth", block: "center" });
+      input?.focus({ preventScroll: true });
+    }, 0);
+  }
+
+  function chooseOutput(option: ProductionFormat) {
+    setFormat(option);
+    setDurationSeconds(productionDuration(option));
+    setOutputChooserOpen(false);
+    setStep(1);
+    if (option === "spark") {
+      setStartChoiceOpen(true);
+      return;
+    }
+    focusCreationArea();
+  }
+
   return (
     <section className="unified-studio-shell" data-unified-studio-shell data-studio-mode="scene">
       <StudioWorkspaceHeader
@@ -1524,50 +1555,70 @@ export default function StoryBuilderForm() {
         </section>
       )}
 
-      <section className="mb-6" aria-labelledby="output-contract-heading">
-        <div className="mb-2.5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h2 id="output-contract-heading" className="text-sm font-semibold">Choose output</h2>
-            <span className="rounded-full border border-white/10 px-2 py-0.5 text-[8px] font-semibold text-grey">
-              {activeRole === "admin" ? "Admin" : "Creator"}
-            </span>
-          </div>
-          <Link href="/studio/pipelines" className="text-[10px] text-grey hover:text-accent">Pipeline map →</Link>
-        </div>
-        <div className={`grid gap-2 ${formatOptions.length > 1 ? "sm:grid-cols-3" : ""}`}>
-          {formatOptions.map((option) => {
-            const definition = PRODUCTION_FORMATS[option];
-            const selected = format === option;
-            const optionDuration = option === "spot" ? durationSeconds : definition.durationSeconds;
-            const optionShots = productionShotCount(option, optionDuration);
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => {
-                  setFormat(option);
-                  setDurationSeconds(productionDuration(option));
-                  if (option === "spark") setStartChoiceOpen(true);
-                }}
-                className={`relative overflow-hidden rounded-lg border p-4 text-left transition-all ${
-                  selected
-                    ? "border-accent bg-accent/[0.08] shadow-[0_0_30px_rgba(242,78,112,0.08)]"
-                    : "border-line bg-white/[0.025] hover:border-white/25"
-                }`}
-                data-writing-format={option}
-                aria-pressed={selected}
-              >
-                <span className={`font-mono text-3xl ${selected ? "text-accent" : "text-white/35"}`}>{optionDuration}s</span>
-                <span className="ml-2 text-sm font-semibold">{definition.label}</span>
-                <span className="mt-3 block text-[10px] uppercase tracking-wide text-grey">
-                  {option === "spark" ? "1 × five-second audition" : `${optionShots} × four-second scene${optionShots === 1 ? "" : "s"}`}
+      <section className="mb-5" aria-label="Output format" data-output-contract>
+        {outputChooserOpen ? (
+          <>
+            <div className="mb-2.5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <h2 id="output-contract-heading" className="text-sm font-semibold">Choose output</h2>
+                <span className="rounded-full border border-white/10 px-2 py-0.5 text-[8px] font-semibold text-grey">
+                  {activeRole === "admin" ? "Admin" : "Creator"}
                 </span>
-                <span className="mt-2 block text-[11px] leading-4 text-grey">{definition.promise}</span>
-                <span className={`absolute inset-x-0 bottom-0 h-0.5 ${selected ? "pipeline-flow-line" : "bg-white/5"}`} />
+              </div>
+              <Link href="/studio/pipelines" className="text-[10px] text-grey hover:text-accent">Pipeline map →</Link>
+            </div>
+            <div className={`grid gap-2 ${formatOptions.length > 1 ? "sm:grid-cols-3" : ""}`}>
+              {formatOptions.map((option) => {
+                const definition = PRODUCTION_FORMATS[option];
+                const selected = format === option;
+                const optionDuration = option === "spot" ? durationSeconds : definition.durationSeconds;
+                const optionShots = productionShotCount(option, optionDuration);
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => chooseOutput(option)}
+                    className={`relative overflow-hidden rounded-lg border p-4 text-left transition-all ${
+                      selected
+                        ? "border-accent bg-accent/[0.08] shadow-[0_0_30px_rgba(242,78,112,0.08)]"
+                        : "border-line bg-white/[0.025] hover:border-white/25"
+                    }`}
+                    data-writing-format={option}
+                    aria-pressed={selected}
+                  >
+                    <span className={`font-mono text-3xl ${selected ? "text-accent" : "text-white/35"}`}>{optionDuration}s</span>
+                    <span className="ml-2 text-sm font-semibold">{definition.label}</span>
+                    <span className="mt-3 block text-[10px] uppercase tracking-wide text-grey">
+                      {option === "spark" ? "1 × five-second audition" : `${optionShots} × four-second scene${optionShots === 1 ? "" : "s"}`}
+                    </span>
+                    <span className="mt-2 block text-[11px] leading-4 text-grey">{definition.promise}</span>
+                    <span className={`absolute inset-x-0 bottom-0 h-0.5 ${selected ? "pipeline-flow-line" : "bg-white/5"}`} />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white/[0.025] px-3.5 py-2.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="font-mono text-xl text-accent">{durationSeconds}s</span>
+              <span className="text-sm font-semibold">{formatDefinition.label}</span>
+              <span className="hidden text-[9px] uppercase tracking-wide text-grey sm:inline">
+                Output selected
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setOutputChooserOpen(true)}
+                className="text-[10px] font-semibold text-accent hover:text-accent-light"
+              >
+                Change output
               </button>
-            );
-          })}
-        </div>
+              <Link href="/studio/pipelines" className="text-[10px] text-grey hover:text-accent">Pipeline map →</Link>
+            </div>
+          </div>
+        )}
         {format === "spot" && (
           <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-line px-4 py-3">
             <div>

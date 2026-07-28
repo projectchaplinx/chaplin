@@ -3,6 +3,15 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.53 - 2026-07-29 - Focused output selection
+
+- Made the large Spark, Punch, and Episode format cards a one-time choice:
+  selecting an output collapses them into a compact runtime and format summary.
+- Preset format links such as 15-second Punch now open directly on the creation
+  canvas, while generic creation still presents the chooser once.
+- Added an explicit Change output action and moves keyboard and viewport focus
+  to the Concept Magic brief immediately after selection.
+
 ## v0.2.52 - 2026-07-29 - Compact live actor conversation
 
 - Reduced the actor hero's desktop and narrow-screen typography, spacing,

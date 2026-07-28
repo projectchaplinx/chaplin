@@ -257,3 +257,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.49 | `400f159` | 2026-07-29T01:17:22+05:30 | Fix clipped admin delete dialog |
 | v0.2.50 | `8bab213` | 2026-07-29T01:20:37+05:30 | Fix permanent character deletion schema |
 | v0.2.51 | `7c7ec6b` | 2026-07-29T01:25:12+05:30 | Add playable admin media tabs |
+| v0.2.52 | `9a0e1ba` | 2026-07-29T01:31:40+05:30 | Compact actor hero and open live conversation |

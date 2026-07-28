@@ -16,7 +16,10 @@ import {
 } from "@/lib/server/supabase-admin";
 import { calculateGenerationBilling } from "@/lib/server/billing";
 import type { Character } from "@/lib/types";
-import { compactVoicePreview } from "@/lib/voice-preview";
+import {
+  MIN_VOICE_DESIGN_CHARACTERS,
+  voiceDesignAuditionText,
+} from "@/lib/voice-preview";
 import { dialogueForSpeech } from "@/lib/dialogue-performance";
 import {
   settingBoolean,
@@ -41,7 +44,6 @@ import {
   composeSignatureSfxEventPrompt,
   isThemeDurationPreset,
   withThemeDurationDirection,
-  type CharacterIdentityInput,
 } from "@/lib/production-prompting";
 import { assembleSignatureSfx } from "@/lib/server/signature-sfx";
 import { enforceThemeDuration } from "@/lib/server/audio-postprocess";
@@ -360,47 +362,6 @@ function voiceDesignDescription(stage: PipelineStageConfig, description: string)
   return [direction, adminDirection].filter(Boolean).join(" ").slice(0, 1000).trim();
 }
 
-/**
- * Pads a short audition to ElevenLabs' 100-character minimum.
- *
- * The padding used to be two fixed sentences, so every actor whose preview ran
- * short auditioned with the identical words - "I know what this moment costs" -
- * and the same line turned up in every voice Chaplin generated. Padding is now
- * drawn from the actor's own canon, so a short preview is extended with
- * material that belongs to them. The generic lines remain only for an actor
- * with nothing written yet, which is the one case where there is nothing of
- * theirs to say.
- */
-function voiceDesignAuditionText(previewText: string, character?: CharacterIdentityInput) {
-  const clean = compactVoicePreview(previewText);
-  if (clean.length >= 100) return clean;
-  const own = [
-    character?.brollLine,
-    character?.tagline,
-    character?.personality,
-  ]
-    .map((value) => value?.trim() ?? "")
-    .filter((value) => Boolean(value) && !clean.includes(value));
-  let padded = [clean, ...own].join(" ").trim();
-  /*
-    An actor with a short canon still fell through to the shared lines. Their
-    own strongest line is repeated instead: hearing an actor say their own words
-    twice is a far smaller problem than every actor in the cast auditioning with
-    the same sentence.
-  */
-  const strongest = own[0] ?? clean;
-  while (padded.length < 100 && strongest) {
-    padded = `${padded} ${strongest}`.trim();
-  }
-  if (padded.length >= 100) return padded;
-  // Nothing of theirs exists yet - this is the only case with nothing to say.
-  return [
-    padded,
-    "I know what this moment costs, and I am choosing it anyway.",
-    "Listen carefully; we only get one clean chance to do this right.",
-  ].join(" ").trim();
-}
-
 async function modelArk(pathname: string, body?: object) {
   const response = await fetch(`${MODEL_ARK_API}${pathname}`, {
     method: body ? "POST" : "GET",
@@ -453,8 +414,10 @@ async function eleven(pathname: string, body: Record<string, unknown>) {
   const effectiveBody = { ...body };
   if (pathname.startsWith("/text-to-voice/design")) {
     const auditionText = typeof effectiveBody.text === "string" ? effectiveBody.text.trim() : "";
-    effectiveBody.text = voiceDesignAuditionText(auditionText);
-    if (String(effectiveBody.text).length < 100) {
+    effectiveBody.text = auditionText.length >= MIN_VOICE_DESIGN_CHARACTERS
+      ? auditionText
+      : voiceDesignAuditionText(auditionText);
+    if (String(effectiveBody.text).length < MIN_VOICE_DESIGN_CHARACTERS) {
       throw new Error("Voice audition preparation failed to meet ElevenLabs' 100-character minimum.");
     }
   }

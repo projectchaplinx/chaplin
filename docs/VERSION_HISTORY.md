@@ -244,3 +244,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.36 | `ee21c25` | 2026-07-28T23:02:34+05:30 | Add complete admin character management |
 | v0.2.37 | `f281ef9` | 2026-07-28T23:12:53+05:30 | Match cinematic actor profile reference |
 | v0.2.38 | `7d32ddb` | 2026-07-28T23:25:20+05:30 | Unify creation and production in Studio |
+| v0.2.39 | `44fa908` | 2026-07-28T23:42:27+05:30 | Keep Studio mode switch persistent |

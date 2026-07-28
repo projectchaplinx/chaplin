@@ -3,6 +3,16 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.40 - 2026-07-28 - Clean voice auditions
+
+- Fixed Voice Design auditions that repeated the same short sentence several
+  times inside a take. Short text now becomes one natural provider-length line
+  using the actor's canon once, followed by non-repeating delivery language.
+- Made audition preparation idempotent so the API action and ElevenLabs wrapper
+  cannot pad the same request twice.
+- Added regression coverage for minimum provider length, single-use actor text,
+  one-line output, and repeated preparation.
+
 ## v0.2.39 - 2026-07-28 - Persistent Studio mode switch
 
 - Fixed the Actor / Scene / Projects control so it remains visible and active

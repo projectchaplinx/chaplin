@@ -31,7 +31,12 @@ export default function CharacterBroll({
     of them.
   */
   children,
-}: { character: Character; children?: ReactNode }) {
+  variant = "split",
+}: {
+  character: Character;
+  children?: ReactNode;
+  variant?: "split" | "cinematic";
+}) {
   // 16:9 until the real dimensions arrive, so the frame does not jump far.
   const [naturalRatio, setNaturalRatio] = useState(16 / 9);
   const posterRef = useRef<HTMLImageElement | null>(null);
@@ -47,13 +52,13 @@ export default function CharacterBroll({
     let cancelled = false;
 
     function loadBroll() {
-      fetch(`/api/generate?characterId=${encodeURIComponent(character.id)}`, { cache: "no-store" })
+      fetch(`/api/characters/${encodeURIComponent(character.id)}/media`, { cache: "no-store" })
         .then((response) => {
           if (!response.ok) throw new Error(`B-roll state returned ${response.status}.`);
           return response.json();
         })
-        .then((data: { production?: BrollState | null }) => {
-          if (!cancelled) setProduction(data.production ?? null);
+        .then((data: { media?: BrollState | null }) => {
+          if (!cancelled) setProduction(data.media ?? null);
         })
         .catch(() => {
           if (!cancelled) setProduction(null);
@@ -315,6 +320,111 @@ export default function CharacterBroll({
       )
     : null;
 
+  const mediaContent = (
+    <>
+      {posterSource ? (
+        <Image
+          src={posterSource}
+          alt=""
+          fill
+          sizes={variant === "cinematic" ? "(min-width: 1024px) 62vw, 100vw" : "(min-width: 1152px) 1104px, 100vw"}
+          quality={90}
+          ref={posterRef}
+          onLoad={(event) => {
+            const el = event.currentTarget;
+            if (!videoSource && el.naturalWidth && el.naturalHeight) {
+              setNaturalRatio(el.naturalWidth / el.naturalHeight);
+            }
+          }}
+          className={`object-cover object-[68%_22%] ${videoSource ? "" : "motion-safe:animate-[broll-drift_8s_ease-in-out_infinite_alternate]"}`}
+          priority
+        />
+      ) : (
+        <div
+          className="absolute inset-0 flex items-center justify-end pr-[12%] text-[clamp(5rem,18vw,12rem)] font-black text-white/10 motion-safe:animate-[broll-drift_8s_ease-in-out_infinite_alternate]"
+          style={{ background: `linear-gradient(135deg, hsl(${character.avatarHue} 35% 18%), #080b02)` }}
+          aria-hidden="true"
+        >
+          {character.name.slice(0, 1)}
+        </div>
+      )}
+      {videoSource && (
+        <video
+          src={videoSource}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={(event) => {
+            const el = event.currentTarget;
+            if (el.videoWidth && el.videoHeight) setNaturalRatio(el.videoWidth / el.videoHeight);
+          }}
+          className="absolute inset-0 h-full w-full object-cover object-[68%_25%]"
+        />
+      )}
+      {dialogueSource && <audio ref={dialogueRef} src={dialogueSource} preload="metadata" onEnded={() => handleTrackEnded("voice")} data-broll-track="voice" />}
+      {sfxSource && <audio ref={sfxRef} src={sfxSource} preload="metadata" onEnded={() => handleTrackEnded("sfx")} data-broll-track="sfx" />}
+      {themeSource && <audio ref={themeRef} src={themeSource} preload="metadata" onEnded={() => handleTrackEnded("theme")} data-broll-track="theme" />}
+    </>
+  );
+
+  if (variant === "cinematic") {
+    return (
+      <div className="absolute inset-0 overflow-hidden bg-black" data-character-broll data-broll-variant="cinematic">
+        {mediaContent}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(4,7,3,0.18),transparent_42%),linear-gradient(0deg,rgba(3,5,2,0.56),transparent_32%)]" />
+
+        <div className="absolute bottom-4 left-4 z-20 rounded-full border border-white/15 bg-black/55 px-4 py-2.5 backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:px-5">
+          <p className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-[0.2em] text-white/72 sm:text-[9px]">
+            <span className={`h-1.5 w-1.5 rounded-full ${videoSource ? "animate-pulse bg-accent-secondary" : "bg-white/45"}`} />
+            {videoSource ? "Playing" : "Showing"} <span className="text-white/35">·</span> Featured performance
+          </p>
+        </div>
+
+        <div className="absolute right-3 top-1/2 z-30 hidden -translate-y-1/2 overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/52 backdrop-blur-2xl sm:block">
+          <button
+            type="button"
+            onClick={playSceneMix}
+            className={`flex w-[4.8rem] flex-col items-center gap-1 border-b border-white/10 px-2 py-3 text-[7px] font-bold uppercase tracking-[0.1em] transition-colors ${
+              mixing ? "bg-accent-secondary/18 text-accent-secondary" : "text-white/72 hover:bg-white/8 hover:text-white"
+            }`}
+            aria-label={mixing ? "Pause scene mix" : "Play scene mix"}
+          >
+            <IconShuffle className="h-5 w-5" />
+            Scene mix
+          </button>
+          {trackDetails.map(({ mode, label, source, icon: Icon }) => {
+            const active = playingMode === mode && !mixing;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => playTrack(mode)}
+                disabled={!source}
+                className={`flex w-[4.8rem] flex-col items-center gap-1 border-b border-white/10 px-2 py-3 text-[7px] font-bold uppercase tracking-[0.1em] transition-colors last:border-b-0 disabled:cursor-not-allowed disabled:opacity-35 ${
+                  active ? "bg-accent/18 text-accent" : "text-white/72 hover:bg-white/8 hover:text-white"
+                }`}
+                aria-label={source ? `${active ? "Pause" : "Play"} ${label}` : `${label} is not ready`}
+              >
+                {active ? <span className="flex h-5 items-center text-xs">Ⅱ</span> : <Icon className="h-5 w-5" />}
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => setConsoleOpen(true)}
+          className="absolute right-3 top-3 z-30 rounded-full border border-white/15 bg-black/55 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/72 backdrop-blur-xl sm:hidden"
+        >
+          Sound
+        </button>
+        {soundConsole}
+      </div>
+    );
+  }
+
   /*
     The sound controls used to float over the actor's face on the right of the
     frame. They live in the left column now, in normal flow, beside the rest of
@@ -385,57 +495,8 @@ export default function CharacterBroll({
           data-character-broll
           data-broll-ratio={naturalRatio.toFixed(3)}
         >
-      {posterSource ? (
-        <Image
-          src={posterSource}
-          alt=""
-          fill
-          // The hero fills a max-w-6xl column, so it renders about 1104px wide.
-          // Declaring 896px made Next serve an image the browser then upscaled
-          // by roughly a quarter, which read as softness on the actor's face.
-          sizes="(min-width: 1152px) 1104px, 100vw"
-          quality={90}
-          ref={posterRef}
-          onLoad={(event) => {
-            const el = event.currentTarget;
-            if (!videoSource && el.naturalWidth && el.naturalHeight) {
-              setNaturalRatio(el.naturalWidth / el.naturalHeight);
-            }
-          }}
-          className={`object-cover object-[68%_22%] ${videoSource ? "" : "motion-safe:animate-[broll-drift_8s_ease-in-out_infinite_alternate]"}`}
-          priority
-        />
-      ) : (
-        <div
-          className="absolute inset-0 flex items-center justify-end pr-[12%] text-[clamp(5rem,18vw,12rem)] font-black text-white/10 motion-safe:animate-[broll-drift_8s_ease-in-out_infinite_alternate]"
-          style={{ background: `linear-gradient(135deg, hsl(${character.avatarHue} 35% 18%), #080b02)` }}
-          aria-hidden="true"
-        >
-          {character.name.slice(0, 1)}
+          {mediaContent}
         </div>
-      )}
-      {videoSource && (
-        <video
-          src={videoSource}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          onLoadedMetadata={(event) => {
-            const el = event.currentTarget;
-            if (el.videoWidth && el.videoHeight) setNaturalRatio(el.videoWidth / el.videoHeight);
-          }}
-          /* Anchored high and right to match the still. Only bites if the frame
-             ever disagrees with the clip, which it no longer does. */
-          className="absolute inset-0 h-full w-full object-cover object-[68%_25%]"
-        />
-      )}
-      {dialogueSource && <audio ref={dialogueRef} src={dialogueSource} preload="metadata" onEnded={() => handleTrackEnded("voice")} data-broll-track="voice" />}
-      {sfxSource && <audio ref={sfxRef} src={sfxSource} preload="metadata" onEnded={() => handleTrackEnded("sfx")} data-broll-track="sfx" />}
-      {themeSource && <audio ref={themeRef} src={themeSource} preload="metadata" onEnded={() => handleTrackEnded("theme")} data-broll-track="theme" />}
-
-      </div>
       </div>
       {soundConsole}
     </div>

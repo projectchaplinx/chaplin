@@ -13,7 +13,7 @@ import CharacterGallery from "@/components/CharacterGallery";
 import CharacterConversationPanel from "@/components/CharacterConversationPanel";
 import DeveloperAccessCard from "@/components/DeveloperAccessCard";
 import CharacterBroll from "@/components/CharacterBroll";
-import CharacterProfileStage from "@/components/CharacterProfileStage";
+import CharacterProfileHero from "@/components/CharacterProfileHero";
 import { IconArrowLeft } from "@/components/Icons";
 import {
   ARCHETYPE_HUE,
@@ -60,40 +60,19 @@ export default function CharacterProfilePage({
     const loadVideos = async () => {
       setVideosLoading(true);
       try {
-        const response = await fetch(`/api/generate?characterId=${encodeURIComponent(character.id)}`, { cache: "no-store" });
+        const response = await fetch(`/api/characters/${encodeURIComponent(character.id)}/media`, { cache: "no-store" });
         const data = await response.json() as {
-          production?: {
-            assets?: Array<{
-              id: string;
-              kind: string;
-              url: string;
-              duration_seconds: number | null;
-              metadata: Record<string, unknown> | null;
-              created_at: string;
-            }>;
+          media?: {
+            videos?: CharacterVideoAsset[];
           };
         };
         if (!response.ok) throw new Error("Character media could not be loaded.");
         const seen = new Set<string>();
         const videos: CharacterVideoAsset[] = [];
-        for (const asset of data.production?.assets ?? []) {
-          if (asset.kind !== "video" || !asset.url || seen.has(asset.url)) continue;
-          seen.add(asset.url);
-          const outputType = typeof asset.metadata?.outputType === "string" ? asset.metadata.outputType : "";
-          const duration = asset.duration_seconds;
-          videos.push({
-            id: asset.id,
-            url: asset.url,
-            durationSeconds: duration,
-            label: outputType === "punch"
-              ? "Punch master"
-              : outputType === "spark"
-                ? "Spark"
-                : duration && duration <= 5
-                  ? "Four-second scene"
-                  : "Performance video",
-            createdAt: asset.created_at,
-          });
+        for (const video of data.media?.videos ?? []) {
+          if (!video.url || seen.has(video.url)) continue;
+          seen.add(video.url);
+          videos.push(video);
         }
         if (character.videoUrl && !seen.has(character.videoUrl)) {
           videos.unshift({
@@ -180,14 +159,14 @@ export default function CharacterProfilePage({
         </button>
       )}
 
-      <CharacterProfileStage
+      <CharacterProfileHero
         character={character}
         makerName={maker?.name}
+        canProduce={canProduce}
+        canCast={canCast}
+        performanceCount={availableVideos.length}
+        onOpenProduction={openProductionStudio}
       />
-
-      <div className="mt-6 scroll-mt-24" id="talk">
-        <CharacterConversationPanel character={character} />
-      </div>
 
       {/* Every actor gets the same casting stage, so profile cards never change
           size by media. 16:9 is the shape, but height is capped against the

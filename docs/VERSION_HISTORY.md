@@ -238,3 +238,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.30 | `3c9cb2f` | 2026-07-28T21:32:37+05:30 | Recover safely from ElevenLabs voice limits |
 | v0.2.31 | `ded4e82` | 2026-07-28T21:53:17+05:30 | Implement typed ad board production pipeline |
 | v0.2.32 | `213be26` | 2026-07-28T22:15:23+05:30 | Add per-slot audio ownership and voice recovery |
+| v0.2.33 | `bfc2f23` | 2026-07-28T22:31:36+05:30 | Add super admin actor and voice cleanup |

@@ -48,10 +48,10 @@ export default function CharacterConversationPanel({
   // rather than sitting in silence. Same production state the profile hero uses.
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/generate?characterId=${encodeURIComponent(character.id)}`, { cache: "no-store" })
+    fetch(`/api/characters/${encodeURIComponent(character.id)}/media`, { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { production?: { latestThemeUrl?: string | null } } | null) => {
-        if (!cancelled) setThemeUrl(data?.production?.latestThemeUrl ?? null);
+      .then((data: { media?: { latestThemeUrl?: string | null } } | null) => {
+        if (!cancelled) setThemeUrl(data?.media?.latestThemeUrl ?? null);
       })
       .catch(() => {
         if (!cancelled) setThemeUrl(null);

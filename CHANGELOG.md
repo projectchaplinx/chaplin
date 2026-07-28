@@ -3,6 +3,26 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.34 - 2026-07-28 - Cinematic actor studio
+
+- Activated the previously unused cinematic actor hero on every character
+  profile, matching the actor-first Studio direction with a large identity rail,
+  full-bleed featured performance, Talk room, real stats, casting, and production
+  actions in one coherent stage.
+- Added a compact Scene Mix, Voice, Theme, and Effects control rail over the
+  media edge; unavailable layers are visibly disabled and mobile visitors retain
+  access through the sound console.
+- Reworked the stage proportions and responsive order so desktop keeps identity
+  on the left and performance on the right, while mobile leads with the actor
+  media before the controls.
+- Added a narrow public read-only actor-media endpoint so signed-out preview mode
+  can truthfully play the selected video, locked-voice preview, theme, and
+  signature effects without exposing prompts, jobs, provider traces, or private
+  production state.
+- Reels now reports the actor's actual saved performance count and actors with
+  incomplete media fall back cleanly to their selected still with unavailable
+  sound layers disabled.
+
 ## v0.2.33 - 2026-07-28 - Super Admin actor and voice cleanup
 
 - Added a live ElevenLabs capacity manager to the private Admin Control Room,

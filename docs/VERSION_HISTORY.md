@@ -250,3 +250,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.42 | `34998b0` | 2026-07-28T23:59:37+05:30 | Keep scene generation inside Studio |
 | v0.2.43 | `961d6a3` | 2026-07-29T00:05:30+05:30 | Show named reclaimable voice slots |
 | v0.2.44 | `444c8f9` | 2026-07-29T00:10:26+05:30 | Open existing productions in Scene Studio |
+| v0.2.45 | `d2bb299` | 2026-07-29T00:14:31+05:30 | Contain cast step action in Studio |

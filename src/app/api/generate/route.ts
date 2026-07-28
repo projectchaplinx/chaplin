@@ -15,6 +15,7 @@ import {
   selectCharacterSfxAsset,
 } from "@/lib/server/supabase-admin";
 import { calculateGenerationBilling } from "@/lib/server/billing";
+import { generationCreditAllocation } from "@/lib/credits";
 import type { Character } from "@/lib/types";
 import {
   MIN_VOICE_DESIGN_CHARACTERS,
@@ -893,6 +894,7 @@ export async function POST(request: Request) {
       prompt?: string;
       metadata?: Record<string, unknown>;
     }) => {
+      const creditAllocation = generationCreditAllocation(details.kind, details.metadata);
       const handoff = requestCharacter ? buildPromptHandoff(requestCharacter) : null;
       const cardByKind: Record<string, string[]> = {
         "voice-design": ["voice"],
@@ -929,6 +931,10 @@ export async function POST(request: Request) {
         ...details,
         metadata: {
           ...(details.metadata ?? {}),
+          userId: identity.id,
+          creditActionCode: creditAllocation.code,
+          creditAllocation: creditAllocation.credits,
+          creditBilling: "included",
           ...(handoff ? { prompt_lint: handoff.lint } : {}),
           ...(blockingResult?.failures.length
             ? { prompt_lint_advisory: blockingResult.failures }

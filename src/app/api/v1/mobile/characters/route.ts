@@ -102,7 +102,12 @@ export async function POST(request: Request) {
       amount: CHARACTER_CREATION_CREDITS,
       idempotencyKey,
       description: `Create actor: ${character.name}`,
-      metadata: { characterId: character.id, client: "mobile" },
+      metadata: {
+        actionCode: "actor.create",
+        characterId: character.id,
+        characterName: character.name,
+        client: "mobile",
+      },
     });
     try {
       await persistCharacter(character);

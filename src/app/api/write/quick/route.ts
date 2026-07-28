@@ -216,6 +216,13 @@ export async function POST(request: Request) {
       provider: "anthropic",
       model,
       prompt: currentText || `${field} for ${character.name}`,
+      metadata: {
+        userId: identity.id,
+        creditActionCode: "writing.magic",
+        creditAllocation: 1,
+        creditBilling: "included",
+        quickWriteField: field,
+      },
     });
     const anthropicBody: Record<string, unknown> = {
       model,

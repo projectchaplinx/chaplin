@@ -12,6 +12,8 @@ import {
   suggestedCharacterName,
 } from "@/lib/character-coherence";
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
+import { calculateGenerationBilling } from "@/lib/server/billing";
+import { beginGeneration, completeGeneration, failGeneration } from "@/lib/server/supabase-admin";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
 
@@ -280,6 +282,7 @@ const OUTPUT_SCHEMA = {
 
 export async function POST(request: Request) {
   let fallbackInput: Parameters<typeof localSuggestion>[0] | null = null;
+  let jobId: string | null = null;
   try {
     assertRequestBodySize(request, 256 * 1024);
     const identity = await requireRequestIdentity(request);
@@ -339,6 +342,19 @@ export async function POST(request: Request) {
     const writingConfig = (await getPipelineConfig()).stages.writing;
     if (!writingConfig.enabled) throw new Error("AI writing is paused by Super Admin.");
     const model = writingConfig.model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+    jobId = await beginGeneration({
+      kind: "prompt-character",
+      provider: "anthropic",
+      model,
+      prompt: characterBrief || `${target} actor identity`,
+      metadata: {
+        userId: identity.id,
+        creditActionCode: "writing.magic",
+        creditAllocation: 1,
+        creditBilling: "included",
+        suggestionTarget: target,
+      },
+    });
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -397,6 +413,19 @@ export async function POST(request: Request) {
       enforceVoiceCoherence(parsed, input.characterBrief),
       coherentName,
     );
+    const usage = {
+      inputTokens: Number(data.usage?.input_tokens ?? 0),
+      outputTokens: Number(data.usage?.output_tokens ?? 0),
+      providerTokens: Number(data.usage?.input_tokens ?? 0) + Number(data.usage?.output_tokens ?? 0),
+      providerUsage: data.usage ?? {},
+    };
+    await completeGeneration(
+      jobId,
+      undefined,
+      { suggestionTarget: target, generatedName: coherentName },
+      await calculateGenerationBilling({ kind: "anthropic-prompt", usage }),
+      response.headers.get("request-id"),
+    );
     return Response.json({
       suggestion: enforceModernAudioDirection(
         enforceVisualIdentity(coherentSuggestion, input.appearanceBrief, input.worldBrief),
@@ -409,6 +438,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Character suggestion failed.";
+    if (jobId) await failGeneration(jobId, message);
     if (fallbackInput) {
       return Response.json({
         suggestion: localSuggestion(fallbackInput),

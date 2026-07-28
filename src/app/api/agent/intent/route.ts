@@ -1,4 +1,5 @@
-import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
+import { calculateGenerationBilling } from "@/lib/server/billing";
+import { beginGeneration, completeGeneration } from "@/lib/server/supabase-admin";
 import { requireRequestIdentity, type AuthIdentity } from "@/lib/server/auth";
 import {
   assertMutationOrigin,
@@ -135,19 +136,43 @@ function localIntent(utterance: string, role: string, creatorContext: Record<str
   };
 }
 
-async function logConcierge(utterance: string, result: ConciergeIntent, provider: string, model: string) {
+async function logConcierge(
+  userId: string,
+  utterance: string,
+  result: ConciergeIntent,
+  provider: string,
+  model: string,
+  usage?: { input_tokens?: number; output_tokens?: number },
+) {
   try {
-    const supabase = getSupabaseAdminClient();
-    await supabase.from("generation_jobs").insert({
-      character_id: null,
-      kind: "concierge",
+    const kind = provider === "anthropic" ? "anthropic-prompt" : "concierge";
+    const jobId = await beginGeneration({
+      kind,
       provider,
       model,
       prompt: utterance,
-      status: "succeeded",
-      metadata: { intent: result.intent, name: result.name, archetypes: result.archetypes },
-      completed_at: new Date().toISOString(),
+      metadata: {
+        userId,
+        creditActionCode: "writing.magic",
+        creditAllocation: provider === "anthropic" ? 1 : 0,
+        creditBilling: "included",
+        intent: result.intent,
+        name: result.name,
+        archetypes: result.archetypes,
+      },
     });
+    const normalizedUsage = {
+      inputTokens: Number(usage?.input_tokens ?? 0),
+      outputTokens: Number(usage?.output_tokens ?? 0),
+      providerTokens: Number(usage?.input_tokens ?? 0) + Number(usage?.output_tokens ?? 0),
+      providerUsage: usage ?? {},
+    };
+    await completeGeneration(
+      jobId,
+      undefined,
+      { intent: result.intent },
+      await calculateGenerationBilling({ kind, usage: normalizedUsage }),
+    );
   } catch (error) {
     console.warn("[concierge] log skipped:", error instanceof Error ? error.message : error);
   }
@@ -212,13 +237,13 @@ ${contextJson}`,
           output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
         }),
       });
-      const data = (await response.json()) as { content?: Array<{ type?: string; text?: string }>; error?: { message?: string }; stop_reason?: string };
+      const data = (await response.json()) as { content?: Array<{ type?: string; text?: string }>; error?: { message?: string }; stop_reason?: string; usage?: { input_tokens?: number; output_tokens?: number } };
       if (!response.ok) throw new Error(data.error?.message || `Claude returned ${response.status}.`);
       const text = data.content?.find((block) => block.type === "text")?.text;
       if (!text) throw new Error("Claude returned no intent.");
       const parsed = JSON.parse(text) as ConciergeIntent;
       console.log(`[concierge] provider=anthropic intent=${parsed.intent} name=${parsed.name ?? "-"} utterance="${utterance.slice(0, 120)}"`);
-      void logConcierge(utterance, parsed, "anthropic", model);
+      await logConcierge(identity.id, utterance, parsed, "anthropic", model, data.usage);
       return Response.json({ ...parsed, provider: "anthropic" });
       } catch (error) {
         console.warn("[concierge] Claude failed, using local intent:", error instanceof Error ? error.message : error);
@@ -227,7 +252,7 @@ ${contextJson}`,
 
     const fallback = localIntent(utterance, role, creatorContext);
     console.log(`[concierge] provider=local intent=${fallback.intent} utterance="${utterance.slice(0, 120)}"`);
-    void logConcierge(utterance, fallback, "chaplin-local", "heuristic");
+    await logConcierge(identity.id, utterance, fallback, "chaplin-local", "heuristic");
     return Response.json({ ...fallback, provider: "chaplin-local" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Concierge request failed.";

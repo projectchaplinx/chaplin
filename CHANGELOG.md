@@ -3,6 +3,24 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.46 - 2026-07-29 - Complete credit and usage control
+
+- Defined one canonical Chaplin rate card: 100 welcome credits, 25 credits per
+  actor, and finished productions at 5 credits per second (25 Spark, 75 Punch,
+  150 30-second Spot, and 300 Episode or 60-second Spot).
+- Kept AI writing, voice, dialogue, sound, music, still, motion, and assembly
+  allocations visible inside their paid bundle without double-charging the
+  creator who already reserved that actor or production.
+- Added a Super Admin Credits & Usage workspace with current per-user balances,
+  lifetime grant and spend, wallet transactions, generation activity, actor or
+  production context, provider/model/status, included allocations, and actual
+  provider cost.
+- Connected Magic actor writing, Magic production writing, Quick Write, scene
+  writing, Concierge intent and speech, and every actor media generation to the
+  same user-attributed ledger. Historical jobs are attributed through actor
+  ownership, and all ledger queries paginate beyond Supabase's 1,000-row
+  default.
+
 ## v0.2.45 - 2026-07-29 - Contained Cast-step action
 
 - Fixed the `Next: generate scenes` footer remaining a negative-margin sticky

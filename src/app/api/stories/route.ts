@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { getSupabaseAdminClient, persistStory } from "@/lib/server/supabase-admin";
-import { productionCreditCost } from "@/lib/credits";
+import { productionCreditCode, productionCreditCost } from "@/lib/credits";
 import { refundCreatorCredits, spendCreatorCredits } from "@/lib/server/credits";
 import {
   assertRequestBodySize,
@@ -90,8 +90,14 @@ export async function POST(request: NextRequest) {
           userId: identity.id,
           amount: creditCost,
           idempotencyKey,
-          description: `Start 15-second Punch: ${title}`,
-          metadata: { storyId: id, format, durationSeconds },
+          description: `Start ${durationSeconds}-second ${format}: ${title}`,
+          metadata: {
+            actionCode: productionCreditCode(format, durationSeconds),
+            storyId: id,
+            storyTitle: title,
+            format,
+            durationSeconds,
+          },
         })
       : null;
     try {

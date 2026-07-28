@@ -152,7 +152,11 @@ export async function POST(request: NextRequest) {
       amount: CHARACTER_CREATION_CREDITS,
       idempotencyKey,
       description: `Create actor: ${character.name}`,
-      metadata: { characterId: character.id },
+      metadata: {
+        actionCode: "actor.create",
+        characterId: character.id,
+        characterName: character.name,
+      },
     });
     try {
       await persistCharacter(character);

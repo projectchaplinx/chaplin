@@ -1,7 +1,13 @@
 import { buildProductionBible } from "@/lib/production-prompting";
 import { planCameraForScene, type CameraMovementId } from "@/lib/camera-movements";
 import { anthropicImageBlock, type AnthropicImageBlock } from "@/lib/server/anthropic-image";
-import { getCharacterProductionState } from "@/lib/server/supabase-admin";
+import { calculateGenerationBilling } from "@/lib/server/billing";
+import {
+  beginGeneration,
+  completeGeneration,
+  failGeneration,
+  getCharacterProductionState,
+} from "@/lib/server/supabase-admin";
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
@@ -237,6 +243,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   let fallbackInput: Parameters<typeof fallbackDraft>[0] | null = null;
+  let jobId: string | null = null;
   try {
     assertRequestBodySize(request, 512 * 1024);
     const identity = await requireRequestIdentity(request);
@@ -337,6 +344,22 @@ export async function POST(request: Request) {
       messageContent.push(context.block);
     }
     messageContent.push({ type: "text", text: taskPayload });
+    jobId = await beginGeneration({
+      characterId: selectedCharacters[0]?.id,
+      kind: "prompt-production-draft",
+      provider: "anthropic",
+      model,
+      prompt: input.brief || `${format} production draft`,
+      metadata: {
+        userId: identity.id,
+        creditActionCode: "writing.magic",
+        creditAllocation: 1,
+        creditBilling: "included",
+        format,
+        durationSeconds,
+        castIds: selectedCharacters.map((character) => character.id),
+      },
+    });
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -410,6 +433,19 @@ export async function POST(request: Request) {
     draft.castIds = [...new Set([...draft.castIds, ...speakingCastIds])]
       .filter((id) => allowedIds.has(id));
     const directedDraft = attachCameraMovements(draft, format);
+    const usage = {
+      inputTokens: Number(data.usage?.input_tokens ?? 0),
+      outputTokens: Number(data.usage?.output_tokens ?? 0),
+      providerTokens: Number(data.usage?.input_tokens ?? 0) + Number(data.usage?.output_tokens ?? 0),
+      providerUsage: data.usage ?? {},
+    };
+    await completeGeneration(
+      jobId,
+      undefined,
+      { format, durationSeconds, title: directedDraft.title, castIds: directedDraft.castIds },
+      await calculateGenerationBilling({ kind: "anthropic-prompt", usage }),
+      response.headers.get("request-id"),
+    );
     return Response.json({
       draft: directedDraft,
       provider: repairedEmptyScenes ? "chaplin-local" : "anthropic",
@@ -422,6 +458,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not build the magic draft.";
+    if (jobId) await failGeneration(jobId, message);
     if (fallbackInput) {
       return Response.json({
         draft: attachCameraMovements(fallbackDraft(fallbackInput), fallbackInput.format),

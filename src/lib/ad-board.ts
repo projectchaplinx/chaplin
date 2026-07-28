@@ -83,6 +83,7 @@ export const adBoardSchema = z.object({
   arc_template: adArcTemplateSchema,
   mode: adBoardModeSchema,
   audio_mode: z.enum(["resolved", "legacy_stems"]).default("resolved"),
+  timeline_authority: z.enum(["vo", "score"]).default("vo"),
   slots: z.array(adSlotSchema).length(8),
   product_id: z.string().trim().min(1).nullable().optional(),
   canonical_reference_asset: assetId,
@@ -267,6 +268,25 @@ export function applyVoiceTimings(board: AdBoard, measuredAudioMs: Record<string
   });
 }
 
+export function applyScoreTimings(
+  board: AdBoard,
+  scoreDurationMs: number,
+  movements: Array<{ name: "build" | "peak" | "quiet" | "resolve"; weight: number }>,
+) {
+  if (board.slots.some((slot) => Boolean(slot.vo_line?.trim()))) {
+    throw new Error("A board with narration or dialogue must use VO timeline authority.");
+  }
+  const totalWeight = movements.reduce((sum, movement) => sum + Math.max(0, movement.weight), 0);
+  if (!totalWeight) throw new Error("Score movements need positive timing weight.");
+  const slots = board.slots.map((slot, index) => {
+    const movement = movements[Math.min(index, movements.length - 1)];
+    return { ...slot, duration_ms: Math.max(500, Math.round(scoreDurationMs * (movement.weight / totalWeight))) };
+  });
+  const difference = scoreDurationMs - slots.reduce((sum, slot) => sum + slot.duration_ms, 0);
+  slots[slots.length - 1].duration_ms += difference;
+  return adBoardSchema.parse({ ...board, timeline_authority: "score", slots });
+}
+
 export type AdRenderSlot = AdSlot & {
   source_slot_id: string;
   part: string | null;
@@ -293,7 +313,11 @@ export function expandLongAdSlots(board: AdBoard): AdRenderSlot[] {
 }
 
 export function renderResolution(tier: RenderTier) {
-  return tier === "final" ? "1080p" : "480p";
+  return tier === "final" ? "1080p" : "720p";
+}
+
+export function masterResolution() {
+  return "4K" as const;
 }
 
 export function promoteSlotToFinal(board: AdBoard, slotId: string) {

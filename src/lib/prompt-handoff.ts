@@ -12,6 +12,7 @@ import {
 import { lintPromptHandoff, type PromptLintResult } from "@/lib/prompt-lint";
 import type { PipelineStageId } from "@/lib/pipeline-config";
 import { finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
+import { budgetVideoPrompt } from "@/lib/video-prompt-budget";
 
 export type HandoffPromptCard = {
   id: string;
@@ -139,7 +140,11 @@ export function buildPromptHandoff(
       title: "Image-to-video direction",
       destination: "Seedance",
       note: "Motion and one camera move only; no scene redesign.",
-      prompt: finalizeVideoPrompt(composeVideoPrompt(character, scene.blueprint), true),
+      prompt: budgetVideoPrompt(
+        finalizeVideoPrompt(composeVideoPrompt(character, scene.blueprint), true),
+        "image_to_video",
+        true,
+      ).prompt,
       consumer: "video",
       stage: "video",
     },

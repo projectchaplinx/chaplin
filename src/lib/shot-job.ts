@@ -32,6 +32,7 @@ export const referenceSchema = z.object({
   kind: referenceKindSchema,
   asset_id: assetIdSchema,
   label: z.string().trim().regex(/^@(image|video|audio)\d+$/, "Use a provider address such as @image1, @video1, or @audio1."),
+  character_reference_role: z.enum(["canonical", "panel", "composite"]).optional(),
 }).strict();
 
 export const seamSchema = z.enum([
@@ -116,6 +117,15 @@ export const shotJobSchema = z.object({
   if (portals > 1) {
     context.addIssue({ code: "custom", path: ["shots"], message: "A board may contain at most one portal seam." });
   }
+  job.references.forEach((reference, index) => {
+    if (reference.character_reference_role === "composite") {
+      context.addIssue({
+        code: "custom",
+        path: ["references", index],
+        message: "Composite character sheets are for human review only and cannot be attached to video generation.",
+      });
+    }
+  });
   job.shots.slice(0, -1).forEach((shot, index) => {
     if (shot.seam_to_next === "frozen_handoff") {
       const closingAction = shot.beats.at(-1)?.action;

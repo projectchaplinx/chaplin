@@ -7,7 +7,13 @@ export const characterSheetSchema = z.object({
   age_state: z.string().trim().min(1),
   wardrobe_state: z.string().trim().min(1),
   version: z.number().int().positive(),
-  asset_id: z.string().trim().min(1).nullable(),
+  composite_asset_id: z.string().trim().min(1).nullable(),
+  panel_asset_ids: z.object({
+    front: z.string().trim().min(1),
+    three_quarter: z.string().trim().min(1),
+    profile: z.string().trim().min(1),
+    full_body: z.string().trim().min(1),
+  }).strict().nullable(),
   status: z.enum(["required", "generating", "current", "superseded"]),
 }).strict();
 
@@ -50,12 +56,25 @@ export function characterAppearanceKey(input: Pick<CharacterSheet, "character_id
 
 export function characterSheetPrompt(input: { identity: string; ageState: string; wardrobeState: string }) {
   return withStandingInjections([
-    "One 16:9 character sheet in exactly three equal panels.",
+    "One 16:9 human-review character sheet in exactly four equal panels.",
     `Identity: ${input.identity}. Age state: ${input.ageState}. Final wardrobe: ${input.wardrobeState}.`,
-    "Panel one: straight-on head-and-shoulders. Panel two: exact side profile. Panel three: full body in final wardrobe.",
+    "Panel one: straight-on head-and-shoulders. Panel two: three-quarter head-and-shoulders. Panel three: exact side profile. Panel four: full body in final wardrobe.",
     "Plain neutral studio background, even reference lighting, no props, no text.",
     `Negative: ${STANDARD_PORTRAIT_NEGATIVES.join(", ")}.`,
   ].join(" "), true);
+}
+
+export function characterSheetVideoReferences(sheet: CharacterSheet) {
+  if (sheet.status !== "current" || !sheet.panel_asset_ids) {
+    throw new Error("Generate and crop the current character sheet before video generation.");
+  }
+  return Object.entries(sheet.panel_asset_ids).map(([view, assetId], index) => ({
+    id: `${sheet.id}:${view}`,
+    kind: "character" as const,
+    asset_id: assetId,
+    label: `@image${index + 1}` as `@image${number}`,
+    character_reference_role: "panel" as const,
+  }));
 }
 
 export function performanceReferencePrompt(take: PerformanceReferenceTake) {

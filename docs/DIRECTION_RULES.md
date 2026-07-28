@@ -59,15 +59,57 @@ assets rather than a motion mode.
 
 ## Character sheet and audition
 
-The character sheet is one 16:9 image with exactly three panels: straight-on
-head-and-shoulders, exact side profile, and full body in final wardrobe. It uses
-a plain studio background, no props, and no text.
+The review sheet is one 16:9 image with four panels: straight-on,
+three-quarter, exact side profile, and full body in final wardrobe. It uses a
+plain studio background, no props, and no text. The composite is for human
+approval only. Chaplin automatically crops every panel into its own stored
+asset; only those cropped assets may ride as video references. ShotJob lint
+hard-fails any composite reference.
 
 The Studio's **Audition** stage produces two or three self-tape takes. Each is a
 locked-off, eye-level medium close-up with shallow focus, a short line with
 subtext, a three-quality voice recipe, one named vocal moment, one named
 physical behaviour, silence before and after, and an unresolved ending. Only
 one rendered take can be selected.
+
+## Project style contract
+
+A board may lock one editable style contract extracted from 5–10 stored
+reference stills. The locked paragraph names lens feel, motivated lighting
+direction and source, palette, grain, contrast, blocking, atmosphere, and era
+markers. Chaplin appends the creator-approved paragraph verbatim to every image
+and video prompt on that board. Existing boards without a contract remain
+valid. Bare `cinematic` warns unless at least two concrete visual terms support
+it.
+
+## Video prompt budget and motion grammar
+
+Image-to-video prompts have an 80-word hard cap. Builder compaction drops
+world/atmosphere prose, biography, then lighting adjectives, preserving the
+camera move, visible event, identity/reference language, style contract, and
+terminal audio negative. Development lint hard-fails overflow; production
+records original and trimmed text on the generation job.
+
+Every image-to-video prompt names one camera move or `camera locked`, gives a
+visible in-scene event in a separate sentence, and says `No frozen figures`.
+Negated stability language belongs in the negative field. Positive direction
+states the desired picture behavior.
+
+## Judgment, scheduling, and resolution
+
+Persisted takes carry `kept`, `killed`, or `pending` verdicts plus the one
+changed variable: camera, lighting, speed, action, or reference. Board and
+character stats report kill rate and the variable most often associated with a
+subsequent keep.
+
+Provider work enters a central per-provider queue. Concurrency comes from
+pipeline settings. Transient retries reuse the exact same prompt and use
+exponential backoff. Reports expose submitted, active, queued, failed, and kept.
+
+VO boards remain VO-timed. Wordless boards set `timeline_authority: score`,
+generate the build/peak/quiet/resolve score first, then trim slot durations to
+that score. Exploration clips render at 720p, keeper clips at 1080p, and only
+the assembled cut is upscaled once to 4K.
 
 ## Observable physics
 

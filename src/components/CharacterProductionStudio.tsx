@@ -6,6 +6,7 @@ import type { Character } from "@/lib/types";
 import { useChaplinStore } from "@/lib/store";
 import VoiceCapacityRecovery from "@/components/VoiceCapacityRecovery";
 import MediaPlayer from "@/components/MediaPlayer";
+import TakeVerdictControls from "@/components/TakeVerdictControls";
 import {
   buildProductionBible,
   buildScenePackage,
@@ -1940,6 +1941,7 @@ export default function CharacterProductionStudio({
                     </button>
                   </div>
                   <MediaPlayer src={candidate.url} label={`${character.name} SFX take ${index + 1}`} compact />
+                  <TakeVerdictControls assetId={candidate.assetId} />
                 </article>
               );
             })}
@@ -1971,6 +1973,9 @@ export default function CharacterProductionStudio({
                     <button type="button" onClick={() => selectImageCandidate(candidate)} disabled={Boolean(busy)} className={`min-h-9 shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-semibold disabled:opacity-40 ${selected ? "border-emerald-400/60 text-emerald-300" : "border-accent/60 text-accent"}`}>
                       {selected ? "Chosen ✓" : imagePurpose === "identity" ? "Use as identity" : "Use frame"}
                     </button>
+                  </div>
+                  <div className="px-2.5 pb-2.5">
+                    <TakeVerdictControls assetId={candidate.assetId} />
                   </div>
                 </article>
               );

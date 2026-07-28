@@ -61,5 +61,6 @@ export function withStandingInjections(prompt: string, skinVisible = false) {
 }
 
 export function finalizeVideoPrompt(prompt: string, skinVisible = false) {
-  return `${withStandingInjections(prompt, skinVisible)} ${VIDEO_PROMPT_ENDING}`;
+  const base = withStandingInjections(prompt, skinVisible).replace(/\s*No frozen figures\.\s*$/i, "");
+  return `${base} No frozen figures. ${VIDEO_PROMPT_ENDING}`;
 }

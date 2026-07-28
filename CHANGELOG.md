@@ -3,6 +3,25 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.55 - 2026-07-29 - Production learning and style contracts
+
+- Corrected character sheets so the 16:9 composite is review-only, automatically
+  cropped into front, three-quarter, profile, and full-body assets, and blocked
+  from video submission.
+- Added editable project style contracts extracted from 5–10 stored references
+  and injected verbatim into board image and video prompts.
+- Added the 80-word image-to-video budget, original-versus-trimmed job logging,
+  motion grammar checks, concrete `cinematic` lint, and positive stability
+  direction.
+- Added persisted keep/kill verdicts, single-variable iteration capture,
+  board/character statistics, and verdict controls on generated image and SFX
+  takes.
+- Added config-driven image/video provider queues with bounded concurrency,
+  same-prompt transient retry, exponential backoff, and fleet reporting.
+- Added VO/score timeline authority, score movement timing for wordless boards,
+  visible-intent craft warnings, object-first action guidance, and the
+  720p-explore/1080p-keeper/4K-master resolution ladder.
+
 ## v0.2.54 - 2026-07-29 - Version-gated multi-shot direction
 
 - Probed the configured ModelArk account and documented that it currently

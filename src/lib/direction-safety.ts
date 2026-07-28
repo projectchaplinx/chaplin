@@ -409,6 +409,21 @@ export type DirectionIssue = {
   message: string;
 };
 
+export function directionPreferenceWarnings(board: DirectionBoard) {
+  const warnings: Array<{ slotId: string; message: string }> = [];
+  for (const slot of board.slots) {
+    const hasMotion = /\b(?:walk|run|move|turn|cross|track|descend|rise|fall)\w*\b/i.test(slot.action);
+    const visibleIntent = /\b(?:toward|away|to reach|to protect|to escape|to stop|to find|because|so that|objective)\b/i.test(`${slot.objective} ${slot.action}`);
+    if (hasMotion && !visibleIntent) {
+      warnings.push({ slotId: slot.slotId, message: "Motion needs visible intent: name what the figure is moving toward or trying to change." });
+    }
+    if (slot.energyState === "action" && /\b(?:emotion|expression|face|smile|fear|angry|confused)\b/i.test(`${slot.objective} ${slot.action}`)) {
+      warnings.push({ slotId: slot.slotId, message: "Prefer an identity-stable object action over a facial expression on this high-drift beat." });
+    }
+  }
+  return warnings;
+}
+
 export function lintDirectionBoard(rawBoard: DirectionBoard, characters: DirectionCharacter[]) {
   const board = directionBoardSchema.parse(rawBoard);
   const issues: DirectionIssue[] = [];

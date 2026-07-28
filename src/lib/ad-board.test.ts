@@ -86,10 +86,10 @@ test("VO-first timings add the correct gap and split clips longer than five seco
   assert.equal(expanded.filter((slot) => slot.source_slot_id === "slot-1").reduce((total, slot) => total + slot.duration_ms, 0), 5450);
 });
 
-test("boards default to draft 480p and promote individual slots to final 1080p", () => {
+test("boards explore at 720p and promote keeper clips to 1080p", () => {
   assert.ok(JOURNEY_DELIVERY_BOARD.slots.every((slot) => slot.tier === "draft"));
   const promoted = promoteSlotToFinal(JOURNEY_DELIVERY_BOARD, "slot-6");
   assert.equal(promoted.slots[5].tier, "final");
   assert.equal(renderResolution(promoted.slots[5].tier), "1080p");
-  assert.equal(renderResolution(promoted.slots[4].tier), "480p");
+  assert.equal(renderResolution(promoted.slots[4].tier), "720p");
 });

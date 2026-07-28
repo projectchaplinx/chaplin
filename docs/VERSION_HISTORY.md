@@ -259,3 +259,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.51 | `7c7ec6b` | 2026-07-29T01:25:12+05:30 | Add playable admin media tabs |
 | v0.2.52 | `9a0e1ba` | 2026-07-29T01:31:40+05:30 | Compact actor hero and open live conversation |
 | v0.2.53 | `c3d848f` | 2026-07-29T01:37:23+05:30 | Collapse selected output into creation focus |
+| v0.2.54 | `9ec05f1` | 2026-07-29T01:53:09+05:30 | feat: add version-gated multi-shot direction |

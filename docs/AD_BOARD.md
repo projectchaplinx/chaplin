@@ -21,7 +21,7 @@ use the existing shot, take, generation-job, media-asset, QC, and ledger paths.
 | `duration_ms` | Measured TTS duration plus 350 ms after narration or a 500 ms dialogue head offset. Silent slots are 4000 ms. |
 | `image_prompt` | Provider-ready first/last-frame prompt carrying identity, wardrobe, and age state verbatim. |
 | `motion` / `motion_reason` | Forward, chain, or first/last-frame contract. Target-frame mode requires a recorded reason. |
-| `tier` | `draft` is 480p and is the board default; `final` is 1080p and is promoted per slot. |
+| `tier` | `draft` exploration is 720p; `final` keeper clips are 1080p. Only the assembled master is upscaled once to 4K. |
 | `status` | Draft → still approved → queued → rendering → rendered, or failed. |
 
 `identity_block`, `wardrobe_state`, and `age_state` are immutable continuity

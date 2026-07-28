@@ -101,6 +101,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       temperature: null,
       maxTokens: 8000,
       settings: {
+        concurrencyCap: 4,
         sceneVariations: 3,
         requireVisibleHook: true,
         requireCliffhanger: true,
@@ -114,6 +115,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       temperature: null,
       maxTokens: null,
       settings: {
+        concurrencyCap: 3,
         guidanceScale: 4,
         dialogueModel: "eleven_multilingual_v2",
         stability: 0.78,
@@ -130,6 +132,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       temperature: null,
       maxTokens: null,
       settings: {
+        concurrencyCap: 4,
         durationSeconds: 1.5,
         minimumDurationSeconds: 0.5,
         maximumDurationSeconds: 3,
@@ -146,6 +149,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       temperature: null,
       maxTokens: null,
       settings: {
+        concurrencyCap: 2,
         durationSeconds: 8,
         compositionPlanEnabled: true,
         forceInstrumental: true,
@@ -160,6 +164,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       temperature: null,
       maxTokens: null,
       settings: {
+        concurrencyCap: 4,
         size: "2560x1440",
         resolution: "2K",
         aspectRatio: "16:9",
@@ -167,7 +172,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
         outputFormat: "png",
         watermark: false,
         sequentialImageGeneration: "disabled",
-        characterSheetTemplate: "Create one clean 16:9 character consistency contact sheet from the supplied identity seed. Use a neutral low-detail studio background and one soft, physically plausible lighting setup across every panel. Lay out twelve distinct panels: extreme close-up face, close-up face, medium close-up, left three-quarter face, right three-quarter face, left profile, right profile, full-body front, full-body back, relaxed standing pose, seated pose, and one character-specific action pose. Repeat the exact same fictional actor in every panel. Preserve facial geometry, apparent age, skin tone, hair construction, body proportions, wardrobe materials, palette, and signature recognition details. This is a visual continuity seed, not a story scene. No additional people, environment changes, labels, text, logos, borders, or watermark.",
+        characterSheetTemplate: "Create one clean 16:9 human-review character sheet from the supplied identity seed. Use a neutral low-detail studio background and one soft, physically plausible lighting setup across four equal panels: straight-on head-and-shoulders, three-quarter head-and-shoulders, exact side profile, and full body in final wardrobe. Repeat the exact same fictional actor in every panel. Preserve facial geometry, apparent age, skin tone, hair construction, body proportions, wardrobe materials, palette, and signature recognition details. This composite is for creator approval and automatic panel cropping only; it must never be sent to a video model. No props, additional people, labels, text, logos, borders, or watermark.",
         negativePrompt: "multiple people, duplicate face, celebrity likeness, generic pose, plastic skin, distorted anatomy, extra fingers, text, logo, UI, border, watermark, cartoon, anime, illustration, digital painting, concept art, 3D render, CGI character, game art, doll-like face, wax figure, airbrushed skin, synthetic skin",
       },
     },
@@ -179,6 +184,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       temperature: null,
       maxTokens: null,
       settings: {
+        concurrencyCap: 3,
         durationSeconds: 5,
         resolution: "720p",
         ratio: "16:9",

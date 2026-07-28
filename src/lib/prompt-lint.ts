@@ -13,6 +13,7 @@ import {
   hasUnpairedGearToken,
   VIDEO_PROMPT_ENDING,
 } from "@/lib/prompt-standards";
+import { countPromptWords, motionGrammarIssues } from "@/lib/video-prompt-budget";
 
 export const promptConsumerSchema = z.enum(["runtime", "sheet", "voice", "dialogue", "sfx", "theme", "image", "video"]);
 export const recognitionLockSchema = z.object({
@@ -104,6 +105,24 @@ export function lintPromptHandoff(rawInput: PromptLintInput): PromptLintResult {
     }
     if (artifact.consumer === "video" && !artifact.prompt.trim().endsWith(VIDEO_PROMPT_ENDING)) {
       failures.push({ rule: "L14", cardId: artifact.id, message: `Every video prompt must end with "${VIDEO_PROMPT_ENDING}"` });
+    }
+    if (["image", "video"].includes(artifact.consumer) && /\bcinematic\b/i.test(artifact.prompt)) {
+      const concrete = artifact.prompt.match(/\b(?:motivated|practical|warm|cool|grain|contrast|depth|blacks|palette|light source|blocking|atmosphere)\b/gi) ?? [];
+      if (new Set(concrete.map((term) => term.toLowerCase())).size < 2) {
+        warnings.push({ rule: "L15", cardId: artifact.id, message: 'Bare "cinematic" needs at least two concrete visual reinforcements.' });
+      }
+    }
+    if (artifact.consumer === "video") {
+      if (countPromptWords(artifact.prompt) > 80) {
+        failures.push({ rule: "L16", cardId: artifact.id, message: `Image-to-video prompt exceeds the 80-word hard cap (${countPromptWords(artifact.prompt)} words).` });
+      }
+      for (const issue of motionGrammarIssues(artifact.prompt)) {
+        (issue.level === "failure" ? failures : warnings).push({
+          rule: "L17",
+          cardId: artifact.id,
+          message: issue.message,
+        });
+      }
     }
     // Advisory, not a gate. Composed prompts legitimately repeat persona and
     // performance boilerplate across slots, so a repeated 21-word window is a

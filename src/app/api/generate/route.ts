@@ -70,6 +70,10 @@ import {
 } from "@/lib/theme-composition-plan";
 import { compactVisualDirection, requestsStylizedImage } from "@/lib/prompt-compaction";
 import { bannedPromptWord, finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
+import { budgetVideoPrompt, motionGrammarIssues } from "@/lib/video-prompt-budget";
+import { injectStyleContract } from "@/lib/style-contract";
+import { providerScheduler } from "@/lib/provider-scheduler";
+import { cropCharacterSheet } from "@/lib/server/character-sheet-crop";
 import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { PromptLintError } from "@/lib/prompt-lint";
 import {
@@ -946,6 +950,17 @@ export async function POST(request: Request) {
         experimentVariantId,
       });
     };
+    const resolveStyleContractText = async () => {
+      const explicit = typeof input.styleContractText === "string" ? input.styleContractText.trim().slice(0, 5000) : "";
+      if (explicit) return explicit;
+      const boardId = typeof input.boardId === "string" ? input.boardId.trim() : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(boardId)) return "";
+      let query = getSupabaseAdminClient().from("style_contracts").select("contract_text").eq("board_id", boardId);
+      if (identity.role !== "admin") query = query.eq("owner_id", identity.id);
+      const result = await query.maybeSingle();
+      if (result.error) throw new Error(`Load style contract: ${result.error.message}`);
+      return result.data?.contract_text?.trim().slice(0, 5000) ?? "";
+    };
 
     if (action === "voice-design") {
       const voiceConfig = pipeline.stages.voice;
@@ -1506,7 +1521,11 @@ export async function POST(request: Request) {
           ? `${prompt}\n\nEXCLUDE: ${exclusions}`
           : prompt
         : `${prompt}\n\nEXCLUDE: ${exclusions}`;
-      const effectivePrompt = withStandingInjections(providerReadyPrompt, Boolean(requestCharacter));
+      const styleContractText = await resolveStyleContractText();
+      const effectivePrompt = injectStyleContract(
+        withStandingInjections(providerReadyPrompt, Boolean(requestCharacter)),
+        styleContractText ? { contract_text: styleContractText } : null,
+      );
       const bannedImagePhrase = bannedPromptWord(effectivePrompt);
       if (bannedImagePhrase) {
         throw new RequestValidationError(`Image prompt contains banned phrase "${bannedImagePhrase}".`);
@@ -1572,7 +1591,10 @@ export async function POST(request: Request) {
       for (let attempt = 0; attempt < MAX_IMAGE_ATTEMPTS; attempt += 1) {
         const attemptPrompt = attempt === 0 ? effectivePrompt : softenPromptForSafety(effectivePrompt, attempt);
         try {
-          generated = await runImageProvider(attemptPrompt);
+          generated = await providerScheduler(
+            provider,
+            settingNumber(imageConfig, "concurrencyCap", 4),
+          ).submit(attemptPrompt, runImageProvider);
           safetySoftened = attempt > 0;
           break;
         } catch (error) {
@@ -1583,6 +1605,9 @@ export async function POST(request: Request) {
       if (!generated) throw new Error("Image generation did not return a result.");
       const providerMetadata = {
         ...referenceMetadata,
+        ...(imagePurpose === "character-sheet"
+          ? { characterSheetRole: "composite", videoReferenceSafe: false }
+          : {}),
         ...(safetyAttempts ? { safetyRetryAttempts: safetyAttempts, safetyPromptSoftened: safetySoftened } : {}),
         provider,
         model: imageConfig.model,
@@ -1609,6 +1634,15 @@ export async function POST(request: Request) {
             metadata: providerMetadata,
           });
       const providerUsage = generated.providerUsage;
+      const panelAssetIds = imagePurpose === "character-sheet"
+        ? await cropCharacterSheet({
+            characterId,
+            compositeAssetId: asset.id,
+            compositeUrl: asset.url,
+            provider,
+            prompt: effectivePrompt,
+          })
+        : null;
       const inputTokens = recordNumber(providerUsage, "prompt_tokens", "input_tokens");
       const outputTokens = recordNumber(providerUsage, "completion_tokens", "output_tokens");
       const providerTokens = recordNumber(providerUsage, "total_tokens")
@@ -1632,7 +1666,13 @@ export async function POST(request: Request) {
         }),
         generated.requestId
       );
-      return Response.json({ url: asset.url, assetId: asset.id, provider, model: imageConfig.model });
+      return Response.json({
+        url: asset.url,
+        assetId: asset.id,
+        ...(panelAssetIds ? { compositeAssetId: asset.id, panelAssetIds } : {}),
+        provider,
+        model: imageConfig.model,
+      });
     }
 
     if (action === "video") {
@@ -1648,6 +1688,7 @@ export async function POST(request: Request) {
         actually reaches the provider.
       */
       const requestedPrompt = text(input, "prompt", 10, 12000);
+      const styleContractText = await resolveStyleContractText();
       let boardSlot: AdSlot | null = null;
       let adBoard: import("@/lib/ad-board").AdBoard | null = null;
       if (input.adBoard !== undefined) {
@@ -1790,7 +1831,28 @@ export async function POST(request: Request) {
             delivery: boardSlot!.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
           })}`
         : audioScene?.block ? `${basePrompt}\n${audioScene.block}` : basePrompt;
-      const prompt = finalizeVideoPrompt(audioReadyPrompt, Boolean(requestCharacter));
+      const styledVideoPrompt = finalizeVideoPrompt(
+        injectStyleContract(
+          [
+            motionGrammarIssues(audioReadyPrompt).some((issue) => /camera move/i.test(issue.message))
+              ? "Camera: slow push in."
+              : "",
+            motionGrammarIssues(audioReadyPrompt).some((issue) => /in-scene event/i.test(issue.message))
+              ? `Subject event: ${requestedPrompt}.`
+              : "",
+            audioReadyPrompt,
+          ].filter(Boolean).join("\n"),
+          styleContractText ? { contract_text: styleContractText } : null,
+        ),
+        Boolean(requestCharacter),
+      );
+      const motionIssues = motionGrammarIssues(styledVideoPrompt);
+      const motionFailures = motionIssues.filter((issue) => issue.level === "failure");
+      if (motionFailures.length) {
+        throw new RequestValidationError(motionFailures.map((issue) => issue.message).join(" "));
+      }
+      const promptBudget = budgetVideoPrompt(styledVideoPrompt, "image_to_video");
+      const prompt = promptBudget.prompt;
       const bannedVideoPhrase = bannedPromptWord(prompt);
       if (bannedVideoPhrase) {
         throw new RequestValidationError(`Video prompt contains banned phrase "${bannedVideoPhrase}".`);
@@ -1818,6 +1880,14 @@ export async function POST(request: Request) {
         // prompt.
         metadata: {
           ...referenceMetadata,
+          promptBudget: {
+            originalWords: promptBudget.originalWords,
+            finalWords: promptBudget.finalWords,
+            trimmed: promptBudget.trimmed,
+            dropped: promptBudget.dropped,
+            originalPrompt: promptBudget.trimmed ? promptBudget.original : null,
+          },
+          motionGrammarWarnings: motionIssues.filter((issue) => issue.level === "warning").map((issue) => issue.message),
           ...(consistencyWarnings.length ? { characterCardConsistencyWarnings: consistencyWarnings } : {}),
           ...(audioScene
             ? {
@@ -2004,13 +2074,29 @@ export async function POST(request: Request) {
                 adBoard.audio_mode,
               )
             : null;
-          const attemptPrompt = attemptPlan && boardSlot
+          const rawAttemptPrompt = attemptPlan && boardSlot
             ? `${basePrompt}\n${buildAudioSceneBlock({
                 plan: attemptPlan,
                 durationMs: boardSlot.duration_ms,
                 delivery: boardSlot.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
               })}`
             : prompt;
+          const attemptGrammarPrompt = [
+            motionGrammarIssues(rawAttemptPrompt).some((issue) => /camera move/i.test(issue.message))
+              ? "Camera: slow push in."
+              : "",
+            motionGrammarIssues(rawAttemptPrompt).some((issue) => /in-scene event/i.test(issue.message))
+              ? `Subject event: ${requestedPrompt}.`
+              : "",
+            rawAttemptPrompt,
+          ].filter(Boolean).join("\n");
+          const attemptPrompt = budgetVideoPrompt(
+            finalizeVideoPrompt(
+              injectStyleContract(attemptGrammarPrompt, styleContractText ? { contract_text: styleContractText } : null),
+              Boolean(requestCharacter),
+            ),
+            "image_to_video",
+          ).prompt;
           const attemptReferenceAudio = attemptPlan
             ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""
             : referenceAudio;
@@ -2021,20 +2107,23 @@ export async function POST(request: Request) {
               && attempt.provider === "byteplus"
               && seedanceSupportsAudioReference(attempt.model)
             : wantsLipSync && attempt.provider === "byteplus" && seedanceSupportsAudioReference(attempt.model);
-          const result = attempt.provider === "replicate"
-            ? await replicateVideo({
+          const result = await providerScheduler(
+            attempt.provider,
+            settingNumber(videoConfig, "concurrencyCap", 3),
+          ).submit(attemptPrompt, async (scheduledPrompt) => attempt.provider === "replicate"
+            ? replicateVideo({
                 entry: attempt.entry!,
-                prompt: attemptPrompt,
+                prompt: scheduledPrompt,
                 imageUrl: reference,
                 pollIntervalMs,
                 maximumPolls,
               })
-            : await (async () => {
+            : (async () => {
                 if (attemptPlan) {
                   return runVideoTask(
                     attempt.model,
                     attemptLipSync,
-                    attemptPrompt,
+                    scheduledPrompt,
                     attemptGenerateAudio,
                     attemptReferenceAudio,
                   );
@@ -2047,14 +2136,14 @@ export async function POST(request: Request) {
                 */
                 if (wantsLipSync && attempt.provider === "byteplus" && seedanceSupportsAudioReference(attempt.model)) {
                   try {
-                    return await runVideoTask(attempt.model, true);
+                    return await runVideoTask(attempt.model, true, scheduledPrompt);
                   } catch (lipSyncError) {
                     const detail = lipSyncError instanceof Error ? lipSyncError.message : "";
                     if (!/content|reference|not valid|invalid/i.test(detail)) throw lipSyncError;
                   }
                 }
-                return runVideoTask(attempt.model);
-              })();
+                return runVideoTask(attempt.model, false, scheduledPrompt);
+              })());
           videoUrl = result.videoUrl;
           taskId = result.taskId;
           videoUsage = result.usage;

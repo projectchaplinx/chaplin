@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import AdminDirectorCampaign from "@/components/AdminDirectorCampaign";
 import AdminDirectorResearch from "@/components/AdminDirectorResearch";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
@@ -23,7 +24,7 @@ export default async function AdminDirectorBrainPage() {
       return { research: await listDirectorResearch(), researchError: "" };
     } catch (error) {
       return {
-        research: { storageReady: false, studies: [] },
+        research: { storageReady: false, sources: [], studies: [] },
         researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
       };
     }
@@ -67,6 +68,8 @@ export default async function AdminDirectorBrainPage() {
           ))}
         </ol>
       </section>
+
+      <AdminDirectorCampaign initialBundle={research} />
 
       <AdminDirectorResearch initialBundle={research} initialError={researchError} />
 

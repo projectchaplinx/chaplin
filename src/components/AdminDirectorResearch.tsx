@@ -155,7 +155,7 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
       });
       const data = await response.json() as DirectorResearchBundle & { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not save the scene study.");
-      setBundle({ storageReady: data.storageReady, studies: data.studies });
+      setBundle(data);
       setMessage("Study saved as a draft. A second decision is required before any principle can enter Magic.");
       form.reset();
     } catch (cause) {

@@ -29,6 +29,12 @@ export type DirectorResearchSourceRecord = {
   sourceKind: DirectorSourceKind;
   rightsBasis: string;
   accessNotes: string;
+  campaignId: string;
+  targetTags: string[];
+  researchQuestions: string[];
+  priority: "now" | "next" | "later";
+  queueStatus: "queued" | "in-progress" | "analyzed" | "paused";
+  lastVerifiedAt: string | null;
 };
 
 export type DirectorSceneStudy = {
@@ -53,6 +59,7 @@ export type DirectorSceneStudy = {
 
 export type DirectorResearchBundle = {
   storageReady: boolean;
+  sources: DirectorResearchSourceRecord[];
   studies: DirectorSceneStudy[];
 };
 
@@ -80,6 +87,11 @@ export const DIRECTOR_RESEARCH_DOMAINS = [
   "suspense",
   "period",
   "ai",
+  "performance",
+  "production-design",
+  "costume",
+  "vfx",
+  "color",
 ] as const;
 
 export type DirectorResearchDiagnostics = {

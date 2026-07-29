@@ -4,6 +4,7 @@ import {
   createDirectorStudy,
   listDirectorResearch,
   reviewDirectorStudy,
+  updateDirectorResearchSource,
 } from "@/lib/server/director-research";
 
 export const runtime = "nodejs";
@@ -40,10 +41,13 @@ export async function PATCH(request: NextRequest) {
   try {
     const identity = await requireAdminIdentity(request);
     const body = await request.json() as Record<string, unknown>;
-    await reviewDirectorStudy(body, identity.id);
+    if (body.sourceId) {
+      await updateDirectorResearchSource(body, identity.id);
+    } else {
+      await reviewDirectorStudy(body, identity.id);
+    }
     return Response.json(await listDirectorResearch());
   } catch (error) {
     return errorResponse(error);
   }
 }
-

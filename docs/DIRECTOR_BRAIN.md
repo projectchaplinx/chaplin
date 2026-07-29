@@ -194,6 +194,49 @@ Each production should eventually score:
 A pattern is promoted only when it improves a defined measure or survives
 expert review. Failed hypotheses remain in the audit ledger.
 
+## Corpus campaign 2026.07.30-a
+
+The research backlog is now a versioned production object. Super Admin can see
+every queued source, its rights basis, priority, target coverage, research
+questions, verification date, and state (`queued`, `in-progress`, `analyzed`,
+or `paused`).
+
+The first campaign contains four tracks:
+
+1. **Film craft** — Academy department guides and ASC material on camera
+   movement, location, blocking, performance, and design.
+2. **Timed public-domain scenes** — Library of Congress National Film Registry
+   works, beginning with *The Great Train Robbery*, *Master Hands*, and *The
+   Hitch-Hiker*. Item-level rights notes remain binding even when a collection
+   is described as public domain.
+3. **Historical worlds** — Roman domestic space, Edo Japan, and the Mughal
+   courts of Jahangir and Shah Jahan, always resolved by date, region, class,
+   occupation, and occasion.
+4. **AI production** — dated official contracts for OpenAI video, Google
+   Gemini/Veo, Runway, and Adobe Firefly. Provider claims remain hypotheses
+   until Chaplin repeats them in controlled generation tests.
+
+Coverage is measured by **approved studies**, not by bookmarked sources.
+Current targets span story, camera, blocking, editing, sound, performance,
+production design, costume, historical worlds, timed public-domain scenes, and
+AI production controls.
+
+The campaign queue is seeded by:
+
+```powershell
+npm run db:director-research
+npm run db:director-research-campaign
+npm run db:director-research-studies
+```
+
+Both operations are idempotent. Re-running the campaign refreshes source
+metadata and verification dates without resetting an analyst's queue state.
+The first seeded draft is a timed, visual-only study of the 03:00-03:20
+process montage in the public-domain Wikimedia viewing copy of *Master Hands*
+(1936). It stores five contiguous observations, confidence labels, candidate
+principles, and explicit timing/audio limitations. It remains a draft until a
+human reviews it; seeding never promotes a principle into Magic.
+
 ## Delivery phases
 
 ### Phase 1 - visible retrieval foundation
@@ -239,6 +282,8 @@ expert review. Failed hypotheses remain in the audit ledger.
   animation, choreography, performance, sound editorial, score, and finishing.
 - [ ] Maintain dated provider capability profiles and repeatable benchmark
   scenes.
+- [x] Establish the first versioned, rights-aware research campaign and
+  production backlog across all four research tracks.
 
 ### Phase 5 - ongoing operation
 

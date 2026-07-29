@@ -21,6 +21,12 @@ type SourceRow = {
   source_kind: DirectorSourceKind;
   rights_basis: string;
   access_notes: string;
+  campaign_id?: string | null;
+  target_tags?: string[] | null;
+  research_questions?: unknown;
+  priority?: "now" | "next" | "later" | null;
+  queue_status?: "queued" | "in-progress" | "analyzed" | "paused" | null;
+  last_verified_at?: string | null;
 };
 
 type StudyRow = {
@@ -57,6 +63,17 @@ function sourceFromRow(row: SourceRow): DirectorResearchSourceRecord {
     sourceKind: row.source_kind,
     rightsBasis: row.rights_basis,
     accessNotes: row.access_notes,
+    campaignId: row.campaign_id ?? "",
+    targetTags: Array.isArray(row.target_tags) ? row.target_tags : [],
+    researchQuestions: Array.isArray(row.research_questions)
+      ? row.research_questions.filter((item): item is string => typeof item === "string")
+      : [],
+    priority: row.priority === "now" || row.priority === "later" ? row.priority : "next",
+    queueStatus:
+      row.queue_status === "in-progress" || row.queue_status === "analyzed" || row.queue_status === "paused"
+        ? row.queue_status
+        : "queued",
+    lastVerifiedAt: row.last_verified_at ?? null,
   };
 }
 
@@ -108,18 +125,29 @@ function studyFromRow(row: StudyRow): DirectorSceneStudy | null {
 }
 
 export async function listDirectorResearch(limit = 100): Promise<DirectorResearchBundle> {
-  const result = await getSupabaseAdminClient()
-    .from("director_scene_studies")
-    .select("*,director_research_sources(*)")
-    .order("updated_at", { ascending: false })
-    .limit(Math.max(1, Math.min(500, limit)));
-  if (result.error) {
-    if (missingResearchTable(result.error.message)) return { storageReady: false, studies: [] };
-    throw new Error(`Load Director Brain research: ${result.error.message}`);
+  const supabase = getSupabaseAdminClient();
+  const boundedLimit = Math.max(1, Math.min(500, limit));
+  const [sourcesResult, studiesResult] = await Promise.all([
+    supabase
+      .from("director_research_sources")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(boundedLimit),
+    supabase
+      .from("director_scene_studies")
+      .select("*,director_research_sources(*)")
+      .order("updated_at", { ascending: false })
+      .limit(boundedLimit),
+  ]);
+  const error = sourcesResult.error ?? studiesResult.error;
+  if (error) {
+    if (missingResearchTable(error.message)) return { storageReady: false, sources: [], studies: [] };
+    throw new Error(`Load Director Brain research: ${error.message}`);
   }
   return {
     storageReady: true,
-    studies: ((result.data ?? []) as StudyRow[])
+    sources: ((sourcesResult.data ?? []) as SourceRow[]).map(sourceFromRow),
+    studies: ((studiesResult.data ?? []) as StudyRow[])
       .map(studyFromRow)
       .filter((study): study is DirectorSceneStudy => Boolean(study)),
   };
@@ -223,6 +251,26 @@ export async function reviewDirectorStudy(input: Record<string, unknown>, userId
     })
     .eq("id", id);
   if (result.error) throw new Error(`Review Director Brain study: ${result.error.message}`);
+}
+
+export async function updateDirectorResearchSource(input: Record<string, unknown>, userId: string) {
+  const sourceId = typeof input.sourceId === "string" ? input.sourceId.trim() : "";
+  if (!sourceId) throw new Error("Choose a research source.");
+  const allowed = ["queued", "in-progress", "analyzed", "paused"] as const;
+  const queueStatus = allowed.find((status) => status === input.queueStatus);
+  if (!queueStatus) throw new Error("Choose queued, in progress, analyzed, or paused.");
+  const result = await getSupabaseAdminClient()
+    .from("director_research_sources")
+    .update({
+      queue_status: queueStatus,
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sourceId)
+    .select("id")
+    .maybeSingle();
+  if (result.error) throw new Error(`Update Director Brain source: ${result.error.message}`);
+  if (!result.data) throw new Error("Research source was not found.");
 }
 
 export async function retrieveApprovedDirectorResearch(brief: string, limit = 4): Promise<ApprovedDirectorStudyContext[]> {

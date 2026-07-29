@@ -28,6 +28,7 @@ import {
   normalizeProductionFormat,
   productionDuration,
   productionShotCount,
+  type PunchGenerationMode,
   type ProductionFormat,
 } from "@/lib/production-formats";
 import {
@@ -89,6 +90,7 @@ type StoredDraft = {
   body?: {
     brief?: string;
     durationSeconds?: number;
+    punchGenerationMode?: PunchGenerationMode;
     creativeDirection?: string;
     castIds?: string[];
     sceneProps?: SceneProp[];
@@ -234,6 +236,7 @@ export default function StoryBuilderForm() {
       Number(searchParams.get("duration")),
     )
   );
+  const [punchGenerationMode, setPunchGenerationMode] = useState<PunchGenerationMode>("scene-clips");
   const [brief, setBrief] = useState(() => searchParams.get("brief")?.trim() ?? "");
   const [title, setTitle] = useState("");
   const [logline, setLogline] = useState("");
@@ -395,6 +398,7 @@ export default function StoryBuilderForm() {
         setLogline(stored.logline);
         setBrief(body.brief ?? "");
         setDurationSeconds(productionDuration(stored.format, body.durationSeconds));
+        setPunchGenerationMode(body.punchGenerationMode === "single-take" ? "single-take" : "scene-clips");
         setCreativeDirection(body.creativeDirection ?? "");
         setProductImageUrl(body.productImageUrl ?? "");
         setProductImageName(body.productImageName ?? "");
@@ -453,6 +457,7 @@ export default function StoryBuilderForm() {
           body: {
             brief,
             durationSeconds,
+            punchGenerationMode,
             creativeDirection,
             castIds,
             sceneProps,
@@ -486,7 +491,7 @@ export default function StoryBuilderForm() {
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [brief, castIds, creativeDirection, draftAccountId, draftAccountReady, draftId, draftReady, durationSeconds, format, logline, productImageName, productImageUrl, sceneProps, scenes, step, title]);
+  }, [brief, castIds, creativeDirection, draftAccountId, draftAccountReady, draftId, draftReady, durationSeconds, format, logline, productImageName, productImageUrl, punchGenerationMode, sceneProps, scenes, step, title]);
 
   useEffect(() => {
     fetch("/api/write/magic", { cache: "no-store" })
@@ -1123,6 +1128,7 @@ export default function StoryBuilderForm() {
       logline: logline.trim(),
       format,
       durationSeconds,
+      punchGenerationMode: format === "punch" ? punchGenerationMode : undefined,
       status: "production",
       creativeDirection: creativeDirection.trim() || undefined,
       sceneProps,
@@ -1150,6 +1156,7 @@ export default function StoryBuilderForm() {
           logline: story.logline,
           format,
           durationSeconds,
+          punchGenerationMode: format === "punch" ? punchGenerationMode : undefined,
           coverHue: story.coverHue,
           posterUrl: validScenes.find((scene) => scene.previewImageUrl)?.previewImageUrl ?? null,
         }),
@@ -1176,7 +1183,11 @@ export default function StoryBuilderForm() {
       body: JSON.stringify({
         body: [
           `Script locked: ${story.title}`,
-          `${validScenes.length} playable scene${validScenes.length === 1 ? "" : "s"} · ${durationSeconds}s ${formatDefinition.label}`,
+          `${validScenes.length} playable scene${validScenes.length === 1 ? "" : "s"} · ${durationSeconds}s ${formatDefinition.label} · ${
+            format === "punch" && punchGenerationMode === "single-take"
+              ? "one native 15-second take"
+              : "separate scene clips"
+          }`,
           `Cast: ${castCharacters.map((character) => character.name).join(", ")}`,
           story.logline,
         ].join("\n"),
@@ -2005,6 +2016,61 @@ export default function StoryBuilderForm() {
 
       {step === 3 && (
         <div className="flex flex-col gap-6">
+          {format === "punch" && (
+            <section
+              className="rounded-xl border border-white/12 bg-black/20 p-4"
+              aria-labelledby="punch-generation-heading"
+              data-punch-generation-mode
+            >
+              <div className="mb-3">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent">Generation method</p>
+                <h2 id="punch-generation-heading" className="mt-1 text-base font-semibold">How should Chaplin make this 15-second Punch?</h2>
+                <p className="mt-1 text-[10px] leading-4 text-grey">The script keeps the same four authored beats. This choice changes how Seedance renders them.</p>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setPunchGenerationMode("scene-clips")}
+                  aria-pressed={punchGenerationMode === "scene-clips"}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    punchGenerationMode === "scene-clips"
+                      ? "border-accent bg-accent/[0.08]"
+                      : "border-white/10 bg-white/[0.025] hover:border-white/25"
+                  }`}
+                  data-generation-mode="scene-clips"
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <strong className="text-sm">Four scene clips</strong>
+                    <span className="font-mono text-[10px] text-accent">4 × 4s source</span>
+                  </span>
+                  <span className="mt-2 block text-[10px] leading-4 text-grey">
+                    Generate each beat independently, then trim and assemble the exact 15-second master with locked dialogue and mixed sound.
+                  </span>
+                  <span className="mt-3 block text-[8px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">More control per scene</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPunchGenerationMode("single-take")}
+                  aria-pressed={punchGenerationMode === "single-take"}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    punchGenerationMode === "single-take"
+                      ? "border-accent bg-accent/[0.08]"
+                      : "border-white/10 bg-white/[0.025] hover:border-white/25"
+                  }`}
+                  data-generation-mode="single-take"
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <strong className="text-sm">One complete take</strong>
+                    <span className="font-mono text-[10px] text-accent">1 × 15s</span>
+                  </span>
+                  <span className="mt-2 block text-[10px] leading-4 text-grey">
+                    Ask Seedance for one four-shot video with synchronized dialogue, background noise, physical effects, ambience, and score.
+                  </span>
+                  <span className="mt-3 block text-[8px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Native audiovisual generation</span>
+                </button>
+              </div>
+            </section>
+          )}
           {castCharacters.length === 0 && (
             <div className="poster-card rounded-md p-4 text-sm text-grey">
               You haven&apos;t cast anyone yet,{" "}

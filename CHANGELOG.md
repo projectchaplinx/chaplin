@@ -3,6 +3,17 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.59 - 2026-07-29 - Selectable Punch generation
+
+- Added a persisted Studio choice between four independently controlled scene
+  clips and one complete native 15-second Seedance take.
+- Wired the single-take path to one timed four-shot prompt with synchronized
+  dialogue, ambience, physical effects, background noise, and score.
+- Normalized separate scene clips to whole provider-safe durations while
+  retaining their exact solved edit lengths for the final 15-second assembly.
+- Recorded the selected generation mode and correct video-duration allocation
+  in production, pipeline, generation, and credit metadata.
+
 ## v0.2.58 - 2026-07-29 - Runtime-first story creation
 
 - Reduced the first scene-creation decision to three neutral runtime choices:

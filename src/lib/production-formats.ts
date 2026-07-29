@@ -2,6 +2,11 @@ import type { AppRole } from "@/lib/types";
 
 export type ProductionFormat = "spark" | "punch" | "episode" | "spot";
 export type LegacyWritingFormat = "story" | "ad" | "reel";
+export type PunchGenerationMode = "scene-clips" | "single-take";
+
+export function normalizePunchGenerationMode(value: unknown): PunchGenerationMode {
+  return value === "single-take" ? "single-take" : "scene-clips";
+}
 
 export type ProductionFormatDefinition = {
   type: ProductionFormat;

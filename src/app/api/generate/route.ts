@@ -1723,6 +1723,7 @@ export async function POST(request: Request) {
       }
       const requestedReferenceAudio = typeof input.referenceAudio === "string" ? input.referenceAudio.trim() : "";
       const requestedDialogueText = typeof input.dialogueText === "string" ? input.dialogueText.trim() : "";
+      const wantsCompleteNativeAudio = input.nativeAudio === true;
       const production = await getCharacterProductionState(characterId);
       const canonicalReference = production.visualReference;
       // A production-approved frame is more specific than the actor's general
@@ -1758,8 +1759,13 @@ export async function POST(request: Request) {
       const wantsSceneAudio = resolvedAudioPlan
         ? audioPlanUsesNative(resolvedAudioPlan)
         : settingBoolean(videoConfig, "generateAudio", true);
+      if (wantsCompleteNativeAudio && !wantsSceneAudio) {
+        throw new RequestValidationError("One complete take requires native Seedance audio to be enabled in Pipeline Lab.");
+      }
       const composedPrompt = visualGenerationPrompt(videoConfig, silentPrompt, "video");
-      const basePrompt = resolvedAudioPlan
+      const basePrompt = wantsCompleteNativeAudio
+        ? composedPrompt
+        : resolvedAudioPlan
         ? composedPrompt
         : prepareSeedanceAudioPrompt({
             prompt: composedPrompt,
@@ -1831,7 +1837,7 @@ export async function POST(request: Request) {
             delivery: boardSlot!.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
           })}`
         : audioScene?.block ? `${basePrompt}\n${audioScene.block}` : basePrompt;
-      const styledVideoPrompt = finalizeVideoPrompt(
+      const standardizedVideoPrompt = finalizeVideoPrompt(
         injectStyleContract(
           [
             motionGrammarIssues(audioReadyPrompt).some((issue) => /camera move/i.test(issue.message))
@@ -1846,12 +1852,18 @@ export async function POST(request: Request) {
         ),
         Boolean(requestCharacter),
       );
+      const styledVideoPrompt = wantsCompleteNativeAudio
+        ? standardizedVideoPrompt.replace(/\bNo music\.\s*/gi, "").trim()
+        : standardizedVideoPrompt;
       const motionIssues = motionGrammarIssues(styledVideoPrompt);
       const motionFailures = motionIssues.filter((issue) => issue.level === "failure");
       if (motionFailures.length) {
         throw new RequestValidationError(motionFailures.map((issue) => issue.message).join(" "));
       }
-      const promptBudget = budgetVideoPrompt(styledVideoPrompt, "image_to_video");
+      const promptBudget = budgetVideoPrompt(
+        styledVideoPrompt,
+        wantsCompleteNativeAudio ? "native_multishot" : "image_to_video",
+      );
       const prompt = promptBudget.prompt;
       const bannedVideoPhrase = bannedPromptWord(prompt);
       if (bannedVideoPhrase) {
@@ -1910,6 +1922,9 @@ export async function POST(request: Request) {
                 sfxJobs: resolvedAudioPlan.sfx.owner === "generated" ? resolvedAudioPlan.sfx.events.length : 0,
               }
             : {}),
+          durationSeconds,
+          generationMode: wantsCompleteNativeAudio ? "single-take" : "scene-clip",
+          nativeAudio: wantsCompleteNativeAudio,
         },
       });
       const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
@@ -2040,12 +2055,19 @@ export async function POST(request: Request) {
       */
       const fallbackVideoModel = settingString(videoConfig, "fallbackModel", "seedance-1-5-pro-251215");
       const seedanceCandidates = [videoConfig.model, fallbackVideoModel]
-        .filter((model, index, models) => model && models.indexOf(model) === index);
+        .filter((model, index, models) => (
+          model
+          && models.indexOf(model) === index
+          && (!wantsCompleteNativeAudio || /dreamina-seedance-2-0/i.test(model))
+        ));
+      if (wantsCompleteNativeAudio && seedanceCandidates.length === 0) {
+        throw new RequestValidationError("One complete 15-second take requires a Seedance 2.0 model.");
+      }
       // Seedance first (cheapest, already contracted), then open weights, which
       // have no likeness filter and so cannot refuse a photoreal seed image.
       const videoAttempts: Array<{ provider: "byteplus" | "replicate"; model: string; entry?: ReplicateFallback }> = [
         ...seedanceCandidates.map((model) => ({ provider: "byteplus" as const, model })),
-        ...(replicateToken()
+        ...(!wantsCompleteNativeAudio && replicateToken()
           ? replicateFallbacks(videoConfig).map((entry) => ({ provider: "replicate" as const, model: entry.model, entry }))
           : []),
       ];
@@ -2090,12 +2112,15 @@ export async function POST(request: Request) {
               : "",
             rawAttemptPrompt,
           ].filter(Boolean).join("\n");
-          const attemptPrompt = budgetVideoPrompt(
-            finalizeVideoPrompt(
+          const standardizedAttemptPrompt = finalizeVideoPrompt(
               injectStyleContract(attemptGrammarPrompt, styleContractText ? { contract_text: styleContractText } : null),
               Boolean(requestCharacter),
-            ),
-            "image_to_video",
+            );
+          const attemptPrompt = budgetVideoPrompt(
+            wantsCompleteNativeAudio
+              ? standardizedAttemptPrompt.replace(/\bNo music\.\s*/gi, "").trim()
+              : standardizedAttemptPrompt,
+            wantsCompleteNativeAudio ? "native_multishot" : "image_to_video",
           ).prompt;
           const attemptReferenceAudio = attemptPlan
             ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""

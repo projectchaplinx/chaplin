@@ -74,6 +74,9 @@ export async function POST(request: NextRequest) {
     if (!["spark", "punch", "episode", "spot"].includes(format) || !Number.isFinite(durationSeconds)) {
       return Response.json({ error: "A valid production format and duration are required." }, { status: 400 });
     }
+    const punchGenerationMode = format === "punch" && input.punchGenerationMode === "single-take"
+      ? "single-take"
+      : "scene-clips";
     const creditCost = identity.role === "admin" ? 0 : productionCreditCost(format, durationSeconds);
     const existing = await getSupabaseAdminClient()
       .from("stories")
@@ -97,6 +100,7 @@ export async function POST(request: NextRequest) {
             storyTitle: title,
             format,
             durationSeconds,
+            punchGenerationMode,
           },
         })
       : null;

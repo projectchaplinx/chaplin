@@ -249,6 +249,7 @@ export interface Story {
   logline: string;
   format?: "story" | "ad" | "reel" | "spark" | "punch" | "episode" | "spot";
   durationSeconds?: number;
+  punchGenerationMode?: "scene-clips" | "single-take";
   status?: "production" | "published";
   creativeDirection?: string;
   sceneProps?: SceneProp[];

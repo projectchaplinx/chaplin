@@ -63,6 +63,7 @@ export interface NewStoryInput {
   logline: string;
   format?: "story" | "ad" | "reel" | "spark" | "punch" | "episode" | "spot";
   durationSeconds?: number;
+  punchGenerationMode?: "scene-clips" | "single-take";
   status?: "production" | "published";
   creativeDirection?: string;
   sceneProps?: SceneProp[];
@@ -240,6 +241,7 @@ export const useChaplinStore = create<ChaplinState>((set, get) => ({
       logline: input.logline,
       format: input.format,
       durationSeconds: input.durationSeconds,
+      punchGenerationMode: input.punchGenerationMode,
       status: input.status ?? "published",
       creativeDirection: input.creativeDirection,
       sceneProps: input.sceneProps,

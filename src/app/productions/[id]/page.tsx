@@ -17,9 +17,14 @@ import {
 } from "@/lib/scene-cast";
 import {
   PRODUCTION_FORMATS,
+  normalizePunchGenerationMode,
   normalizeProductionFormat,
   productionShotCount,
 } from "@/lib/production-formats";
+import {
+  buildPunchSingleTakePrompt,
+  providerDurationSeconds,
+} from "@/lib/punch-generation";
 import type {
   MediaPipelineRun,
   MediaPipelineStep,
@@ -373,6 +378,7 @@ export function ProductionWorkspace({
         ? "episode"
         : "spot";
     const scopeId = scopeType === "actor" ? cast[0]?.id : story.id;
+    const punchGenerationMode = normalizePunchGenerationMode(story.punchGenerationMode);
     return {
       format,
       definition,
@@ -382,6 +388,7 @@ export function ProductionWorkspace({
         : productionShotCount(format, duration),
       scopeType,
       scopeId,
+      punchGenerationMode,
     };
   }, [cast, story]);
 
@@ -502,6 +509,7 @@ export function ProductionWorkspace({
             logline: story.logline,
             durationSeconds: contract.duration,
             shotCount: contract.shotCount,
+            punchGenerationMode: contract.punchGenerationMode,
             castCharacterIds: cast.map((character) => character.id),
             creativeDirection: story.creativeDirection ?? null,
             sceneProps: story.sceneProps ?? [],
@@ -903,8 +911,213 @@ export function ProductionWorkspace({
     }
   }
 
+  async function renderPunchSingleTakeOutput() {
+    if (!run || !story || !cast[0] || contract?.format !== "punch") return;
+    const lockedReference = referenceImageUrl ?? castPreviewImageUrl;
+    if (!lockedReference) {
+      setError("Approve or attach one actor identity frame before rendering the Punch.");
+      return;
+    }
+    const authoredScenes = story.scenes.slice(0, 4);
+    const sequenceValidation = validateShotSequence(authoredScenes, 4);
+    if (!sequenceValidation.valid) {
+      setError(sequenceValidation.error ?? "The four-scene storyboard is incomplete.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setRenderProgress("Preparing one native 15-second audiovisual take");
+    setRenderFrameUrl(lockedReference);
+    setSelectedShotIndex(0);
+    setRenderShots(Array.from({ length: 4 }, () => ({ status: "queued" })));
+    let activeRun = run;
+    let activePipelineStepKey = "";
+    try {
+      const promiseStep = activeRun.steps.find((step) => step.key === "promise-lock");
+      if (promiseStep && ["ready", "queued", "failed"].includes(promiseStep.status)) {
+        activeRun = await runInstantStep(activeRun, promiseStep);
+      }
+
+      let packageStep = activeRun.steps.find((step) => step.key === "shot-packages");
+      if (!packageStep) throw new Error("This Punch does not have a scene-package step.");
+      if (packageStep.status === "failed") {
+        activeRun = await transitionStep(activeRun, packageStep.key, "retry");
+        packageStep = activeRun.steps.find((step) => step.key === "shot-packages") ?? packageStep;
+      }
+      if (packageStep.status === "ready") {
+        activeRun = await transitionStep(activeRun, packageStep.key, "queue");
+        packageStep = activeRun.steps.find((step) => step.key === "shot-packages") ?? packageStep;
+      }
+      if (packageStep.status === "queued") {
+        activeRun = await transitionStep(activeRun, packageStep.key, "start");
+        packageStep = activeRun.steps.find((step) => step.key === "shot-packages") ?? packageStep;
+      }
+      if (packageStep.status !== "running") {
+        throw new Error(`The single-take package is ${packageStep.status}, so it cannot render now.`);
+      }
+      activePipelineStepKey = "shot-packages";
+      setRenderShots((shots) => shots.map((shot) => ({ ...shot, status: "animating" })));
+
+      const prompt = buildPunchSingleTakePrompt({
+        title: story.title,
+        logline: story.logline,
+        creativeDirection: story.creativeDirection,
+        actorIdentity: cast.map((character) => `${character.name}: ${character.personality}`).join(" "),
+        themeDirection: cast[0].themeDesc,
+        scenes: authoredScenes.map((scene) => ({
+          setting: scene.setting,
+          objective: scene.objective,
+          action: scene.action,
+          camera: cameraPlanForShot({
+            productionTitle: story.title,
+            productionLogline: story.logline,
+            scene,
+            sceneIndex: authoredScenes.indexOf(scene),
+            sceneCount: authoredScenes.length,
+            format: story.format,
+            actorName: cast[0].name,
+            actorIdentity: cast[0].personality,
+          }).movementPrompt,
+          lines: scene.lines
+            .filter((line) => line.text.trim())
+            .map((line) => ({
+              speaker: cast.find((character) => character.id === line.characterId)?.name ?? cast[0].name,
+              text: line.text.trim(),
+            })),
+        })),
+      });
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "video",
+          characterId: cast[0].id,
+          referenceImage: lockedReference,
+          durationSeconds: 15,
+          nativeAudio: true,
+          prompt,
+        }),
+      });
+      const data = await response.json() as { url?: string; assetId?: string; error?: string };
+      if (!response.ok || !data.url || !data.assetId) {
+        throw new Error(data.error ?? "Seedance did not return the complete 15-second take.");
+      }
+
+      setRenderShots((shots) => shots.map((shot) => ({
+        ...shot,
+        frameUrl: lockedReference,
+        videoUrl: data.url,
+        videoAssetId: data.assetId,
+        status: "ready",
+      })));
+      activeRun = await transitionStep(activeRun, "shot-packages", "complete", {
+        outputAssetId: data.assetId,
+        output: {
+          url: data.url,
+          shotUrls: [data.url],
+          frameUrls: [lockedReference],
+          durationSeconds: 15,
+          generationMode: "single-take",
+          nativeAudio: true,
+          prompt,
+          completedAt: new Date().toISOString(),
+        },
+      });
+
+      let assemblyStep = activeRun.steps.find((step) => step.key === "assembly");
+      if (!assemblyStep) throw new Error("This Punch does not have an assembly step.");
+      if (assemblyStep.status === "failed") {
+        activeRun = await transitionStep(activeRun, assemblyStep.key, "retry");
+        assemblyStep = activeRun.steps.find((step) => step.key === "assembly") ?? assemblyStep;
+      }
+      if (assemblyStep.status === "ready") {
+        activeRun = await transitionStep(activeRun, assemblyStep.key, "queue");
+        assemblyStep = activeRun.steps.find((step) => step.key === "assembly") ?? assemblyStep;
+      }
+      if (assemblyStep.status === "queued") {
+        activeRun = await transitionStep(activeRun, assemblyStep.key, "start");
+        assemblyStep = activeRun.steps.find((step) => step.key === "assembly") ?? assemblyStep;
+      }
+      if (assemblyStep.status !== "running") {
+        throw new Error(`The single-take delivery is ${assemblyStep.status}, so it cannot be finalized now.`);
+      }
+      activePipelineStepKey = "assembly";
+      activeRun = await transitionStep(activeRun, "assembly", "complete", {
+        outputAssetId: data.assetId,
+        output: {
+          url: data.url,
+          shotUrls: [data.url],
+          frameUrls: [lockedReference],
+          durationSeconds: 15,
+          generationMode: "single-take",
+          nativeAudio: true,
+          completedAt: new Date().toISOString(),
+        },
+      });
+
+      const captionsStep = activeRun.steps.find((step) => step.key === "captions");
+      if (captionsStep?.status === "ready") {
+        activeRun = await transitionStep(activeRun, captionsStep.key, "skip", {
+          output: {
+            skippedAt: new Date().toISOString(),
+            reason: "The native audiovisual take does not request burned-in or sidecar captions.",
+          },
+        });
+      }
+      const masteringStep = activeRun.steps.find((step) => step.key === "mastering");
+      if (masteringStep?.status === "ready") {
+        activePipelineStepKey = "mastering";
+        activeRun = await transitionStep(activeRun, masteringStep.key, "queue");
+        activeRun = await transitionStep(activeRun, masteringStep.key, "start");
+        activeRun = await transitionStep(activeRun, masteringStep.key, "complete", {
+          outputAssetId: data.assetId,
+          output: {
+            url: data.url,
+            durationSeconds: 15,
+            generationMode: "single-take",
+            nativeAudio: true,
+            completedAt: new Date().toISOString(),
+          },
+        });
+      }
+      const creativeReviewStep = activeRun.steps.find((step) => step.key === "creative-review");
+      if (creativeReviewStep?.status === "ready") {
+        activePipelineStepKey = "creative-review";
+        activeRun = await transitionStep(activeRun, creativeReviewStep.key, "queue");
+        activeRun = await transitionStep(activeRun, creativeReviewStep.key, "start");
+        activeRun = await transitionStep(activeRun, creativeReviewStep.key, "complete", {
+          outputAssetId: data.assetId,
+          output: {
+            url: data.url,
+            durationSeconds: 15,
+            generationMode: "single-take",
+            nativeAudio: true,
+            review: "human",
+            completedAt: new Date().toISOString(),
+          },
+        });
+      }
+      setRun(activeRun);
+      setRenderProgress("");
+    } catch (renderError) {
+      const message = renderError instanceof Error ? renderError.message : "The complete 15-second take could not be rendered.";
+      if (activePipelineStepKey) {
+        await transitionStep(activeRun, activePipelineStepKey, "fail", { errorMessage: message }).catch(() => undefined);
+      }
+      setRenderShots((shots) => shots.map((shot) => shot.status === "ready" ? shot : { ...shot, status: "failed", error: message }));
+      setError(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function renderPunchOutput() {
     if (!run || !story || !cast[0] || contract?.format !== "punch") return;
+    if (contract.punchGenerationMode === "single-take") {
+      await renderPunchSingleTakeOutput();
+      return;
+    }
     const lockedReference = referenceImageUrl ?? castPreviewImageUrl;
     const lockedCastReferences = cast
       .map((character) => character.imageUrl ?? character.galleryUrls?.[0] ?? character.bannerUrl ?? "")
@@ -1163,9 +1376,16 @@ export function ProductionWorkspace({
             frameData = { frameUrl: chainData.url, frameAssetId: chainData.assetId };
           }
           const motionActors = resolveSceneActors(directedScene, cast).present;
+          const sourceDurationSeconds = providerDurationSeconds(
+            "scene-clips",
+            renderedDurationMs(index),
+          );
           const motionPrompt = buildShotVideoPrompt({
             productionTitle: story.title, productionLogline: story.logline,
-            scene: { ...directedScene, durationMs: renderedDurationMs(index) },
+            // Seedance receives a whole, provider-safe source duration. The
+            // solved authored duration remains separate and is applied during
+            // final assembly, so a 3.2s edit never becomes an invalid API call.
+            scene: { ...directedScene, durationMs: sourceDurationSeconds * 1000 },
             sceneIndex: index, sceneCount: contract.shotCount, format: story.format,
             actorName: sceneActorNames(motionActors),
             actorIdentity: `${sceneActorIdentity(motionActors)}\n${absentCastNegative(motionActors, cast)}`.trim(),
@@ -1182,7 +1402,7 @@ export function ProductionWorkspace({
                 // The scene's own lead, so the actor context matches who is on screen.
                 characterId: resolveSceneActors(directedScene, cast).lead.id,
                 referenceImage: frameData.frameUrl,
-                durationSeconds: renderedDurationMs(index) / 1000,
+                durationSeconds: sourceDurationSeconds,
                 /*
                   The audio plan is what engages the AUDIO SCENE grammar. Without it
                   the shot rendered mute: the locked line and the location sound had
@@ -1500,7 +1720,9 @@ export function ProductionWorkspace({
             <p className="mt-1 text-xs text-grey">
               {busy
                 ? renderProgress || "The Studio is preparing the production."
-                : "Create the four scene clips and assemble the 15-second master without leaving this canvas."}
+                : contract.punchGenerationMode === "single-take"
+                  ? "Generate one native 15-second, four-shot take with synchronized dialogue, ambience, effects, and score."
+                  : "Create four provider-safe scene clips, then trim and assemble the exact 15-second master here."}
             </p>
           </div>
           <button
@@ -1509,7 +1731,11 @@ export function ProductionWorkspace({
             disabled={busy}
             className="rounded-full bg-accent px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
-            {busy ? "Working…" : "Generate 15-second master"}
+            {busy
+              ? "Working…"
+              : contract.punchGenerationMode === "single-take"
+                ? "Generate one 15-second take"
+                : "Generate four scene clips"}
           </button>
         </section>
       )}

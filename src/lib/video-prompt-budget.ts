@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILM_LOOK_LINE, SKIN_REALISM_BLOCK } from "@/lib/prompt-standards";
 
-export const videoPromptModeSchema = z.enum(["image_to_video", "text_to_video"]);
+export const videoPromptModeSchema = z.enum(["image_to_video", "text_to_video", "native_multishot"]);
 export type VideoPromptMode = z.infer<typeof videoPromptModeSchema>;
 
 export type VideoPromptBudgetResult = {
@@ -53,8 +53,8 @@ export function budgetVideoPrompt(
   production = process.env.NODE_ENV === "production",
 ): VideoPromptBudgetResult {
   const originalWords = countPromptWords(prompt);
-  const maximum = mode === "image_to_video" ? 80 : 280;
-  if (mode === "text_to_video" || originalWords <= maximum) {
+  const maximum = mode === "image_to_video" ? 80 : mode === "native_multishot" ? 1000 : 280;
+  if (mode !== "image_to_video" || originalWords <= maximum) {
     return { original: prompt, prompt, originalWords, finalWords: originalWords, trimmed: false, dropped: [] };
   }
   let next = prompt;

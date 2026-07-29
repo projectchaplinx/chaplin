@@ -265,3 +265,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.57 | `57f52c8` | 2026-07-29T15:12:19+05:30 | fix: collapse scene format chooser |
 | v0.2.58 | `1053a2f` | 2026-07-29T15:43:40+05:30 | Unify runtime-first story creation |
 | v0.2.59 | `5eecd49` | 2026-07-29T21:17:25+05:30 | feat: add selectable Punch generation |
+| v0.2.60 | `540da4a` | 2026-07-29T21:48:29+05:30 | feat: add creator actor style sheets |

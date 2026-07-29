@@ -1368,7 +1368,11 @@ export default function StoryBuilderForm() {
         }
       />
       <div className="unified-studio-shell__body">
-      <div className="scene-studio-shell" data-scene-studio-shell>
+      <div
+        className={`scene-studio-shell ${outputChooserOpen ? "scene-studio-shell--entry" : ""}`}
+        data-scene-studio-shell
+        data-scene-studio-entry={outputChooserOpen ? "runtime" : undefined}
+      >
       {!outputChooserOpen && (
         <SceneStudioRail
           stages={sceneStages}

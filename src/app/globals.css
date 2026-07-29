@@ -690,6 +690,21 @@ body:has([data-home-shell]) > main {
     padding-bottom: 0;
   }
 
+  /*
+    Runtime selection deliberately hides both studio sidebars. Without a
+    matching one-column grid, the only remaining child was still placed in the
+    rail's 15rem track, collapsing the entire entry screen into the top-left
+    corner. The entry step owns the full studio canvas until a runtime is
+    chosen; then the normal rail/canvas/assets grid returns.
+  */
+  .scene-studio-shell.scene-studio-shell--entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scene-studio-shell.scene-studio-shell--entry > .studio-production-content {
+    grid-column: 1 / -1;
+  }
+
   .unified-studio-shell .scene-studio-shell {
     height: 100%;
   }

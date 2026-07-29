@@ -3,6 +3,13 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.61 - 2026-07-29 - Full-width scene entry
+
+- Fixed the scene runtime chooser collapsing into the hidden stage rail's
+  15-rem column when the left and right studio panels were intentionally absent.
+- Made the 5-, 15-, and 60-second entry decision use the full center canvas,
+  then restore the normal three-panel studio immediately after selection.
+
 ## v0.2.60 - 2026-07-29 - Creator style sheets
 
 - Added a creator-facing Style Sheet control beside the actor studio actions,

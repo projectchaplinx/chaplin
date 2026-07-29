@@ -904,8 +904,8 @@ export default function CharacterProductionStudio({
           await revealTextProgressively(finalEvent.text, update);
         }
         setMessage(
-          finalEvent.warning || (finalEvent.provider === "anthropic"
-            ? "Claude streamed this rewrite using the actor's complete identity."
+          finalEvent.warning || (finalEvent.provider === "openai"
+            ? "GPT-5.6 Terra rewrote this field using the actor's complete identity."
             : "Quick Write streamed a local fallback.")
         );
         return;
@@ -914,8 +914,8 @@ export default function CharacterProductionStudio({
       if (!data.text) throw new Error("Quick Write returned no text.");
       await revealTextProgressively(data.text, update);
       setMessage(
-        data.warning || (data.provider === "anthropic"
-          ? "Claude rewrote this field using the actor's complete identity."
+        data.warning || (data.provider === "openai"
+          ? "GPT-5.6 Terra rewrote this field using the actor's complete identity."
           : "Quick Write updated this field locally.")
       );
     } catch (error) {

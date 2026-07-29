@@ -35,6 +35,12 @@ const ELEVEN_MUSIC_USD_PER_MINUTE = Number(
 );
 const SEEDREAM_USD_PER_IMAGE = Number(process.env.SEEDREAM_USD_PER_IMAGE ?? "0.04");
 const OPENAI_IMAGE_USD_PER_IMAGE = Number(process.env.OPENAI_IMAGE_USD_PER_IMAGE ?? "0.041");
+const OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS = Number(
+  process.env.OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS ?? "2.5"
+);
+const OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS = Number(
+  process.env.OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS ?? "15"
+);
 const SEEDANCE_USD_PER_SECOND = Number(process.env.SEEDANCE_USD_PER_SECOND ?? "0.10");
 const ANTHROPIC_INPUT_USD_PER_MILLION_TOKENS = Number(
   process.env.ANTHROPIC_INPUT_USD_PER_MILLION_TOKENS ?? "2"
@@ -120,6 +126,10 @@ export async function calculateGenerationBilling(input: {
   } else if (input.kind === "video") {
     costUsd = (usage.durationSeconds ?? 0) * SEEDANCE_USD_PER_SECOND;
     pricingNote = `Seedance estimate at $${SEEDANCE_USD_PER_SECOND}/second; override with SEEDANCE_USD_PER_SECOND when your ModelArk contract differs.`;
+  } else if (input.kind === "openai-prompt") {
+    costUsd = ((usage.inputTokens ?? 0) / 1_000_000) * OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS
+      + ((usage.outputTokens ?? 0) / 1_000_000) * OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS;
+    pricingNote = `OpenAI GPT-5.6 Terra estimate at $${OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS}/M input tokens and $${OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS}/M output tokens; override the OpenAI Terra rate variables when pricing changes.`;
   } else if (input.kind === "anthropic-prompt") {
     costUsd = ((usage.inputTokens ?? 0) / 1_000_000) * ANTHROPIC_INPUT_USD_PER_MILLION_TOKENS
       + ((usage.outputTokens ?? 0) / 1_000_000) * ANTHROPIC_OUTPUT_USD_PER_MILLION_TOKENS;

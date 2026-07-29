@@ -56,7 +56,7 @@ export function productionCreditCode(format: string, durationSeconds: number) {
 }
 
 export function generationCreditAllocation(kind: string, metadata?: Record<string, unknown>) {
-  if (kind.startsWith("prompt-") || kind === "anthropic-prompt") return { code: "writing.magic", credits: 1 };
+  if (kind.startsWith("prompt-") || kind === "openai-prompt" || kind === "anthropic-prompt") return { code: "writing.magic", credits: 1 };
   if (kind === "voice-design") return { code: "voice.audition", credits: 3 };
   if (kind === "voice-lock") return { code: "voice.audition", credits: 0 };
   if (kind === "dialogue") return { code: "dialogue.take", credits: 1 };

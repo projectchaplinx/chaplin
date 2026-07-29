@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.56 - 2026-07-29 - GPT-5.6 Terra writing migration
+
+- Replaced every active Anthropic writing, conversion, character-room,
+  concierge, style-extraction, and experiment call with OpenAI Responses using
+  `gpt-5.6-terra`.
+- Preserved structured JSON, canonical image references, conversation history,
+  generation-ledger usage, Quick Write delivery, and local fallbacks through a
+  shared OpenAI adapter.
+- Locked the writing stage to OpenAI, migrated the active Super Admin pipeline,
+  updated provider readiness and UI copy, and added GPT-5.6 Terra rate-card
+  accounting.
+
 ## v0.2.55 - 2026-07-29 - Production learning and style contracts
 
 - Corrected character sheets so the 16:9 composite is review-only, automatically

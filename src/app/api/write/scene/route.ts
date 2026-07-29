@@ -18,7 +18,11 @@ import {
 } from "@/lib/server/supabase-admin";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
-import { anthropicImageBlock } from "@/lib/server/anthropic-image";
+import {
+  openAIInputImage,
+  openAIWritingModel,
+  requestOpenAIFromLegacyMessages,
+} from "@/lib/server/openai-responses";
 import type { Character } from "@/lib/types";
 import { dialogueForEditor } from "@/lib/dialogue-performance";
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
@@ -98,14 +102,14 @@ export async function POST(request: Request) {
     fallbackVariation = variation;
     await ensureCharacter(character);
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return Response.json({ scene: buildScenePackage(character, variation), provider: "chaplin-local", configured: false });
     }
 
     const writingConfig = (await getPipelineConfig()).stages.writing;
     if (!writingConfig.enabled) throw new Error("AI writing is paused by Super Admin.");
-    const model = writingConfig.model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+    const model = openAIWritingModel(writingConfig.model);
     const production = await getCharacterProductionState(character.id);
     const visualReference = production.visualReference;
     const card = readCharacterCardV2(character.cardV2);
@@ -127,15 +131,15 @@ export async function POST(request: Request) {
     });
     const messageContent = visualReference
       ? [
-          await anthropicImageBlock(visualReference.url),
-          { type: "text" as const, text: `This is ${character.name}'s canonical visual identity seed. Design the shot around the visible face, body, wardrobe, materials, palette, existing camera logic, and plausible light. Do not redescribe or redesign the actor.` },
-          { type: "text" as const, text: promptPayload },
+          await openAIInputImage(visualReference.url),
+          { type: "input_text" as const, text: `This is ${character.name}'s canonical visual identity seed. Design the shot around the visible face, body, wardrobe, materials, palette, existing camera logic, and plausible light. Do not redescribe or redesign the actor.` },
+          { type: "input_text" as const, text: promptPayload },
         ]
       : promptPayload;
     jobId = await beginGeneration({
       characterId: character.id,
       kind: "prompt-scene-package",
-      provider: "anthropic",
+      provider: "openai",
       model,
       prompt: brief || `New playable five-second scene for ${character.name}`,
       metadata: {
@@ -145,12 +149,10 @@ export async function POST(request: Request) {
         creditBilling: "included",
       },
     });
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model,
@@ -168,12 +170,12 @@ export async function POST(request: Request) {
       error?: { message?: string };
       usage?: { input_tokens?: number; output_tokens?: number };
     };
-    if (!response.ok) throw new Error(data.error?.message || `Claude returned ${response.status}.`);
+    if (!response.ok) throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
     const output = data.content?.find((block) => block.type === "text")?.text;
-    if (!output) throw new Error("Claude returned no shot blueprint.");
+    if (!output) throw new Error("OpenAI returned no shot blueprint.");
     const parsed = JSON.parse(output) as Omit<ShotBlueprint, "actionTimeline"> & { actionTimeline: string[] };
     if (!Array.isArray(parsed.actionTimeline) || parsed.actionTimeline.length !== 3) {
-      throw new Error("Claude returned an invalid action timeline.");
+      throw new Error("OpenAI returned an invalid action timeline.");
     }
     const shot = { ...parsed, actionTimeline: parsed.actionTimeline as [string, string, string] };
     const usage = {
@@ -186,9 +188,10 @@ export async function POST(request: Request) {
       jobId,
       undefined,
       { characterId: character.id, sceneName: shot.sceneName, blueprint: shot, visualReference: visualReference?.url ?? null, visualReferenceSource: visualReference?.source ?? null },
-      await calculateGenerationBilling({ kind: "anthropic-prompt", usage })
+      await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
+      response.headers.get("request-id"),
     );
-    return Response.json({ scene: renderPackage(character, shot), provider: "anthropic", model, usage, configured: true });
+    return Response.json({ scene: renderPackage(character, shot), provider: "openai", model, usage, configured: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Magic Scene failed.";
     if (jobId) await failGeneration(jobId, message);
@@ -202,7 +205,7 @@ export async function POST(request: Request) {
         the real provider error, instead of reading like a normal success with a
         soft note. Callers must treat `fallback: true` as a degraded result.
       */
-      const configured = Boolean(process.env.ANTHROPIC_API_KEY);
+      const configured = Boolean(process.env.OPENAI_API_KEY);
       return Response.json({
         scene: buildScenePackage(fallbackCharacter, fallbackVariation),
         provider: "chaplin-local",

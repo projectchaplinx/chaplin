@@ -3,10 +3,24 @@ import test from "node:test";
 import { DEFAULT_AUDIO_PLAN } from "@/lib/audio-plan";
 import { characterSheetSchema, characterSheetVideoReferences } from "@/lib/performance-reference";
 import { ProviderScheduler } from "@/lib/provider-scheduler";
+import { normalizePipelineConfig } from "@/lib/pipeline-config";
 import { buildShotJob } from "@/lib/shot-job";
 import { injectStyleContract } from "@/lib/style-contract";
 import { verdictStats } from "@/lib/generation-verdict";
 import { budgetVideoPrompt, countPromptWords, enforceMotionGrammar, motionGrammarIssues } from "@/lib/video-prompt-budget";
+
+test("writing configuration cannot route back to Anthropic", () => {
+  const config = normalizePipelineConfig({
+    stages: {
+      writing: {
+        provider: "anthropic",
+        model: "claude-sonnet-5",
+      },
+    },
+  });
+  assert.equal(config.stages.writing.provider, "openai");
+  assert.equal(config.stages.writing.model, "gpt-5.6-terra");
+});
 
 test("style contract is injected verbatim and only once", () => {
   const contract = "Motivated warm window light from frame left, shallow depth, muted ochre palette, fine 35mm grain, lifted blacks, lateral blocking, humid atmosphere, late-1970s fixtures.";

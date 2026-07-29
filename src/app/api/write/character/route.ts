@@ -16,6 +16,10 @@ import { calculateGenerationBilling } from "@/lib/server/billing";
 import { beginGeneration, completeGeneration, failGeneration } from "@/lib/server/supabase-admin";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
+import {
+  openAIWritingModel,
+  requestOpenAIFromLegacyMessages,
+} from "@/lib/server/openai-responses";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // json_schema output on this bible runs 35-55s; give real headroom over the wall clock
@@ -331,20 +335,20 @@ export async function POST(request: Request) {
       return Response.json({
         suggestion: localSuggestion(input),
         provider: "chaplin-draft",
-        configured: Boolean(process.env.ANTHROPIC_API_KEY),
+        configured: Boolean(process.env.OPENAI_API_KEY),
       });
     }
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return Response.json({ suggestion: localSuggestion(input), provider: "chaplin-local", configured: false });
     }
 
     const writingConfig = (await getPipelineConfig()).stages.writing;
     if (!writingConfig.enabled) throw new Error("AI writing is paused by Super Admin.");
-    const model = writingConfig.model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+    const model = openAIWritingModel(writingConfig.model);
     jobId = await beginGeneration({
       kind: "prompt-character",
-      provider: "anthropic",
+      provider: "openai",
       model,
       prompt: characterBrief || `${target} actor identity`,
       metadata: {
@@ -355,12 +359,10 @@ export async function POST(request: Request) {
         suggestionTarget: target,
       },
     });
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model,
@@ -392,15 +394,15 @@ export async function POST(request: Request) {
       usage?: { input_tokens?: number; output_tokens?: number };
       stop_reason?: string;
     };
-    if (!response.ok) throw new Error(data.error?.message || `Claude returned ${response.status}.`);
+    if (!response.ok) throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
     if (data.stop_reason === "max_tokens") throw new Error("The character ran longer than the output limit. Try again.");
     const output = data.content?.find((block) => block.type === "text")?.text;
-    if (!output) throw new Error("Claude returned no character suggestion.");
+    if (!output) throw new Error("OpenAI returned no character suggestion.");
     let parsed: CharacterSuggestion;
     try {
       parsed = JSON.parse(output) as CharacterSuggestion;
     } catch {
-      throw new Error("Claude's output was cut off mid-write. Try again.");
+      throw new Error("OpenAI's output was cut off mid-write. Try again.");
     }
     const coherentName = coherentGeneratedCharacterName({
       creatorName: name,
@@ -423,7 +425,7 @@ export async function POST(request: Request) {
       jobId,
       undefined,
       { suggestionTarget: target, generatedName: coherentName },
-      await calculateGenerationBilling({ kind: "anthropic-prompt", usage }),
+      await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
       response.headers.get("request-id"),
     );
     return Response.json({
@@ -431,7 +433,7 @@ export async function POST(request: Request) {
         enforceVisualIdentity(coherentSuggestion, input.appearanceBrief, input.worldBrief),
         input,
       ),
-      provider: "anthropic",
+      provider: "openai",
       model,
       usage: data.usage,
       configured: true,
@@ -443,8 +445,8 @@ export async function POST(request: Request) {
       return Response.json({
         suggestion: localSuggestion(fallbackInput),
         provider: "chaplin-local",
-        configured: Boolean(process.env.ANTHROPIC_API_KEY),
-        warning: `Claude could not run: ${message} Local character suggestions were used instead.`,
+        configured: Boolean(process.env.OPENAI_API_KEY),
+        warning: `OpenAI could not run: ${message} Local character suggestions were used instead.`,
       });
     }
     return Response.json({ error: message }, { status: securityErrorStatus(error, message === "Sign in to continue." ? 401 : 502) });

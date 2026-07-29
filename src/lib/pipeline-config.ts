@@ -95,8 +95,8 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
   stages: {
     writing: {
       enabled: true,
-      provider: "anthropic",
-      model: "claude-sonnet-5",
+      provider: "openai",
+      model: "gpt-5.6-terra",
       promptPrelude: "Preserve character canon, visible causality, production constraints, and useful user intent. Return only the requested production artifact.",
       temperature: null,
       maxTokens: 8000,
@@ -253,10 +253,14 @@ export function normalizePipelineConfig(input: unknown, metadata?: {
       music_v1 feature, so the coercion made a valid configuration impossible to
       express and every plan request was refused.
     */
-    const model = requestedModel;
+    const model = id === "writing" && !requestedModel.startsWith("gpt-")
+      ? defaults.model
+      : requestedModel;
     stages[id] = {
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
-      provider: typeof raw.provider === "string" && raw.provider.trim() ? raw.provider.trim().slice(0, 80) : defaults.provider,
+      provider: id === "writing"
+        ? "openai"
+        : typeof raw.provider === "string" && raw.provider.trim() ? raw.provider.trim().slice(0, 80) : defaults.provider,
       model,
       promptPrelude: typeof raw.promptPrelude === "string" ? raw.promptPrelude.trim().slice(0, 4000) : defaults.promptPrelude,
       temperature: PIPELINE_STAGE_META[id].temperatureSupported

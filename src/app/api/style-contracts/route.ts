@@ -2,6 +2,11 @@ import { z } from "zod";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
 import { styleExtractionPrompt } from "@/lib/style-contract";
+import {
+  createOpenAIResponse,
+  openAIInputImage,
+  openAIWritingModel,
+} from "@/lib/server/openai-responses";
 
 const requestSchema = z.object({
   boardId: z.string().uuid(),
@@ -11,29 +16,23 @@ const requestSchema = z.object({
 }).strict();
 
 async function extractContract(sourceRefs: string[]) {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY is required for style extraction.");
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required for style extraction.");
   const assets = await getSupabaseAdminClient().from("media_assets").select("id,url").in("id", sourceRefs);
   if (assets.error || assets.data?.length !== sourceRefs.length) throw new Error("Every style reference must resolve to a stored media asset.");
-  const model = process.env.OPENROUTER_STYLE_MODEL ?? "openai/gpt-5.4-mini";
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: styleExtractionPrompt() },
-          ...assets.data.map((asset) => ({ type: "image_url", image_url: { url: asset.url } })),
-        ],
-      }],
-    }),
+  const model = openAIWritingModel();
+  const result = await createOpenAIResponse({
+    model,
+    instructions: "Extract one concise, editable visual style contract from the supplied references.",
+    messages: [{
+      role: "user",
+      content: [
+        { type: "input_text", text: styleExtractionPrompt() },
+        ...await Promise.all(assets.data.map((asset) => openAIInputImage(asset.url))),
+      ],
+    }],
+    maxOutputTokens: 1500,
   });
-  if (!response.ok) throw new Error(`Style extraction failed with ${response.status}.`);
-  const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const text = body.choices?.[0]?.message?.content?.trim();
+  const text = result.text.trim();
   if (!text || text.length < 40) throw new Error("Style extraction returned no usable contract.");
   return { text, model };
 }

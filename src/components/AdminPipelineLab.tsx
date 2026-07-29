@@ -299,6 +299,8 @@ export default function AdminPipelineLab({
                     Only configured providers can be selected. Every active choice keeps canonical references, generation logs, provider usage, USD, INR, and Chaplin-token accounting.
                   </span>
                 </>
+              ) : activeStage === "writing" ? (
+                <input className="field mt-2 w-full" value="openai" readOnly aria-label="Writing provider" />
               ) : (
                 <input className="field mt-2 w-full" value={stage.provider} onChange={(event) => replaceStage({ ...stage, provider: event.target.value })} />
               )}

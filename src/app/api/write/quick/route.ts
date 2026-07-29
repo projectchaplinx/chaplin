@@ -8,7 +8,6 @@ import {
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
 import { calculateGenerationBilling } from "@/lib/server/billing";
-import { anthropicImageBlock } from "@/lib/server/anthropic-image";
 import {
   buildProductionBible,
   buildScenePackage,
@@ -21,6 +20,11 @@ import type { Character } from "@/lib/types";
 import { compactVoicePreview } from "@/lib/voice-preview";
 import { dialogueForEditor } from "@/lib/dialogue-performance";
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
+import {
+  openAIInputImage,
+  openAIWritingModel,
+  requestOpenAIFromLegacyMessages,
+} from "@/lib/server/openai-responses";
 import {
   buildDialogueSystemPrompt,
   buildVoiceDesignPrompt,
@@ -135,7 +139,7 @@ export async function POST(request: Request) {
       : {};
 
     await ensureCharacter(character);
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return Response.json({
         text: localRewrite(field, character, currentText),
@@ -146,7 +150,7 @@ export async function POST(request: Request) {
 
     const writingConfig = (await getPipelineConfig()).stages.writing;
     if (!writingConfig.enabled) throw new Error("AI writing is paused by Super Admin.");
-    const model = writingConfig.model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+    const model = openAIWritingModel(writingConfig.model);
     const production = VISUAL_FIELDS.has(field) ? await getCharacterProductionState(character.id) : null;
     const canonicalReference = production?.visualReference ?? null;
     const requestedReference = clean(body.referenceImage, 12000);
@@ -203,17 +207,17 @@ export async function POST(request: Request) {
     });
     const messageContent = visualReferenceUrl
       ? [
-          await anthropicImageBlock(visualReferenceUrl),
-          { type: "text" as const, text: field === "video"
+          await openAIInputImage(visualReferenceUrl),
+          { type: "input_text" as const, text: field === "video"
             ? "This image is the exact first frame. Inspect its crop and visible geometry. Animate only what is actually present and physically able to move inside this frame; do not import scene fiction from the current text."
             : `The image above is ${character.name}'s canonical visual identity seed. Base composition and continuity on what is actually visible. Do not invent a conflicting face, age, hair, body, wardrobe, palette, or material.` },
-          { type: "text" as const, text: promptPayload },
+          { type: "input_text" as const, text: promptPayload },
         ]
       : promptPayload;
     jobId = await beginGeneration({
       characterId: character.id,
       kind: `prompt-${field}`,
-      provider: "anthropic",
+      provider: "openai",
       model,
       prompt: currentText || `${field} for ${character.name}`,
       metadata: {
@@ -224,7 +228,7 @@ export async function POST(request: Request) {
         quickWriteField: field,
       },
     });
-    const anthropicBody: Record<string, unknown> = {
+    const writingBody: Record<string, unknown> = {
       model,
       max_tokens: Math.min(2000, writingConfig.maxTokens ?? 700),
       system: `${writingConfig.promptPrelude} You are Chaplin's production copywriter. Rewrite exactly one field for an original fictional AI actor. This is creative regeneration pass ${variation}: make a materially new creative choice rather than paraphrasing the existing text. ${field === "identity-image" ? "This pass is casting a replacement identity: preserve explicit user constraints but do not preserve any unapproved face, pose, composition, or setting from earlier attempts." : "Preserve useful user intent, character continuity, and provider constraints."} ${wantsStream ? "Return only the requested field as plain text. Do not wrap it in JSON, markdown, quotation marks, or a label." : "Return only the requested field in structured JSON."} ${FIELD_RULES[field]}`,
@@ -235,7 +239,7 @@ export async function POST(request: Request) {
       stream: wantsStream,
     };
     if (!wantsStream) {
-      anthropicBody.output_config = {
+      writingBody.output_config = {
         format: {
           type: "json_schema",
           schema: {
@@ -247,21 +251,19 @@ export async function POST(request: Request) {
         },
       };
     }
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify(anthropicBody),
+      body: JSON.stringify(writingBody),
     });
     if (wantsStream) {
       if (!response.ok) {
         const data = await response.json() as { error?: { message?: string } };
-        throw new Error(data.error?.message || `Claude returned ${response.status}.`);
+        throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
       }
-      if (!response.body) throw new Error("Claude returned no Quick Write stream.");
+      if (!response.body) throw new Error("OpenAI returned no Quick Write stream.");
       const providerRequestId = response.headers.get("request-id");
       const activeJobId = jobId;
       const stream = new ReadableStream<Uint8Array>({
@@ -288,7 +290,7 @@ export async function POST(request: Request) {
                   usage?: { output_tokens?: number };
                 };
                 if (event.type === "error") {
-                  throw new Error(event.error?.message || "Claude stopped the Quick Write stream.");
+                  throw new Error(event.error?.message || "OpenAI stopped the Quick Write stream.");
                 }
                 if (event.type === "message_start") {
                   inputTokens = Number(event.message?.usage?.input_tokens ?? inputTokens);
@@ -307,7 +309,7 @@ export async function POST(request: Request) {
               if (done) break;
             }
             const text = cleanQuickWriteResult(field, output);
-            if (!text) throw new Error("Claude returned an empty Quick Write result.");
+            if (!text) throw new Error("OpenAI returned an empty Quick Write result.");
             const usage = {
               inputTokens,
               outputTokens,
@@ -318,10 +320,10 @@ export async function POST(request: Request) {
               activeJobId,
               undefined,
               { field, characterId: character.id, visualReference: visualReferenceUrl || null, visualReferenceSource, streamed: true },
-              await calculateGenerationBilling({ kind: "anthropic-prompt", usage }),
+              await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
               providerRequestId,
             );
-            controller.enqueue(ndjsonLine({ type: "done", text, provider: "anthropic", model, usage, configured: true }));
+            controller.enqueue(ndjsonLine({ type: "done", text, provider: "openai", model, usage, configured: true }));
           } catch (streamError) {
             const message = streamError instanceof Error ? streamError.message : "Quick Write stream failed.";
             await failGeneration(activeJobId, message);
@@ -331,7 +333,7 @@ export async function POST(request: Request) {
               text,
               provider: "chaplin-local",
               configured: true,
-              warning: `Claude could not finish streaming: ${message} Local Quick Write was used instead.`,
+              warning: `OpenAI could not finish streaming: ${message} Local Quick Write was used instead.`,
             }));
           } finally {
             reader.releaseLock();
@@ -353,12 +355,12 @@ export async function POST(request: Request) {
       error?: { message?: string };
       usage?: { input_tokens?: number; output_tokens?: number };
     };
-    if (!response.ok) throw new Error(data.error?.message || `Claude returned ${response.status}.`);
+    if (!response.ok) throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
     const output = data.content?.find((block) => block.type === "text")?.text;
-    if (!output) throw new Error("Claude returned no Quick Write result.");
+    if (!output) throw new Error("OpenAI returned no Quick Write result.");
     const result = JSON.parse(output) as { text?: unknown };
     const text = cleanQuickWriteResult(field, result.text);
-    if (!text) throw new Error("Claude returned an empty Quick Write result.");
+    if (!text) throw new Error("OpenAI returned an empty Quick Write result.");
     const usage = {
       inputTokens: Number(data.usage?.input_tokens ?? 0),
       outputTokens: Number(data.usage?.output_tokens ?? 0),
@@ -369,9 +371,9 @@ export async function POST(request: Request) {
       jobId,
       undefined,
       { field, characterId: character.id, visualReference: visualReferenceUrl || null, visualReferenceSource },
-      await calculateGenerationBilling({ kind: "anthropic-prompt", usage })
+      await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage })
     );
-    return Response.json({ text, provider: "anthropic", model, usage, configured: true });
+    return Response.json({ text, provider: "openai", model, usage, configured: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Quick Write failed.";
     if (jobId) await failGeneration(jobId, message);
@@ -379,8 +381,8 @@ export async function POST(request: Request) {
       return Response.json({
         text: localRewrite(fallbackField, fallbackCharacter, fallbackCurrentText),
         provider: "chaplin-local",
-        configured: Boolean(process.env.ANTHROPIC_API_KEY),
-        warning: `Claude could not run: ${message} Local Quick Write was used instead.`,
+        configured: Boolean(process.env.OPENAI_API_KEY),
+        warning: `OpenAI could not run: ${message} Local Quick Write was used instead.`,
       });
     }
     return Response.json({ error: message }, { status: securityErrorStatus(error, message === "Sign in to continue." ? 401 : 502) });

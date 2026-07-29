@@ -48,7 +48,7 @@ async function main() {
     "SUPABASE_SERVICE_ROLE_KEY",
     "ELEVEN_LABS_API_KEY",
     "SEEDANCE_API_KEY",
-    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
   ];
   const missing = required.filter((key) => !env[key]?.trim());
   if (missing.length) throw new Error(`Missing provider configuration: ${missing.join(", ")}`);
@@ -70,14 +70,9 @@ async function main() {
       { headers: { "xi-api-key": env.ELEVEN_LABS_API_KEY } },
     ),
     request(
-      "Anthropic",
-      "https://api.anthropic.com/v1/models?limit=1",
-      {
-        headers: {
-          "x-api-key": env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-      },
+      "OpenAI GPT-5.6 Terra",
+      "https://api.openai.com/v1/models/gpt-5.6-terra",
+      { headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` } },
     ),
     request(
       "BytePlus ModelArk",
@@ -92,19 +87,9 @@ async function main() {
       { headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}` } },
     ));
   }
-  if (env.OPENAI_API_KEY?.trim()) {
-    checks.push(request(
-      "OpenAI",
-      "https://api.openai.com/v1/models",
-      { headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` } },
-    ));
-  }
   const results = await Promise.all(checks);
   if (!env.OPENROUTER_API_KEY?.trim()) {
     results.push({ name: "OpenRouter", passed: true, status: "SKIP", latency: "-", detail: "not configured" });
-  }
-  if (!env.OPENAI_API_KEY?.trim()) {
-    results.push({ name: "OpenAI", passed: true, status: "SKIP", latency: "-", detail: "not configured" });
   }
 
   console.table(results);

@@ -614,7 +614,7 @@ export default function NewCharacterPage() {
             setScorePreset(SCORE_PRESETS[SCORE_PRESETS.length - 1]);
             setCustomScore(draft.themeScore);
             setRevealingField("draft");
-            setSuggestionMessage("The first identity draft is on the page. Claude is refining the details now…");
+            setSuggestionMessage("The first identity draft is on the page. GPT-5.6 Terra is refining the details now…");
           })
           .catch(() => {
             // The full AI request remains authoritative if the instant draft fails.

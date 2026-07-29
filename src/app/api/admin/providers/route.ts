@@ -39,7 +39,7 @@ async function probe(url: string, headers: Record<string, string>) {
  *
  * Deliberately reports only what each provider actually exposes. ElevenLabs
  * publishes a character quota, so that is shown as a real number; OpenAI,
- * Anthropic, BytePlus, and Replicate expose no balance endpoint, so those are
+ * BytePlus and Replicate expose no balance endpoint, so those are
  * reported as reachable or not rather than given an invented figure. A missing
  * key is distinguished from a rejected key, because they need different fixes.
  */
@@ -72,7 +72,7 @@ async function elevenLabs(): Promise<ProviderStatus> {
 async function openAi(): Promise<ProviderStatus> {
   const key = process.env.OPENAI_API_KEY;
   const base: ProviderStatus = {
-    id: "openai", label: "OpenAI", purpose: "Image generation",
+    id: "openai", label: "OpenAI", purpose: "GPT-5.6 Terra writing, conversions, character rooms, and image generation",
     configured: Boolean(key), reachable: null, quota: null, usedRatio: null,
     detail: key ? "" : "No API key configured.",
   };
@@ -101,23 +101,6 @@ async function replicate(): Promise<ProviderStatus> {
       // Replicate reports no balance; insufficient credit only shows as a 402 at prediction time.
       ? `Connected as ${username || "account"}. Credit is only visible when a prediction runs.`
       : result.status === 401 ? "Key rejected (401)." : `Unreachable (${result.status || "network"}).`,
-  };
-}
-
-async function anthropic(): Promise<ProviderStatus> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  const base: ProviderStatus = {
-    id: "anthropic", label: "Anthropic", purpose: "Writing, scenes, character rooms",
-    configured: Boolean(key), reachable: null, quota: null, usedRatio: null,
-    detail: key ? "" : "No API key configured.",
-  };
-  if (!key) return base;
-  const result = await probe("https://api.anthropic.com/v1/models", {
-    "x-api-key": key, "anthropic-version": "2023-06-01",
-  });
-  return {
-    ...base, reachable: result.ok,
-    detail: result.ok ? "Connected. No balance endpoint published." : result.status === 401 ? "Key rejected (401)." : `Unreachable (${result.status || "network"}).`,
   };
 }
 
@@ -152,10 +135,10 @@ export async function GET(request: NextRequest) {
     if (identity.role !== "admin") {
       return Response.json({ error: "Super Admin access is required." }, { status: 403 });
     }
-    const [voice, image, video, writing] = await Promise.all([
-      elevenLabs(), openAi(), replicate(), anthropic(),
+    const [voice, writingAndImage, video] = await Promise.all([
+      elevenLabs(), openAi(), replicate(),
     ]);
-    const providers: ProviderStatus[] = [writing, voice, image, bytePlus(), video, openRouter()];
+    const providers: ProviderStatus[] = [writingAndImage, voice, bytePlus(), video, openRouter()];
     return Response.json({
       providers,
       checkedAt: new Date().toISOString(),

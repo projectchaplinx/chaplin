@@ -190,7 +190,7 @@ sequenceDiagram
   Builder-->>Maker: Actor profile and production studio
 ```
 
-The actor builder can use Anthropic-powered suggestions when configured; it
+The actor builder can use OpenAI GPT-5.6 Terra suggestions when configured; it
 falls back to local, archetype-aware suggestions so an unset writing key never
 blocks creation.
 
@@ -270,7 +270,7 @@ choice, and the final shot creates a situation-changing cliffhanger.
 
 | Provider / stage | What Chaplin sends | What it deliberately excludes |
 | --- | --- | --- |
-| Anthropic writing | Brief, actor canon, story or quick-write task | Provider-specific image/video instructions |
+| OpenAI GPT-5.6 Terra | Brief, actor canon, story or quick-write task | Provider-specific image/video instructions |
 | Image provider | Prompt prelude + directed visual beat + canonical reference + identity lock | Generic actor recreation or unapproved restyling |
 | Seedance video | Approved still + motion/camera/timing/failure locks | Biography, audio instructions, identity redesign |
 | ElevenLabs Voice Design | Voice persona, language, age, timbre, pacing, pressure delivery | Visual direction |
@@ -282,7 +282,7 @@ choice, and the final shot creates a situation-changing cliffhanger.
 
 ```mermaid
 flowchart TB
-  Chaplin["Chaplin orchestration + policy"] --> Anthropic["Anthropic: structured writing"]
+  Chaplin["Chaplin orchestration + policy"] --> OpenAIWriting["OpenAI GPT-5.6 Terra: structured writing"]
   Chaplin --> OpenAI["OpenAI: GPT Image"]
   Chaplin --> OpenRouter["OpenRouter: routed image models"]
   Chaplin --> BytePlus["BytePlus: Seedream stills + Seedance motion"]

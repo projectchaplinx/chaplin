@@ -89,7 +89,7 @@ dollar amount, so both are configurable and labeled as estimates in the UI.
 
 Open `/characters/c-selene` to use the first configured pipeline for Meher Qureshi.
 
-## Claude Magic Writer
+## GPT-5.6 Terra Magic Writer
 
 The writing room at `/studio/write` can expand a short brief into a complete,
 editable story, ad, or reel: title, logline, cast, creative direction, scene
@@ -100,25 +100,25 @@ Add these values to `.env.local` in the project root, and to the matching Vercel
 environment when deployed:
 
 ```bash
-ANTHROPIC_API_KEY=your_anthropic_api_key
-ANTHROPIC_MODEL=claude-sonnet-5
-ANTHROPIC_INPUT_USD_PER_MILLION_TOKENS=2
-ANTHROPIC_OUTPUT_USD_PER_MILLION_TOKENS=10
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_WRITING_MODEL=gpt-5.6-terra
+OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS=2.5
+OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS=15
 ```
 
-`ANTHROPIC_MODEL` is optional. When no Claude key is configured, Magic Writer
+`OPENAI_WRITING_MODEL` is optional. When no OpenAI key is configured, Magic Writer
 uses its built-in structured draft engine so the button remains usable during
 setup.
 
 Every editable production prompt on an actor page also has a character-aware
-Quick Write button. Claude usage from these actions is recorded in the admin
+Quick Write button. OpenAI usage from these actions is recorded in the admin
 generation log with input tokens, output tokens, USD, INR, and normalized
 Chaplin tokens. The rate variables above are optional overrides for the current
-Sonnet contract.
+GPT-5.6 Terra contract.
 
 The actor builder at `/characters/new` has the same assistance at the identity
 stage. Magic Character can fill tagline, personality, voice, signature SFX, and
-theme together, while each field also has its own Suggest action. If Claude is
+theme together, while each field also has its own Suggest action. If OpenAI is
 not configured or rejects the key, the builder falls back to archetype-aware
 local suggestions instead of leaving the form blank.
 
@@ -150,8 +150,8 @@ Prompts are deliberately different by medium:
   path, light continuity, secondary motion, final frame, and geometry locks.
   Voice, SFX, and music are generated and mixed separately.
 
-Magic Scene asks Claude for a structured director blueprint first, then the app
-renders separate provider-ready prompts from that blueprint. If Claude is
+Magic Scene asks GPT-5.6 Terra for a structured director blueprint first, then the app
+renders separate provider-ready prompts from that blueprint. If OpenAI is
 unavailable, the same pipeline uses production-directed local blueprints rather
 than reverting to a shared biography prompt.
 

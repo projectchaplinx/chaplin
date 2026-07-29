@@ -7,6 +7,10 @@ import {
   enforceRateLimit,
   securityErrorStatus,
 } from "@/lib/server/request-security";
+import {
+  openAIWritingModel,
+  requestOpenAIFromLegacyMessages,
+} from "@/lib/server/openai-responses";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -37,7 +41,7 @@ function conversationMemory(value: unknown) {
     const turn = entry as { role?: unknown; text?: unknown };
     const text = clean(turn.text, 600);
     if (!text) return [];
-    // Anthropic expects assistant for the character's own prior replies.
+    // The model sees the character's own prior replies as assistant turns.
     const role = turn.role === "character" || turn.role === "assistant" ? "assistant" as const : "user" as const;
     return [{ role, content: text }];
   });
@@ -74,18 +78,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const bible = buildProductionBible(character);
   const fallback = localReply(character.name, message, bible);
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = openAIWritingModel();
 
   if (!apiKey) return Response.json({ reply: fallback, provider: "character-local", canSpeak: Boolean(character.voiceId) });
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model,
@@ -99,7 +101,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const data = (await response.json()) as { content?: Array<{ type?: string; text?: string }> };
     const reply = clean(data.content?.find((block) => block.type === "text")?.text, 700);
     if (!response.ok || !reply) throw new Error("Actor response unavailable.");
-    return Response.json({ reply, provider: "anthropic", canSpeak: Boolean(character.voiceId) });
+    return Response.json({ reply, provider: "openai", canSpeak: Boolean(character.voiceId) });
     } catch {
       return Response.json({ reply: fallback, provider: "character-local", canSpeak: Boolean(character.voiceId) });
     }

@@ -7,6 +7,10 @@ import {
   enforceRateLimit,
   securityErrorStatus,
 } from "@/lib/server/request-security";
+import {
+  openAIWritingModel,
+  requestOpenAIFromLegacyMessages,
+} from "@/lib/server/openai-responses";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -145,7 +149,7 @@ async function logConcierge(
   usage?: { input_tokens?: number; output_tokens?: number },
 ) {
   try {
-    const kind = provider === "anthropic" ? "anthropic-prompt" : "concierge";
+    const kind = provider === "openai" ? "openai-prompt" : "concierge";
     const jobId = await beginGeneration({
       kind,
       provider,
@@ -154,7 +158,7 @@ async function logConcierge(
       metadata: {
         userId,
         creditActionCode: "writing.magic",
-        creditAllocation: provider === "anthropic" ? 1 : 0,
+        creditAllocation: provider === "openai" ? 1 : 0,
         creditBilling: "included",
         intent: result.intent,
         name: result.name,
@@ -210,18 +214,16 @@ export async function POST(request: Request) {
       identityId: identity.id,
     });
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+    const apiKey = process.env.OPENAI_API_KEY;
+    const model = openAIWritingModel();
     const contextJson = JSON.stringify(creatorContext).slice(0, 30_000);
 
     if (apiKey) {
       try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await requestOpenAIFromLegacyMessages({
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
           model,
@@ -238,15 +240,15 @@ ${contextJson}`,
         }),
       });
       const data = (await response.json()) as { content?: Array<{ type?: string; text?: string }>; error?: { message?: string }; stop_reason?: string; usage?: { input_tokens?: number; output_tokens?: number } };
-      if (!response.ok) throw new Error(data.error?.message || `Claude returned ${response.status}.`);
+      if (!response.ok) throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
       const text = data.content?.find((block) => block.type === "text")?.text;
-      if (!text) throw new Error("Claude returned no intent.");
+      if (!text) throw new Error("OpenAI returned no intent.");
       const parsed = JSON.parse(text) as ConciergeIntent;
-      console.log(`[concierge] provider=anthropic intent=${parsed.intent} name=${parsed.name ?? "-"} utterance="${utterance.slice(0, 120)}"`);
-      await logConcierge(identity.id, utterance, parsed, "anthropic", model, data.usage);
-      return Response.json({ ...parsed, provider: "anthropic" });
+      console.log(`[concierge] provider=openai intent=${parsed.intent} name=${parsed.name ?? "-"} utterance="${utterance.slice(0, 120)}"`);
+      await logConcierge(identity.id, utterance, parsed, "openai", model, data.usage);
+      return Response.json({ ...parsed, provider: "openai" });
       } catch (error) {
-        console.warn("[concierge] Claude failed, using local intent:", error instanceof Error ? error.message : error);
+        console.warn("[concierge] OpenAI failed, using local intent:", error instanceof Error ? error.message : error);
       }
     }
 

@@ -1,6 +1,5 @@
 import { buildProductionBible } from "@/lib/production-prompting";
 import { planCameraForScene, type CameraMovementId } from "@/lib/camera-movements";
-import { anthropicImageBlock, type AnthropicImageBlock } from "@/lib/server/anthropic-image";
 import { calculateGenerationBilling } from "@/lib/server/billing";
 import {
   beginGeneration,
@@ -11,6 +10,12 @@ import {
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
+import {
+  openAIInputImage,
+  openAIWritingModel,
+  requestOpenAIFromLegacyMessages,
+  type OpenAIInputContent,
+} from "@/lib/server/openai-responses";
 import type { Archetype, CharacterProductionBible, VoiceGender } from "@/lib/types";
 import {
   normalizeProductionFormat,
@@ -350,8 +355,8 @@ const OUTPUT_SCHEMA = {
 
 export async function GET() {
   return Response.json({
-    configured: Boolean(process.env.ANTHROPIC_API_KEY),
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+    configured: Boolean(process.env.OPENAI_API_KEY),
+    model: openAIWritingModel(),
   });
 }
 
@@ -395,14 +400,14 @@ export async function POST(request: Request) {
     }
     fallbackInput = input;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return Response.json({ draft: finalizeDirectionDraft(fallbackDraft(input), input), provider: "chaplin-local", configured: false });
     }
 
     const writingConfig = (await getPipelineConfig()).stages.writing;
     if (!writingConfig.enabled) throw new Error("AI writing is paused by Super Admin.");
-    const model = writingConfig.model || process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+    const model = openAIWritingModel(writingConfig.model);
     const characterContext = characters.map((character) => ({
       ...character,
       selected: castIds.includes(character.id),
@@ -418,7 +423,7 @@ export async function POST(request: Request) {
         return {
           character,
           reference: production.visualReference,
-          block: await anthropicImageBlock(production.visualReference.url),
+          block: await openAIInputImage(production.visualReference.url),
         };
       } catch {
         return null;
@@ -426,7 +431,7 @@ export async function POST(request: Request) {
     }))).filter((context): context is {
       character: PromptCharacter;
       reference: NonNullable<Awaited<ReturnType<typeof getCharacterProductionState>>["visualReference"]>;
-      block: AnthropicImageBlock;
+      block: OpenAIInputContent;
     } => Boolean(context));
     const taskPayload = JSON.stringify({
       task: "Expand the user's partial input into a complete, editable production draft. Preserve useful supplied title and logline text, but improve weak or incomplete fields.",
@@ -450,23 +455,23 @@ export async function POST(request: Request) {
         visualReference: visualContexts.find((context) => context.character.id === character.id)?.reference.source ?? null,
       })),
     });
-    const messageContent: Array<AnthropicImageBlock | { type: "text"; text: string }> = [];
+    const messageContent: OpenAIInputContent[] = [];
     if (input.productImageUrl) {
       messageContent.push({
-        type: "text",
+        type: "input_text",
         text: `Binding product reference for this brand Spot (${input.productImageName || "uploaded product"}):`,
       });
-      messageContent.push(await anthropicImageBlock(input.productImageUrl));
+      messageContent.push(await openAIInputImage(input.productImageUrl));
     }
     for (const context of visualContexts) {
-      messageContent.push({ type: "text", text: `Canonical visual identity seed for ${context.character.name}:` });
+      messageContent.push({ type: "input_text", text: `Canonical visual identity seed for ${context.character.name}:` });
       messageContent.push(context.block);
     }
-    messageContent.push({ type: "text", text: taskPayload });
+    messageContent.push({ type: "input_text", text: taskPayload });
     jobId = await beginGeneration({
       characterId: selectedCharacters[0]?.id,
       kind: "prompt-production-draft",
-      provider: "anthropic",
+      provider: "openai",
       model,
       prompt: input.brief || `${format} production draft`,
       metadata: {
@@ -479,12 +484,10 @@ export async function POST(request: Request) {
         castIds: selectedCharacters.map((character) => character.id),
       },
     });
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model,
@@ -509,10 +512,10 @@ export async function POST(request: Request) {
       usage?: { input_tokens?: number; output_tokens?: number };
     };
     if (!response.ok) {
-      throw new Error(data.error?.message || `Claude returned ${response.status}.`);
+      throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
     }
     const text = data.content?.find((block) => block.type === "text")?.text;
-    if (!text) throw new Error("Claude returned no script draft.");
+    if (!text) throw new Error("OpenAI returned no script draft.");
     const draft = JSON.parse(text) as MagicDraft;
     const allowedIds = new Set(characters.map((character) => character.id));
     const returnedScenes = Array.isArray(draft.scenes) ? draft.scenes : [];
@@ -574,17 +577,17 @@ export async function POST(request: Request) {
       jobId,
       undefined,
       { format, durationSeconds, title: directedDraft.title, castIds: directedDraft.castIds },
-      await calculateGenerationBilling({ kind: "anthropic-prompt", usage }),
+      await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
       response.headers.get("request-id"),
     );
     return Response.json({
       draft: directedDraft,
-      provider: repairedEmptyScenes ? "chaplin-local" : "anthropic",
+      provider: repairedEmptyScenes ? "chaplin-local" : "openai",
       model,
       usage: data.usage,
       configured: true,
       warning: repairedEmptyScenes
-        ? "Claude returned no playable scene, so Chaplin repaired the draft with a complete local scene beat."
+        ? "OpenAI returned no playable scene, so Chaplin repaired the draft with a complete local scene beat."
         : undefined,
     });
   } catch (error) {
@@ -594,8 +597,8 @@ export async function POST(request: Request) {
       return Response.json({
         draft: finalizeDirectionDraft(fallbackDraft(fallbackInput), fallbackInput),
         provider: "chaplin-local",
-        configured: Boolean(process.env.ANTHROPIC_API_KEY),
-        warning: `Claude could not run: ${message} A complete local draft was used instead.`,
+        configured: Boolean(process.env.OPENAI_API_KEY),
+        warning: `OpenAI could not run: ${message} A complete local draft was used instead.`,
       });
     }
     return Response.json(

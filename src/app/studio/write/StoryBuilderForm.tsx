@@ -262,7 +262,7 @@ export default function StoryBuilderForm() {
   const [scenePreviewBusy, setScenePreviewBusy] = useState<number | null>(null);
   const [productionBusy, setProductionBusy] = useState(false);
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
-  const [claudeConfigured, setClaudeConfigured] = useState<boolean | null>(null);
+  const [writingAIConfigured, setWritingAIConfigured] = useState<boolean | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [startingProduction, setStartingProduction] = useState(false);
   /*
@@ -477,8 +477,8 @@ export default function StoryBuilderForm() {
   useEffect(() => {
     fetch("/api/write/magic", { cache: "no-store" })
       .then((response) => response.json())
-      .then((data: { configured?: boolean }) => setClaudeConfigured(Boolean(data.configured)))
-      .catch(() => setClaudeConfigured(false));
+      .then((data: { configured?: boolean }) => setWritingAIConfigured(Boolean(data.configured)))
+      .catch(() => setWritingAIConfigured(false));
   }, []);
 
   useEffect(() => {
@@ -765,15 +765,15 @@ export default function StoryBuilderForm() {
           Generate action.
         */
       }
-      setClaudeConfigured(Boolean(data.configured));
+      setWritingAIConfigured(Boolean(data.configured));
       setMagicMessage(
         data.warning || (conceptOnly
-          ? data.provider === "anthropic"
-            ? "Concept ready. Claude filled the title, logline, and creative direction; everything remains editable."
+          ? data.provider === "openai"
+            ? "Concept ready. GPT-5.6 Terra filled the title, logline, and creative direction; everything remains editable."
             : "Concept ready. The three fields are filled and still completely editable."
-          : data.provider === "anthropic"
-            ? "Claude expanded your input into a complete, editable production draft."
-            : "A complete local draft is ready. Add your Claude key for deeper character-aware variations.")
+          : data.provider === "openai"
+            ? "GPT-5.6 Terra expanded your input into a complete, editable production draft."
+            : "A complete local draft is ready. Add your OpenAI key for deeper character-aware variations.")
       );
     } catch (magicError) {
       setError(magicError instanceof Error ? magicError.message : "Magic Writer failed.");
@@ -905,7 +905,7 @@ export default function StoryBuilderForm() {
         index: sceneIndex,
         text: data.warning || (!candidate
           ? `Scene ${sceneIndex + 1} was repaired locally and is ready to edit.`
-          : data.provider === "anthropic"
+          : data.provider === "openai"
           ? `Scene ${sceneIndex + 1} is shaped and still completely editable.`
           : `Scene ${sceneIndex + 1} was tightened locally and remains editable.`),
       });
@@ -1661,9 +1661,9 @@ export default function StoryBuilderForm() {
             </p>
             <div className="flex items-center gap-2">
               <span className={`rounded-full border px-2 py-0.5 text-[9px] ${
-                claudeConfigured ? "border-emerald-500/50 text-emerald-500" : "border-line text-grey"
+                writingAIConfigured ? "border-emerald-500/50 text-emerald-500" : "border-line text-grey"
               }`}>
-                {claudeConfigured === null ? "Checking AI" : claudeConfigured ? "Claude connected" : "Local mode"}
+                {writingAIConfigured === null ? "Checking AI" : writingAIConfigured ? "GPT-5.6 Terra connected" : "Local mode"}
               </span>
             <div className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
               {formatDefinition.label} · {durationSeconds}s · {expectedShotCount} shots

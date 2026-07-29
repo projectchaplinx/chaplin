@@ -262,3 +262,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.54 | `9ec05f1` | 2026-07-29T01:53:09+05:30 | feat: add version-gated multi-shot direction |
 | v0.2.55 | `878604a` | 2026-07-29T02:11:06+05:30 | feat: add production learning contracts |
 | v0.2.56 | `b434acd` | 2026-07-29T14:07:39+05:30 | feat: migrate writing to GPT-5.6 Terra |
+| v0.2.57 | `57f52c8` | 2026-07-29T15:12:19+05:30 | fix: collapse scene format chooser |

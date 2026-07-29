@@ -101,6 +101,7 @@ type StoredDraft = {
 
 type DraftSaveState = "idle" | "loading" | "saving" | "saved" | "signed-out" | "error";
 type MagicRunKind = "concept" | "draft";
+type WritingStart = "magic" | "manual";
 
 const MAGIC_TIMELINES: Record<MagicRunKind, Array<{ label: string; detail: string; startsAt: number }>> = {
   concept: [
@@ -254,6 +255,7 @@ export default function StoryBuilderForm() {
   const [magicMessage, setMagicMessage] = useState("");
   const [magicWriterOpen, setMagicWriterOpen] = useState(false);
   const [startChoiceOpen, setStartChoiceOpen] = useState(false);
+  const [writingStart, setWritingStart] = useState<WritingStart | null>(null);
   const [outputChooserOpen, setOutputChooserOpen] = useState(
     () => !searchParams.get("draft") && !searchParams.get("format"),
   );
@@ -295,7 +297,11 @@ export default function StoryBuilderForm() {
     if (!startChoiceOpen) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setStartChoiceOpen(false);
+      if (event.key === "Escape") {
+        setStartChoiceOpen(false);
+        setWritingStart(null);
+        setOutputChooserOpen(true);
+      }
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
@@ -315,8 +321,15 @@ export default function StoryBuilderForm() {
     return () => window.clearTimeout(timer);
   }, [searchParams]);
 
-  function chooseSparkStart(path: "magic" | "manual") {
+  function returnToRuntimeChooser() {
     setStartChoiceOpen(false);
+    setWritingStart(null);
+    setOutputChooserOpen(true);
+  }
+
+  function chooseWritingStart(path: WritingStart) {
+    setStartChoiceOpen(false);
+    setWritingStart(path);
     if (path === "magic") {
       setStep(1);
       focusCreationArea();
@@ -325,6 +338,7 @@ export default function StoryBuilderForm() {
     setStep(1);
     window.setTimeout(() => {
       document.querySelector("[data-manual-writer]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector<HTMLInputElement>("[data-manual-concept-title]")?.focus({ preventScroll: true });
     }, 0);
   }
 
@@ -1319,12 +1333,9 @@ export default function StoryBuilderForm() {
     setFormat(option);
     setDurationSeconds(productionDuration(option));
     setOutputChooserOpen(false);
+    setWritingStart(null);
     setStep(1);
-    if (option === "spark") {
-      setStartChoiceOpen(true);
-      return;
-    }
-    focusCreationArea();
+    setStartChoiceOpen(true);
   }
 
   return (
@@ -1347,47 +1358,51 @@ export default function StoryBuilderForm() {
       />
       <div className="unified-studio-shell__body">
       <div className="scene-studio-shell" data-scene-studio-shell>
-      <SceneStudioRail
-        stages={sceneStages}
-        step={step}
-        onSelect={setStep}
-        cast={castCharacters}
-        formatLabel={formatDefinition.label}
-        durationSeconds={durationSeconds}
-        sceneCount={scenes.length}
-        framesReady={framesReady}
-        actionLabel="Generate in Studio"
-        onStartProduction={() => void handleStartProduction()}
-        blockedReason={productionBlockedReason}
-        starting={startingProduction}
-      />
+      {!outputChooserOpen && (
+        <SceneStudioRail
+          stages={sceneStages}
+          step={step}
+          onSelect={setStep}
+          cast={castCharacters}
+          formatLabel={formatDefinition.label}
+          durationSeconds={durationSeconds}
+          sceneCount={scenes.length}
+          framesReady={framesReady}
+          actionLabel="Generate in Studio"
+          onStartProduction={() => void handleStartProduction()}
+          blockedReason={productionBlockedReason}
+          starting={startingProduction}
+        />
+      )}
       <div className="studio-production-content min-w-0">
         <div className="mx-auto w-full max-w-3xl px-6 py-8">
       {startChoiceOpen && createPortal(
         <div className="fixed inset-0 z-[210] flex items-end justify-center bg-black/72 p-0 backdrop-blur-xl sm:items-center sm:p-6">
           <button
             type="button"
-            aria-label="Close Spark start options"
-            onClick={() => setStartChoiceOpen(false)}
+            aria-label="Return to runtime choices"
+            onClick={returnToRuntimeChooser}
             className="absolute inset-0 cursor-default"
           />
           <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="spark-start-title"
+            aria-labelledby="writing-start-title"
             className="spark-start-dialog relative z-10 w-full max-w-xl rounded-t-[28px] border border-white/15 p-4 shadow-2xl sm:rounded-[28px] sm:p-5"
-            data-spark-start-dialog
+            data-writing-start-dialog
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-accent">5s Spark</p>
-                <h2 id="spark-start-title" className="reel-title mt-1 text-2xl sm:text-3xl">Okay, what do you want to do?</h2>
-                <p className="mt-1 text-[11px] leading-relaxed text-white/48">Choose how much of the first draft Chaplin should shape.</p>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-accent">{durationSeconds} seconds</p>
+                <h2 id="writing-start-title" className="reel-title mt-1 text-2xl sm:text-3xl">What do you want?</h2>
+                <p className="mt-1 text-[11px] leading-relaxed text-white/48">
+                  Start with your own concept or let Chaplin shape the first editable draft.
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStartChoiceOpen(false)}
-                aria-label="Close"
+                onClick={returnToRuntimeChooser}
+                aria-label="Return to runtime choices"
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 text-lg text-white/55 hover:border-accent hover:text-white"
               >
                 ×
@@ -1397,15 +1412,15 @@ export default function StoryBuilderForm() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => chooseSparkStart("magic")}
+                onClick={() => chooseWritingStart("magic")}
                 className="magic-action group rounded-[20px] p-4 text-left"
-                data-spark-path="magic"
+                data-writing-path="magic"
                 data-intelligence-action
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-lg text-white shadow-[0_0_24px_rgba(242,78,112,0.28)]">✦</span>
                 <span className="mt-4 block text-base font-semibold">Use Magic Assist</span>
                 <span className="mt-1.5 block text-[11px] leading-5 text-white/58">
-                  Give Chaplin one thought. It writes the complete editable Spark: concept, cast, action, and optional dialogue.
+                  Give Chaplin one thought. It shapes the concept, cast, action, and optional dialogue for this runtime.
                 </span>
                 <span className="mt-4 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.14em] text-accent">
                   Complete first draft <span aria-hidden="true">→</span>
@@ -1414,9 +1429,9 @@ export default function StoryBuilderForm() {
 
               <button
                 type="button"
-                onClick={() => chooseSparkStart("manual")}
+                onClick={() => chooseWritingStart("manual")}
                 className="group rounded-[20px] border border-white/14 bg-white/[0.035] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent-secondary/55 hover:bg-white/[0.055]"
-                data-spark-path="manual"
+                data-writing-path="manual"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-full border border-accent-secondary/45 bg-accent-secondary/10 text-sm font-bold text-accent-secondary">Aa</span>
                 <span className="mt-4 block text-base font-semibold">Write your own</span>
@@ -1558,41 +1573,27 @@ export default function StoryBuilderForm() {
       <section className={outputChooserOpen ? "mb-5" : "hidden"} aria-label="Output format" data-output-contract>
         {outputChooserOpen ? (
           <>
-            <div className="mb-2.5 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <h2 id="output-contract-heading" className="text-sm font-semibold">Choose output</h2>
-                <span className="rounded-full border border-white/10 px-2 py-0.5 text-[8px] font-semibold text-grey">
-                  {activeRole === "admin" ? "Admin" : "Creator"}
-                </span>
-              </div>
-              <Link href="/studio/pipelines" className="text-[10px] text-grey hover:text-accent">Pipeline map →</Link>
+            <div className="mb-4">
+              <h2 id="output-contract-heading" className="reel-title text-xl sm:text-2xl">How long is your scene?</h2>
+              <p className="mt-1 text-[11px] text-grey">Choose a runtime. You&apos;ll decide how to write it next.</p>
             </div>
-            <div className={`grid gap-2 ${formatOptions.length > 1 ? "sm:grid-cols-3" : ""}`}>
+            <div className={`grid gap-2.5 ${formatOptions.length > 1 ? "grid-cols-3" : ""}`}>
               {formatOptions.map((option) => {
                 const definition = PRODUCTION_FORMATS[option];
-                const selected = format === option;
                 const optionDuration = option === "spot" ? durationSeconds : definition.durationSeconds;
-                const optionShots = productionShotCount(option, optionDuration);
                 return (
                   <button
                     key={option}
                     type="button"
                     onClick={() => chooseOutput(option)}
-                    className={`relative overflow-hidden rounded-lg border p-4 text-left transition-all ${
-                      selected
-                        ? "border-accent bg-accent/[0.08] shadow-[0_0_30px_rgba(242,78,112,0.08)]"
-                        : "border-line bg-white/[0.025] hover:border-white/25"
-                    }`}
+                    className="group relative flex aspect-[1.1/1] items-center justify-center overflow-hidden rounded-xl border border-line bg-white/[0.025] transition-all hover:-translate-y-0.5 hover:border-accent hover:bg-accent/[0.07] focus-visible:border-accent focus-visible:outline-none"
                     data-writing-format={option}
-                    aria-pressed={selected}
+                    aria-label={`${optionDuration} seconds`}
                   >
-                    <span className={`font-mono text-3xl ${selected ? "text-accent" : "text-white/35"}`}>{optionDuration}s</span>
-                    <span className="ml-2 text-sm font-semibold">{definition.label}</span>
-                    <span className="mt-3 block text-[10px] uppercase tracking-wide text-grey">
-                      {option === "spark" ? "1 × five-second audition" : `${optionShots} × four-second scene${optionShots === 1 ? "" : "s"}`}
+                    <span className="font-mono text-3xl text-white/65 transition-colors group-hover:text-accent sm:text-5xl">
+                      {optionDuration}
                     </span>
-                    <span className="mt-2 block text-[11px] leading-4 text-grey">{definition.promise}</span>
-                    <span className={`absolute inset-x-0 bottom-0 h-0.5 ${selected ? "pipeline-flow-line" : "bg-white/5"}`} />
+                    <span className="ml-1 mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-grey">sec</span>
                   </button>
                 );
               })}
@@ -1619,28 +1620,10 @@ export default function StoryBuilderForm() {
             </div>
           </div>
         )}
-        {outputChooserOpen && format === "spot" && (
-          <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-line px-4 py-3">
-            <div>
-              <p className="text-xs font-semibold">Spot runtime</p>
-              <p className="mt-0.5 text-[10px] text-grey">Runtime changes the required shot count and delivery contract.</p>
-            </div>
-            <div className="flex rounded-full border border-line p-1">
-              {[30, 60].map((seconds) => (
-                <button
-                  key={seconds}
-                  type="button"
-                  onClick={() => setDurationSeconds(seconds)}
-                  className={`rounded-full px-3 py-1 text-[10px] font-semibold ${durationSeconds === seconds ? "bg-accent text-white" : "text-grey"}`}
-                >
-                  {seconds}s · {seconds / 5} shots
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
 
+      {!outputChooserOpen && (
+      <>
       <details
         open={magicWriterOpen}
         onToggle={(event) => setMagicWriterOpen(event.currentTarget.open)}
@@ -1810,7 +1793,10 @@ export default function StoryBuilderForm() {
         {!outputChooserOpen && (
           <button
             type="button"
-            onClick={() => setOutputChooserOpen(true)}
+            onClick={() => {
+              setWritingStart(null);
+              setOutputChooserOpen(true);
+            }}
             className="flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-[10px] text-grey hover:border-accent hover:text-accent"
             data-action="change-output"
           >
@@ -1823,6 +1809,7 @@ export default function StoryBuilderForm() {
 
       {step === 1 && (
         <div className="poster-card rounded-md p-6 flex flex-col gap-4">
+          {writingStart !== "manual" && (
           <div className="magic-surface rounded-xl p-3.5 sm:p-4" data-concept-magic>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -1877,6 +1864,7 @@ export default function StoryBuilderForm() {
             )}
             {magicMessage && <p className="mt-2 text-[10px] leading-relaxed text-accent-secondary">{magicMessage}</p>}
           </div>
+          )}
 
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium">Title</span>
@@ -1886,6 +1874,7 @@ export default function StoryBuilderForm() {
               placeholder={format === "episode" ? "e.g. The Last Reel at Midnight" : format === "spot" ? "e.g. One Tap Ahead" : `e.g. ${formatDefinition.label}: First Impression`}
               className="border border-line rounded-sm px-3 py-2 focus:outline-none focus:border-accent"
               data-script-field="title"
+              data-manual-concept-title
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -2493,16 +2482,20 @@ export default function StoryBuilderForm() {
           </div>
         </div>
       )}
+      </>
+      )}
         </div>
       </div>
-      <SceneStudioAssets
-        assets={sceneAssets}
-        busyIndex={scenePreviewBusy}
-        onSelect={(index) => { setStep(3); setActiveSceneIndex(index); }}
-        onGenerateAll={() => void generateAllScenePreviews()}
-        canGenerate={castCharacters.length > 0 && scenes.some((scene) => scene.setting || scene.action)}
-        productImageUrl={productImageUrl || undefined}
-      />
+      {!outputChooserOpen && (
+        <SceneStudioAssets
+          assets={sceneAssets}
+          busyIndex={scenePreviewBusy}
+          onSelect={(index) => { setStep(3); setActiveSceneIndex(index); }}
+          onGenerateAll={() => void generateAllScenePreviews()}
+          canGenerate={castCharacters.length > 0 && scenes.some((scene) => scene.setting || scene.action)}
+          productImageUrl={productImageUrl || undefined}
+        />
+      )}
       </div>
       </div>
     </section>

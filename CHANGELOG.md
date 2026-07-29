@@ -3,6 +3,16 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.58 - 2026-07-29 - Runtime-first story creation
+
+- Reduced the first scene-creation decision to three neutral runtime choices:
+  5, 15, or 60 seconds, without format names, scene counts, or different
+  creative promises competing at entry.
+- Made every runtime open the same second choice between Magic Assist and
+  writing your own, then reveal the shared Concept, Cast, and Script flow.
+- Kept Magic available only on the assisted path, focused manual creators on
+  the title field, and returned dismissed writing choices to runtime selection.
+
 ## v0.2.57 - 2026-07-29 - Focused scene-format entry
 
 - Changed the 5s, 15s, and 60s output cards into a one-time entry decision that

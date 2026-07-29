@@ -616,9 +616,31 @@ body:has([data-home-shell]) > main {
 
   .character-production-room {
     display: flex;
-    height: calc(100dvh - 4rem);
+    height: 100dvh;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .studio-command-bar {
+    position: relative;
+    z-index: 30;
+  }
+
+  .studio-command-bar__identity {
+    width: 2.5rem;
+  }
+
+  .studio-command-bar__magic:focus-within {
+    border-color: rgba(255, 74, 111, 0.82);
+    box-shadow:
+      0 0 0 1px rgba(255, 74, 111, 0.14),
+      0 0 30px rgba(255, 74, 111, 0.08);
+  }
+
+  @media (min-width: 1280px) {
+    .studio-command-bar__identity {
+      width: 18rem;
+    }
   }
 
   .studio-production-grid {

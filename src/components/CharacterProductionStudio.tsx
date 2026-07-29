@@ -7,6 +7,7 @@ import { useChaplinStore } from "@/lib/store";
 import VoiceCapacityRecovery from "@/components/VoiceCapacityRecovery";
 import MediaPlayer from "@/components/MediaPlayer";
 import TakeVerdictControls from "@/components/TakeVerdictControls";
+import BrandLogo from "@/components/BrandLogo";
 import {
   buildProductionBible,
   buildScenePackage,
@@ -532,9 +533,11 @@ function FreshIdentityCanvasEmpty() {
 export default function CharacterProductionStudio({
   character,
   onExit,
+  onOpenStyleSheet,
 }: {
   character: Character;
   onExit?: () => void;
+  onOpenStyleSheet?: () => void;
 }) {
   const setCharacterVoice = useChaplinStore((s) => s.setCharacterVoice);
   const addCharacterImage = useChaplinStore((s) => s.addCharacterImage);
@@ -2004,65 +2007,65 @@ export default function CharacterProductionStudio({
 
   return (
     <section data-production-workflow className="character-production-room">
-      {/*
-        One header strip, not a stacked panel.
-
-        Studio Auto used to be a full-width card above the editor - label, chip,
-        a three-line paragraph, status, toggle and progress bar - with the Magic
-        Scene toolbar beneath it. Together they pushed the three studio columns
-        down and broke the canvas, and the explanation was read once and then
-        occupied space forever. Both controls now sit on one row: Magic Scene
-        takes the space it needs to be typed into, Studio Auto is a switch with
-        its explanation on hover, and stage progress is a hairline beneath.
-      */}
       <div
-        className="shrink-0 border-b border-white/10 bg-[#080c0a]/96 px-3 backdrop-blur-xl sm:px-4 lg:ml-[12rem] lg:mr-[22rem] lg:border-x xl:ml-[13rem] xl:mr-[25rem]"
+        className="studio-command-bar shrink-0 border-b border-white/10 bg-[#080c0a]/96 px-3 backdrop-blur-xl sm:px-4"
         data-studio-auto-dock
         data-studio-auto={studioAutoMode ? autoStudioRun?.status ?? "on" : "off"}
       >
-        <div className="flex h-14 items-center gap-3" data-magic-scene-toolbar>
-          <span className="hidden shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-accent sm:block">
-            ✦ Magic Scene
-          </span>
-          {magicSceneIndex > 0 && (
-            <span className="shrink-0 rounded-full border border-accent/35 px-2 py-0.5 text-[8px] font-semibold text-accent">
-              Take {magicSceneIndex + 1}
+        <div className="flex h-16 items-center gap-2.5 lg:gap-3" data-magic-scene-toolbar>
+          <div className="studio-command-bar__identity hidden shrink-0 items-center gap-3 sm:flex">
+            <BrandLogo priority className="[&>span]:hidden xl:[&>span]:inline" />
+            <span className="hidden h-7 w-px bg-white/10 xl:block" />
+            <div className="hidden min-w-0 xl:block">
+              <p className="max-w-36 truncate text-[11px] font-semibold text-ink">{character.name}</p>
+              <p className="text-[8px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">
+                Actor studio · autosaved
+              </p>
+            </div>
+          </div>
+
+          <div className="studio-command-bar__magic flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-accent/45 bg-accent/[0.07] p-1.5 shadow-[inset_0_0_24px_rgba(244,63,94,.04)]">
+            <span className="hidden shrink-0 pl-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-accent md:block">
+              ✦ Magic Scene
             </span>
-          )}
-          <input
-            value={magicSceneBrief}
-            onChange={(event) => setMagicSceneBrief(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !busy) {
-                event.preventDefault();
-                applyMagicScene();
-              }
-            }}
-            maxLength={1600}
-            aria-label="Describe the scene or change for Magic Scene"
-            placeholder="Write the scene or change you want… e.g. Put her alone in a stalled metro as the lights return."
-            className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-[11px] text-ink outline-none placeholder:text-grey/65 focus:border-accent"
-          />
-          <button
-            type="button"
-            onClick={applyMagicScene}
-            disabled={Boolean(busy)}
-            data-action="magic-scene"
-            data-intelligence-action
-            aria-busy={busy === "magic-scene"}
-            className="magic-action shrink-0 rounded-md px-3.5 py-2 text-[10px] font-semibold disabled:opacity-40"
-          >
-            {busy === "magic-scene" && generationRun?.key === "magic-scene"
-              ? `Directing ${estimatedGenerationProgress(generationRun)}%`
-              : magicSceneBrief.trim()
-                ? "Direct scene"
-                : "Use Magic Scene"}
-          </button>
+            {magicSceneIndex > 0 && (
+              <span className="shrink-0 rounded-full border border-accent/35 px-2 py-0.5 text-[8px] font-semibold text-accent">
+                Take {magicSceneIndex + 1}
+              </span>
+            )}
+            <input
+              value={magicSceneBrief}
+              onChange={(event) => setMagicSceneBrief(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !busy) {
+                  event.preventDefault();
+                  applyMagicScene();
+                }
+              }}
+              maxLength={1600}
+              aria-label="Describe the scene or change for Magic Scene"
+              placeholder="Describe the whole scene or change anything…"
+              className="min-w-0 flex-1 border-0 bg-transparent px-2 py-2 text-[11px] text-ink outline-none placeholder:text-grey/65"
+            />
+            <button
+              type="button"
+              onClick={applyMagicScene}
+              disabled={Boolean(busy)}
+              data-action="magic-scene"
+              data-intelligence-action
+              aria-busy={busy === "magic-scene"}
+              className="magic-action shrink-0 rounded-lg px-3.5 py-2 text-[10px] font-semibold disabled:opacity-40"
+            >
+              {busy === "magic-scene" && generationRun?.key === "magic-scene"
+                ? `Directing ${estimatedGenerationProgress(generationRun)}%`
+                : magicSceneBrief.trim()
+                  ? "Direct scene"
+                  : "Magic"}
+            </button>
+          </div>
 
-          <span className="ml-1 hidden h-6 w-px shrink-0 bg-white/10 sm:block" />
-
-          <div className="flex shrink-0 items-center gap-2">
-            <span className={`hidden text-[9px] font-semibold sm:block ${
+          <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.025] px-2 py-1.5">
+            <span className={`hidden text-[9px] font-semibold md:block ${
               autoStudioRun?.status === "failed"
                 ? "text-red-300"
                 : autoStudioRun?.status === "complete"
@@ -2071,14 +2074,14 @@ export default function CharacterProductionStudio({
                     ? "text-accent-secondary"
                     : "text-grey"
             }`}>
-              {autoStatusLabel}
+              YOLO
             </span>
             <button
               type="button"
               role="switch"
               aria-checked={studioAutoMode}
-              aria-label="Studio Auto: run every missing stage without routine approval stops"
-              title="Voice and dialogue stay ordered; sound, theme, and visuals run in parallel. Chaplin stops on an error or at final review. Provider charges and configured limits still apply."
+              aria-label="YOLO mode: run every missing stage automatically"
+              title={`${autoStatusLabel}. YOLO runs every missing stage and stops only on an error or at final review.`}
               onClick={toggleStudioAuto}
               disabled={Boolean(busy) && autoStudioRun?.status !== "failed"}
               className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-45 ${
@@ -2094,10 +2097,32 @@ export default function CharacterProductionStudio({
               }`} />
             </button>
           </div>
+
+          {onOpenStyleSheet && (
+            <button
+              type="button"
+              onClick={onOpenStyleSheet}
+              className="shrink-0 rounded-lg border border-accent-secondary/40 px-2.5 py-2 text-[9px] font-semibold uppercase tracking-[0.1em] text-accent-secondary hover:bg-accent-secondary/10 lg:px-3"
+              data-open-character-style-sheet
+            >
+              <span className="hidden xl:inline">Style sheet</span>
+              <span className="xl:hidden">Style</span>
+            </button>
+          )}
+          {onExit && (
+            <button
+              type="button"
+              onClick={onExit}
+              className="shrink-0 rounded-lg bg-accent px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.1em] text-paper hover:bg-accent-light sm:px-4"
+            >
+              <span className="hidden sm:inline">View actor</span>
+              <span className="sm:hidden">Exit</span>
+            </button>
+          )}
         </div>
 
         {autoStudioRun && (
-          <div className="grid grid-cols-6 gap-1 pb-1.5" aria-label="Studio Auto stage progress">
+          <div className="grid grid-cols-6 gap-1 pb-1.5" aria-label="YOLO mode stage progress">
             {WORKFLOW_STEPS.map((step) => {
               const state = autoStudioRun.steps[step.id]?.state ?? "queued";
               return (

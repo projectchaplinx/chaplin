@@ -267,3 +267,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.59 | `5eecd49` | 2026-07-29T21:17:25+05:30 | feat: add selectable Punch generation |
 | v0.2.60 | `540da4a` | 2026-07-29T21:48:29+05:30 | feat: add creator actor style sheets |
 | v0.2.61 | `8d8b7e7` | 2026-07-29T22:00:09+05:30 | fix: restore full-width scene entry |
+| v0.2.62 | `734aef5` | 2026-07-29T23:27:29+05:30 | feat: add explainable director brain |

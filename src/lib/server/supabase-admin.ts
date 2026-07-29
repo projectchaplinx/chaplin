@@ -767,7 +767,8 @@ export async function getCharacterProductionState(characterId: string) {
   const styleSheet = rows.find((asset) => {
     if (asset.kind !== "gallery") return false;
     const metadata = asset.metadata as Record<string, unknown> | null;
-    return metadata?.imagePurpose === "character-sheet";
+    return metadata?.imagePurpose === "character-sheet"
+      && metadata?.rejectedForStyleSheet !== true;
   });
 
   return {

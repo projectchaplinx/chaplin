@@ -56,10 +56,12 @@ export function characterAppearanceKey(input: Pick<CharacterSheet, "character_id
 
 export function characterSheetPrompt(input: { identity: string; ageState: string; wardrobeState: string }) {
   return withStandingInjections([
-    "One 16:9 human-review character sheet in exactly four equal panels.",
+    "STRICT CHARACTER TURNAROUND. One 16:9 human-review character sheet split into exactly four equal vertical panels from left to right.",
     `Identity: ${input.identity}. Age state: ${input.ageState}. Final wardrobe: ${input.wardrobeState}.`,
-    "Panel one: straight-on head-and-shoulders. Panel two: three-quarter head-and-shoulders. Panel three: exact side profile. Panel four: full body in final wardrobe.",
-    "Plain neutral studio background, even reference lighting, no props, no text.",
+    "Panel one: neutral straight-on head-and-shoulders. Panel two: neutral three-quarter head-and-shoulders. Panel three: neutral exact side profile head-and-shoulders. Panel four: neutral straight-on full body in final wardrobe, arms relaxed, hands and feet visible.",
+    "Ignore and remove the reference image's pose, action, location, background, props, weapons, vehicles, and story context. This is identity documentation, not a scene, storyboard, montage, contact sheet, or action sequence.",
+    "Repeat the exact same fictional actor in every panel. Use one seamless neutral studio background, one soft even reference-lighting setup, one camera height, and matching color across all four views.",
+    "No acting, environment, props, additional people, labels, text, logos, decorative borders, or watermark.",
     `Negative: ${STANDARD_PORTRAIT_NEGATIVES.join(", ")}.`,
   ].join(" "), true);
 }

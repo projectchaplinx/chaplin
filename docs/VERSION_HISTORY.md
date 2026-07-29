@@ -264,3 +264,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.56 | `b434acd` | 2026-07-29T14:07:39+05:30 | feat: migrate writing to GPT-5.6 Terra |
 | v0.2.57 | `57f52c8` | 2026-07-29T15:12:19+05:30 | fix: collapse scene format chooser |
 | v0.2.58 | `1053a2f` | 2026-07-29T15:43:40+05:30 | Unify runtime-first story creation |
+| v0.2.59 | `5eecd49` | 2026-07-29T21:17:25+05:30 | feat: add selectable Punch generation |

@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.60 - 2026-07-29 - Creator style sheets
+
+- Added a creator-facing Style Sheet control beside the actor studio actions,
+  with the current review composite and its front, three-quarter, profile, and
+  full-body production references in one persistent side panel.
+- Let actor owners lock a wardrobe direction and create or replace a sheet
+  directly from the studio while keeping the composite out of video prompts.
+- Hardened turnaround generation against copying a hero image's action, props,
+  and location, and prevented visually rejected sheets from becoming current.
+- Created and visually reviewed the first persisted four-view sheets for Arjan
+  Devraj and Nova Calloway.
+
 ## v0.2.59 - 2026-07-29 - Selectable Punch generation
 
 - Added a persisted Studio choice between four independently controlled scene

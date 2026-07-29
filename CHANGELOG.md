@@ -3,6 +3,13 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.57 - 2026-07-29 - Focused scene-format entry
+
+- Changed the 5s, 15s, and 60s output cards into a one-time entry decision that
+  disappears completely after selection.
+- Kept Concept, Cast, and the format-specific Script navigation as the primary
+  workflow, with only a compact runtime/change control beside it.
+
 ## v0.2.56 - 2026-07-29 - GPT-5.6 Terra writing migration
 
 - Replaced every active Anthropic writing, conversion, character-room,

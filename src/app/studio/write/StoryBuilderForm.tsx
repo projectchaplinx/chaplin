@@ -1555,7 +1555,7 @@ export default function StoryBuilderForm() {
         </section>
       )}
 
-      <section className="mb-5" aria-label="Output format" data-output-contract>
+      <section className={outputChooserOpen ? "mb-5" : "hidden"} aria-label="Output format" data-output-contract>
         {outputChooserOpen ? (
           <>
             <div className="mb-2.5 flex items-center justify-between gap-4">
@@ -1599,7 +1599,7 @@ export default function StoryBuilderForm() {
             </div>
           </>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white/[0.025] px-3.5 py-2.5">
+          <div className="hidden" aria-hidden="true">
             <div className="flex min-w-0 items-center gap-3">
               <span className="font-mono text-xl text-accent">{durationSeconds}s</span>
               <span className="text-sm font-semibold">{formatDefinition.label}</span>
@@ -1619,7 +1619,7 @@ export default function StoryBuilderForm() {
             </div>
           </div>
         )}
-        {format === "spot" && (
+        {outputChooserOpen && format === "spot" && (
           <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-line px-4 py-3">
             <div>
               <p className="text-xs font-semibold">Spot runtime</p>
@@ -1787,24 +1787,38 @@ export default function StoryBuilderForm() {
 
       <div className="mb-4 h-px scroll-mt-24 bg-line" aria-hidden="true" data-manual-writer />
 
-      <div className="flex gap-2 mb-6 text-xs">
-        {(
-          [
-            [1, "Concept"],
-            [2, "Cast"],
-            [3, `${formatDefinition.label} script`],
-          ] as const
-        ).map(([n, label]) => (
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex gap-2">
+          {(
+            [
+              [1, "Concept"],
+              [2, "Cast"],
+              [3, `${formatDefinition.label} script`],
+            ] as const
+          ).map(([n, label]) => (
+            <button
+              key={n}
+              onClick={() => setStep(n)}
+              className={`px-3 py-1.5 rounded-full border ${
+                step === n ? "border-accent text-ink font-semibold bg-accent/10" : "border-line text-grey"
+              }`}
+            >
+              {n}. {label}
+            </button>
+          ))}
+        </div>
+        {!outputChooserOpen && (
           <button
-            key={n}
-            onClick={() => setStep(n)}
-            className={`px-3 py-1.5 rounded-full border ${
-              step === n ? "border-accent text-ink font-semibold bg-accent/10" : "border-line text-grey"
-            }`}
+            type="button"
+            onClick={() => setOutputChooserOpen(true)}
+            className="flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-[10px] text-grey hover:border-accent hover:text-accent"
+            data-action="change-output"
           >
-            {n}. {label}
+            <span className="font-mono text-accent">{durationSeconds}s</span>
+            <span>{formatDefinition.label}</span>
+            <span aria-hidden="true">Change</span>
           </button>
-        ))}
+        )}
       </div>
 
       {step === 1 && (

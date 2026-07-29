@@ -3,6 +3,20 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.62 - 2026-07-29 - Explainable Director Brain
+
+- Added a source-linked Director Brain corpus covering story beats, action
+  geography, escalation, edit causality, rhythm, sound perspective, AI shot
+  control, and reference continuity without storing copied scene expression.
+- Added evidence-gated US 1950s, US 1960s, Uruk ca. 3000 BCE, and early Old
+  Kingdom profiles with visible ambiguity and anachronism warnings.
+- Wired deterministic knowledge retrieval and a second-by-second attention map
+  into Magic Write, generation metadata, and the creator-facing Studio trace.
+- Added a Super Admin Director Brain workspace with the complete learning
+  contract, craft rules, historical profiles, and primary-source register.
+- Documented the long-running research, ingestion, evaluation, period-world,
+  provider-benchmark, and corpus-expansion program.
+
 ## v0.2.61 - 2026-07-29 - Full-width scene entry
 
 - Fixed the scene runtime chooser collapsing into the hidden stage rail's

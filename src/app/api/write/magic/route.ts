@@ -32,6 +32,11 @@ import {
   type FramingConstraint,
   type SceneProp,
 } from "@/lib/direction-safety";
+import {
+  buildDirectorPromptBlock,
+  retrieveDirectorKnowledge,
+  type DirectorBrainTrace,
+} from "@/lib/director-brain";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // json_schema output on a full scene draft can run 35-55s; give real headroom over the wall clock
@@ -362,6 +367,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   let fallbackInput: Parameters<typeof fallbackDraft>[0] | null = null;
+  let directorTrace: DirectorBrainTrace | null = null;
   let jobId: string | null = null;
   try {
     assertRequestBodySize(request, 512 * 1024);
@@ -395,6 +401,12 @@ export async function POST(request: Request) {
       productImageUrl: clean(body.productImageUrl, 2000),
       productImageName: clean(body.productImageName, 180),
     };
+    directorTrace = retrieveDirectorKnowledge({
+      brief: [input.brief, input.title, input.logline].filter(Boolean).join(" "),
+      format,
+      durationSeconds,
+      sceneCount: input.requiredSceneCount,
+    });
     if (format === "spot" && !input.productImageUrl) {
       return Response.json({ error: "A product image is required before writing a brand Spot." }, { status: 400 });
     }
@@ -402,7 +414,12 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return Response.json({ draft: finalizeDirectionDraft(fallbackDraft(input), input), provider: "chaplin-local", configured: false });
+      return Response.json({
+        draft: finalizeDirectionDraft(fallbackDraft(input), input),
+        provider: "chaplin-local",
+        configured: false,
+        directorTrace,
+      });
     }
 
     const writingConfig = (await getPipelineConfig()).stages.writing;
@@ -454,6 +471,14 @@ export async function POST(request: Request) {
         ...character,
         visualReference: visualContexts.find((context) => context.character.id === character.id)?.reference.source ?? null,
       })),
+      directorBrain: {
+        version: directorTrace.version,
+        signals: directorTrace.signals,
+        selectedPatternIds: directorTrace.patternIds,
+        historicalProfileId: directorTrace.periodProfileId,
+        warnings: directorTrace.warnings,
+        sourceIds: directorTrace.sourceIds,
+      },
     });
     const messageContent: OpenAIInputContent[] = [];
     if (input.productImageUrl) {
@@ -482,6 +507,11 @@ export async function POST(request: Request) {
         format,
         durationSeconds,
         castIds: selectedCharacters.map((character) => character.id),
+        directorBrainVersion: directorTrace.version,
+        directorPatternIds: directorTrace.patternIds,
+        directorPeriodProfileId: directorTrace.periodProfileId,
+        directorSourceIds: directorTrace.sourceIds,
+        directorWarnings: directorTrace.warnings,
       },
     });
     const response = await requestOpenAIFromLegacyMessages({
@@ -493,7 +523,9 @@ export async function POST(request: Request) {
         model,
         max_tokens: Math.max(4000, writingConfig.maxTokens ?? 8000),
         thinking: { type: "disabled" },
-        system: `${writingConfig.promptPrelude} You are Chaplin's senior screenwriter and advertising creative director. Keep the named arc template hook_escalate_reverse_cliffhanger: open with a visible hook, escalate cost, reverse power, then land a situation-changing cliffhanger. Write concise, production-ready scripts for fictional AI actors using each supplied production bible and canonical reference image as binding character canon. Reward card-to-screen fidelity: every selected hero must contribute at least one specific performance tell from their card or production bible across the board. The images are the source of truth for face, apparent age, hair, body, wardrobe, materials, palette, and physical presence. NPCs are anonymous dressing, never locked cast: no recognition locks and no readable faces. For a Spot, the supplied product image is equally binding canon. Never restate biography as dialogue. Return exactly requiredSceneCount authored beats unless safety later splits an action beat into sub-slots. Label each beat static, sustained, or action. An action beat may lock only one identity and may not contain dialogue; static may lock two, sustained one. Max one speaking character in any beat. Mark CONTINUOUS or physically carried action as chain motion; otherwise forward. Props and weapons may only come from the supplied character canon or sceneProps. Put any newly required object in sceneProps with a concrete reason and approved=false. Sensitive action involving a minor, injury, or a weapon pointed at a person must use non_readable framing. Do not hide camera directions inside visible action; Chaplin assigns and safety-checks the camera after the dramatic beat is written. Preserve performance tells, movement grammar, recurring motifs, and moral boundaries without mechanically repeating them. Keep scenes realistic for the requested duration and use only supplied character IDs.`,
+        system: `${writingConfig.promptPrelude} You are Chaplin's senior screenwriter and advertising creative director. Keep the named arc template hook_escalate_reverse_cliffhanger: open with a visible hook, escalate cost, reverse power, then land a situation-changing cliffhanger. Write concise, production-ready scripts for fictional AI actors using each supplied production bible and canonical reference image as binding character canon. Reward card-to-screen fidelity: every selected hero must contribute at least one specific performance tell from their card or production bible across the board. The images are the source of truth for face, apparent age, hair, body, wardrobe, materials, palette, and physical presence. NPCs are anonymous dressing, never locked cast: no recognition locks and no readable faces. For a Spot, the supplied product image is equally binding canon. Never restate biography as dialogue. Return exactly requiredSceneCount authored beats unless safety later splits an action beat into sub-slots. Label each beat static, sustained, or action. An action beat may lock only one identity and may not contain dialogue; static may lock two, sustained one. Max one speaking character in any beat. Mark CONTINUOUS or physically carried action as chain motion; otherwise forward. Props and weapons may only come from the supplied character canon or sceneProps. Put any newly required object in sceneProps with a concrete reason and approved=false. Sensitive action involving a minor, injury, or a weapon pointed at a person must use non_readable framing. Do not hide camera directions inside visible action; Chaplin assigns and safety-checks the camera after the dramatic beat is written. Preserve performance tells, movement grammar, recurring motifs, and moral boundaries without mechanically repeating them. Keep scenes realistic for the requested duration and use only supplied character IDs.
+
+${buildDirectorPromptBlock(directorTrace)}`,
         messages: [{
           role: "user",
           content: messageContent,
@@ -576,7 +608,17 @@ export async function POST(request: Request) {
     await completeGeneration(
       jobId,
       undefined,
-      { format, durationSeconds, title: directedDraft.title, castIds: directedDraft.castIds },
+      {
+        format,
+        durationSeconds,
+        title: directedDraft.title,
+        castIds: directedDraft.castIds,
+        directorBrainVersion: directorTrace.version,
+        directorPatternIds: directorTrace.patternIds,
+        directorPeriodProfileId: directorTrace.periodProfileId,
+        directorSourceIds: directorTrace.sourceIds,
+        directorWarnings: directorTrace.warnings,
+      },
       await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
       response.headers.get("request-id"),
     );
@@ -586,6 +628,7 @@ export async function POST(request: Request) {
       model,
       usage: data.usage,
       configured: true,
+      directorTrace,
       warning: repairedEmptyScenes
         ? "OpenAI returned no playable scene, so Chaplin repaired the draft with a complete local scene beat."
         : undefined,
@@ -598,6 +641,12 @@ export async function POST(request: Request) {
         draft: finalizeDirectionDraft(fallbackDraft(fallbackInput), fallbackInput),
         provider: "chaplin-local",
         configured: Boolean(process.env.OPENAI_API_KEY),
+        directorTrace: directorTrace ?? retrieveDirectorKnowledge({
+          brief: [fallbackInput.brief, fallbackInput.title, fallbackInput.logline].filter(Boolean).join(" "),
+          format: fallbackInput.format,
+          durationSeconds: fallbackInput.durationSeconds,
+          sceneCount: fallbackInput.requiredSceneCount,
+        }),
         warning: `OpenAI could not run: ${message} A complete local draft was used instead.`,
       });
     }

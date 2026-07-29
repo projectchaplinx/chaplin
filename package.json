@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.61",
+  "version": "0.2.62",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -26,6 +26,7 @@
     "test:direction-safety": "node --import tsx --test src/lib/direction-safety.test.ts",
     "test:feed": "node --import tsx --test src/lib/feed-mentions.test.ts",
     "test:scene-variety": "node --import tsx --test src/lib/scene-variety.test.ts",
+    "test:director-brain": "node --import tsx --test src/lib/director-brain.test.ts",
     "test:prompt-compaction": "node --import tsx --test src/lib/prompt-compaction.test.ts",
     "test:video-types": "node --import tsx --test src/lib/video-brief.test.ts src/lib/production-prompting.test.ts src/lib/shot-director.test.ts",
     "test:screen-time": "node --import tsx --test src/lib/screen-time.test.ts",

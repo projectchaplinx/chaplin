@@ -44,6 +44,7 @@ import {
   type FramingConstraint,
   type SceneProp,
 } from "@/lib/direction-safety";
+import type { DirectorBrainTrace } from "@/lib/director-brain";
 
 interface DraftLine {
   characterId: string;
@@ -192,6 +193,72 @@ function MagicWritingTimeline({ kind, elapsedSeconds }: { kind: MagicRunKind; el
   );
 }
 
+function traceLabel(value: string) {
+  return value
+    .split("-")
+    .map((word) => word ? `${word[0].toUpperCase()}${word.slice(1)}` : word)
+    .join(" ");
+}
+
+function DirectorBrainTracePanel({ trace }: { trace: DirectorBrainTrace }) {
+  return (
+    <details className="rounded-xl border border-accent-secondary/30 bg-accent-secondary/[0.035]" data-director-trace>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <span>
+          <span className="block text-[9px] font-semibold uppercase tracking-[0.18em] text-accent-secondary">Director brain · {trace.version}</span>
+          <span className="mt-1 block text-xs text-ink">
+            {trace.patternIds.length} craft rules
+            {trace.periodProfileId ? ` · ${traceLabel(trace.periodProfileId)}` : ""}
+            {" · "}{trace.sourceIds.length} sources
+          </span>
+        </span>
+        <span className="text-[10px] text-grey">See decisions ↓</span>
+      </summary>
+      <div className="border-t border-white/10 px-4 py-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-grey">Why these rules entered the scene</p>
+            <ul className="mt-2 space-y-1.5 text-[10px] leading-5 text-grey">
+              {trace.selectionReasons.map((reason) => <li key={reason}>→ {reason}</li>)}
+            </ul>
+          </div>
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-grey">Retrieved craft</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {trace.patternIds.map((id) => (
+                <span key={id} className="rounded-full border border-white/10 px-2 py-1 text-[9px] text-ink">
+                  {traceLabel(id)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-grey">Second-by-second attention map</p>
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-2">
+            {trace.attentionMap.map((beat) => (
+              <span key={beat.second} title={beat.job} className="min-w-20 rounded-lg border border-white/10 bg-black/15 p-2">
+                <span className="block font-mono text-[9px] text-accent-secondary">{beat.second}s</span>
+                <span className="mt-1 block text-[8px] font-semibold uppercase tracking-[0.08em] text-ink">{beat.phase}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        {trace.warnings.length > 0 && (
+          <div className="mt-4 rounded-lg border border-amber-300/30 bg-amber-300/[0.06] p-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Historical resolution needed</p>
+            {trace.warnings.map((warning) => <p key={warning} className="mt-1 text-[10px] leading-5 text-amber-100/80">{warning}</p>)}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[9px] text-grey">
+          <span>Signals: {trace.signals.join(" · ")}</span>
+          <Link href="/admin/director-brain" className="font-semibold text-accent-secondary hover:text-ink">Full research corpus (Super Admin) →</Link>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 const IDEA_STARTERS: Record<ProductionFormat, string[]> = {
   episode: [
     "A simple job becomes a moral choice before dawn",
@@ -256,6 +323,7 @@ export default function StoryBuilderForm() {
   const [magicRunKind, setMagicRunKind] = useState<MagicRunKind>("draft");
   const [magicElapsedSeconds, setMagicElapsedSeconds] = useState(0);
   const [magicMessage, setMagicMessage] = useState("");
+  const [directorTrace, setDirectorTrace] = useState<DirectorBrainTrace | null>(null);
   const [magicWriterOpen, setMagicWriterOpen] = useState(false);
   const [startChoiceOpen, setStartChoiceOpen] = useState(false);
   const [writingStart, setWritingStart] = useState<WritingStart | null>(null);
@@ -717,9 +785,11 @@ export default function StoryBuilderForm() {
         error?: string;
         configured?: boolean;
         warning?: string;
+        directorTrace?: DirectorBrainTrace;
       };
       if (!response.ok || !data.draft) throw new Error(data.error || "Magic Writer could not build this draft.");
       const draft = data.draft;
+      setDirectorTrace(data.directorTrace ?? null);
       setTitle(draft.title);
       setLogline(draft.logline);
       setCreativeDirection(draft.creativeDirection);
@@ -1780,6 +1850,7 @@ export default function StoryBuilderForm() {
             <MagicWritingTimeline kind="draft" elapsedSeconds={magicElapsedSeconds} />
           )}
           {magicMessage && <p className="text-xs text-emerald-500">{magicMessage}</p>}
+          {directorTrace && <DirectorBrainTracePanel trace={directorTrace} />}
         </div>
       </details>
 
@@ -2192,6 +2263,7 @@ export default function StoryBuilderForm() {
           {magicBusy && magicRunKind === "draft" && (
             <MagicWritingTimeline kind="draft" elapsedSeconds={magicElapsedSeconds} />
           )}
+          {directorTrace && <DirectorBrainTracePanel trace={directorTrace} />}
 
           {sceneProps.length > 0 && (
             <section className="mb-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.045] p-3" data-scene-props>

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chaplin",
     "slug": "chaplin",
-    "version": "0.2.61",
+    "version": "0.2.62",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "chaplin",

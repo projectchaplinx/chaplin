@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertResearchTextIsAnalytical,
+  buildDirectorResearchDiagnostics,
   normalizeDirectorStudyInput,
   parseObservationLines,
+  rankApprovedDirectorResearch,
   scoreDirectorStudyForBrief,
   type DirectorSceneStudy,
 } from "@/lib/director-research";
@@ -54,3 +56,80 @@ test("approved-study retrieval scoring responds to brief vocabulary", () => {
   assert.equal(scoreDirectorStudyForBrief(study, "An intimate kitchen confession"), 0);
 });
 
+test("retrieval excludes relevant studies until a human approves them", () => {
+  const study = {
+    id: "route-study",
+    studyTitle: "Readable vehicle pursuit geography",
+    workTitle: "Owned reference",
+    sceneLocator: "test",
+    durationSeconds: 15,
+    periodLabel: "1960s",
+    region: "Los Angeles",
+    tags: ["vehicle", "pursuit", "action"],
+    observations: [],
+    candidatePrinciples: ["Refresh screen direction after the route changes."],
+    limitations: "",
+    reviewNotes: "",
+    status: "draft",
+    source: {
+      id: "source",
+      title: "Chaplin pursuit test",
+      institution: "Chaplin",
+      sourceUrl: null,
+      sourceKind: "chaplin-test",
+      rightsBasis: "Owned internal production test.",
+      accessNotes: "",
+    },
+    createdAt: "2026-07-29T00:00:00.000Z",
+    updatedAt: "2026-07-29T00:00:00.000Z",
+    reviewedAt: null,
+  } as DirectorSceneStudy;
+  assert.equal(rankApprovedDirectorResearch([study], "vehicle pursuit", 4).length, 0);
+  assert.equal(rankApprovedDirectorResearch([{ ...study, status: "approved" }], "vehicle pursuit", 4).length, 1);
+});
+
+test("research diagnostics expose coverage gaps and overlapping studies for human comparison", () => {
+  const baseStudy = {
+    workTitle: "Chaplin tests",
+    sceneLocator: "test",
+    durationSeconds: 15,
+    periodLabel: "",
+    region: "",
+    observations: [{
+      startSecond: 0,
+      endSecond: 2,
+      evidence: "The exit remains visible.",
+      craft: "wide",
+      transition: "",
+      narrativeJob: "orientation",
+      inference: "Geography precedes speed.",
+      confidence: "high" as const,
+    }],
+    candidatePrinciples: ["Show the route before acceleration."],
+    limitations: "",
+    reviewNotes: "Approved internal evidence.",
+    status: "approved" as const,
+    source: {
+      id: "source-1",
+      title: "Owned test",
+      institution: "Chaplin",
+      sourceUrl: null,
+      sourceKind: "chaplin-test" as const,
+      rightsBasis: "Owned internal production test.",
+      accessNotes: "",
+    },
+    createdAt: "2026-07-29T00:00:00.000Z",
+    updatedAt: "2026-07-29T00:00:00.000Z",
+    reviewedAt: "2026-07-29T00:00:00.000Z",
+  };
+  const diagnostics = buildDirectorResearchDiagnostics([
+    { ...baseStudy, id: "study-a", studyTitle: "Route clarity", tags: ["action", "camera"] },
+    { ...baseStudy, id: "study-b", studyTitle: "Route pressure", tags: ["action", "camera"], source: { ...baseStudy.source, id: "source-2" } },
+  ]);
+  assert.equal(diagnostics.approvedStudies, 2);
+  assert.equal(diagnostics.sourceCount, 2);
+  assert.equal(diagnostics.confidence.high, 2);
+  assert.equal(diagnostics.coverage.find((entry) => entry.domain === "action")?.approvedStudies, 2);
+  assert.equal(diagnostics.coverage.find((entry) => entry.domain === "sound")?.approvedStudies, 0);
+  assert.deepEqual(diagnostics.comparisonQueue[0]?.sharedTags, ["action", "camera"]);
+});

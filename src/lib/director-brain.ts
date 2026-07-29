@@ -1,4 +1,5 @@
 import type { ProductionFormat } from "@/lib/production-formats";
+import type { ApprovedDirectorStudyContext } from "@/lib/director-research";
 
 export type DirectorKnowledgeDomain =
   | "story"
@@ -54,6 +55,7 @@ export type DirectorBrainTrace = {
   patternIds: string[];
   periodProfileId: string | null;
   sourceIds: string[];
+  approvedStudies: ApprovedDirectorStudyContext[];
   warnings: string[];
   selectionReasons: string[];
   attentionMap: Array<{
@@ -63,7 +65,7 @@ export type DirectorBrainTrace = {
   }>;
 };
 
-export const DIRECTOR_BRAIN_VERSION = "2026.07.29-a";
+export const DIRECTOR_BRAIN_VERSION = "2026.07.29-b";
 
 export const DIRECTOR_BRAIN_POLICY = [
   "Learn reusable craft relationships, never reproduce a screenplay, transcript, shot list, or scene verbatim.",
@@ -544,6 +546,7 @@ export function retrieveDirectorKnowledge(input: {
     patternIds: unique(selected.map((pattern) => pattern.id)),
     periodProfileId: period?.id ?? null,
     sourceIds,
+    approvedStudies: [],
     warnings,
     selectionReasons,
     attentionMap: buildAttentionMap(input.durationSeconds),
@@ -583,6 +586,15 @@ export function buildDirectorPromptBlock(trace: DirectorBrainTrace) {
         ]
       : []),
     ...trace.warnings.map((warning) => `HISTORICAL RESOLUTION WARNING: ${warning}`),
+    ...(trace.approvedStudies.length
+      ? [
+          "HUMAN-APPROVED RESEARCH PRINCIPLES:",
+          ...trace.approvedStudies.flatMap((study) => [
+            `STUDY ${study.id}: ${study.studyTitle}. Source: ${study.sourceTitle} (${study.sourceKind}).`,
+            ...study.principles.map((principle) => `- ${principle}`),
+          ]),
+        ]
+      : []),
     "SECOND-BY-SECOND ATTENTION MAP:",
     ...trace.attentionMap.map((beat) => `${beat.second.toString().padStart(2, "0")}s ${beat.phase}: ${beat.job}`),
     "Do not recreate a protected movie scene or imitate a living filmmaker's signature style. Apply only the abstract craft relationships above to the user's original production.",

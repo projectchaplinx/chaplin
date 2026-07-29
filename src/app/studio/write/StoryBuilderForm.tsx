@@ -210,6 +210,7 @@ function DirectorBrainTracePanel({ trace }: { trace: DirectorBrainTrace }) {
             {trace.patternIds.length} craft rules
             {trace.periodProfileId ? ` · ${traceLabel(trace.periodProfileId)}` : ""}
             {" · "}{trace.sourceIds.length} sources
+            {trace.approvedStudies.length ? ` · ${trace.approvedStudies.length} approved studies` : ""}
           </span>
         </span>
         <span className="text-[10px] text-grey">See decisions ↓</span>
@@ -248,6 +249,19 @@ function DirectorBrainTracePanel({ trace }: { trace: DirectorBrainTrace }) {
           <div className="mt-4 rounded-lg border border-amber-300/30 bg-amber-300/[0.06] p-3">
             <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Historical resolution needed</p>
             {trace.warnings.map((warning) => <p key={warning} className="mt-1 text-[10px] leading-5 text-amber-100/80">{warning}</p>)}
+          </div>
+        )}
+        {trace.approvedStudies.length > 0 && (
+          <div className="mt-4 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.045] p-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-200">Human-approved research used</p>
+            <ul className="mt-2 space-y-1.5 text-[10px] leading-5 text-grey">
+              {trace.approvedStudies.map((study) => (
+                <li key={study.id}>
+                  <span className="font-semibold text-ink">{study.studyTitle}</span>
+                  {" · "}{study.sourceTitle}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[9px] text-grey">

@@ -37,6 +37,7 @@ import {
   retrieveDirectorKnowledge,
   type DirectorBrainTrace,
 } from "@/lib/director-brain";
+import { retrieveApprovedDirectorResearch } from "@/lib/server/director-research";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // json_schema output on a full scene draft can run 35-55s; give real headroom over the wall clock
@@ -401,12 +402,17 @@ export async function POST(request: Request) {
       productImageUrl: clean(body.productImageUrl, 2000),
       productImageName: clean(body.productImageName, 180),
     };
+    const directorBrief = [input.brief, input.title, input.logline].filter(Boolean).join(" ");
     directorTrace = retrieveDirectorKnowledge({
-      brief: [input.brief, input.title, input.logline].filter(Boolean).join(" "),
+      brief: directorBrief,
       format,
       durationSeconds,
       sceneCount: input.requiredSceneCount,
     });
+    directorTrace = {
+      ...directorTrace,
+      approvedStudies: await retrieveApprovedDirectorResearch(directorBrief).catch(() => []),
+    };
     if (format === "spot" && !input.productImageUrl) {
       return Response.json({ error: "A product image is required before writing a brand Spot." }, { status: 400 });
     }
@@ -478,6 +484,7 @@ export async function POST(request: Request) {
         historicalProfileId: directorTrace.periodProfileId,
         warnings: directorTrace.warnings,
         sourceIds: directorTrace.sourceIds,
+        approvedStudyIds: directorTrace.approvedStudies.map((study) => study.id),
       },
     });
     const messageContent: OpenAIInputContent[] = [];
@@ -512,6 +519,7 @@ export async function POST(request: Request) {
         directorPeriodProfileId: directorTrace.periodProfileId,
         directorSourceIds: directorTrace.sourceIds,
         directorWarnings: directorTrace.warnings,
+        directorApprovedStudyIds: directorTrace.approvedStudies.map((study) => study.id),
       },
     });
     const response = await requestOpenAIFromLegacyMessages({
@@ -618,6 +626,7 @@ ${buildDirectorPromptBlock(directorTrace)}`,
         directorPeriodProfileId: directorTrace.periodProfileId,
         directorSourceIds: directorTrace.sourceIds,
         directorWarnings: directorTrace.warnings,
+        directorApprovedStudyIds: directorTrace.approvedStudies.map((study) => study.id),
       },
       await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
       response.headers.get("request-id"),

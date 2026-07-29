@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import AdminDirectorResearch from "@/components/AdminDirectorResearch";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -8,6 +9,7 @@ import {
   DIRECTOR_SOURCES,
 } from "@/lib/director-brain";
 import { getServerAuthIdentity } from "@/lib/server/auth";
+import { listDirectorResearch } from "@/lib/server/director-research";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,16 @@ export default async function AdminDirectorBrainPage() {
   if (identity?.role !== "admin") redirect("/super-admin?next=/admin/director-brain");
 
   const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
+  const { research, researchError } = await (async () => {
+    try {
+      return { research: await listDirectorResearch(), researchError: "" };
+    } catch (error) {
+      return {
+        research: { storageReady: false, studies: [] },
+        researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
+      };
+    }
+  })();
 
   return (
     <main className="app-width min-w-0 px-4 py-8 sm:px-6 sm:py-10" data-director-brain>
@@ -55,6 +67,8 @@ export default async function AdminDirectorBrainPage() {
           ))}
         </ol>
       </section>
+
+      <AdminDirectorResearch initialBundle={research} initialError={researchError} />
 
       <section className="mb-9">
         <div className="mb-4">

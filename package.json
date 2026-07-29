@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.64",
+  "version": "0.2.65",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:setup": "node scripts/setup-database.mjs",
+    "db:director-research": "node scripts/apply-director-research.mjs",
     "verify:providers": "node scripts/verify-providers.mjs",
     "verify:pipeline-state": "node scripts/verify-pipeline-state.mjs",
     "verify:system": "node scripts/verify-system.mjs",
@@ -27,6 +28,7 @@
     "test:feed": "node --import tsx --test src/lib/feed-mentions.test.ts",
     "test:scene-variety": "node --import tsx --test src/lib/scene-variety.test.ts",
     "test:director-brain": "node --import tsx --test src/lib/director-brain.test.ts",
+    "test:director-research": "node --import tsx --test src/lib/director-research.test.ts",
     "test:prompt-compaction": "node --import tsx --test src/lib/prompt-compaction.test.ts",
     "test:video-types": "node --import tsx --test src/lib/video-brief.test.ts src/lib/production-prompting.test.ts src/lib/shot-director.test.ts",
     "test:screen-time": "node --import tsx --test src/lib/screen-time.test.ts",

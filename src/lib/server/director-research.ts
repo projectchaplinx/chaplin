@@ -2,7 +2,8 @@ import "server-only";
 
 import {
   normalizeDirectorStudyInput,
-  scoreDirectorStudyForBrief,
+  rankApprovedDirectorResearch,
+  type ApprovedDirectorStudyContext,
   type DirectorResearchBundle,
   type DirectorResearchSourceRecord,
   type DirectorSceneStudy,
@@ -224,37 +225,8 @@ export async function reviewDirectorStudy(input: Record<string, unknown>, userId
   if (result.error) throw new Error(`Review Director Brain study: ${result.error.message}`);
 }
 
-export type ApprovedDirectorStudyContext = {
-  id: string;
-  studyTitle: string;
-  workTitle: string;
-  sourceTitle: string;
-  sourceUrl: string | null;
-  sourceKind: DirectorSourceKind;
-  rightsBasis: string;
-  principles: string[];
-  score: number;
-};
-
 export async function retrieveApprovedDirectorResearch(brief: string, limit = 4): Promise<ApprovedDirectorStudyContext[]> {
   const bundle = await listDirectorResearch(300);
   if (!bundle.storageReady) return [];
-  return bundle.studies
-    .filter((study) => study.status === "approved")
-    .map((study) => ({ study, score: scoreDirectorStudyForBrief(study, brief) }))
-    .filter((entry) => entry.score > 0)
-    .sort((left, right) => right.score - left.score || right.study.updatedAt.localeCompare(left.study.updatedAt))
-    .slice(0, Math.max(1, Math.min(10, limit)))
-    .map(({ study, score }) => ({
-      id: study.id,
-      studyTitle: study.studyTitle,
-      workTitle: study.workTitle,
-      sourceTitle: study.source.title,
-      sourceUrl: study.source.sourceUrl,
-      sourceKind: study.source.sourceKind,
-      rightsBasis: study.source.rightsBasis,
-      principles: study.candidatePrinciples,
-      score,
-    }));
+  return rankApprovedDirectorResearch(bundle.studies, brief, limit);
 }
-

@@ -33,6 +33,9 @@ expression. It learns relationships such as:
 7. The same trace is written into generation metadata and returned to Studio.
 8. The creator can expand the Director Brain trace beside the generated draft.
 9. Super Admin can inspect the complete corpus at `/admin/director-brain`.
+10. Rights-cleared studies enter a separate draft/review/approval ledger.
+11. Magic can retrieve only approved abstract principles; raw observations,
+    rights notes, and rejected or unreviewed studies never enter its prompt.
 
 ## Knowledge layers
 
@@ -207,17 +210,18 @@ expert review. Failed hypotheses remain in the audit ledger.
 
 ### Phase 2 - research ingestion and review
 
-- [ ] Persist source records, scene studies, evidence observations, pattern
+- [x] Persist source records, scene studies, evidence observations, pattern
   candidates, and review states.
-- [ ] Add Super Admin intake for licensed, public-domain, institutional, and
+- [x] Add Super Admin intake for licensed, public-domain, institutional, and
   original Chaplin studies.
-- [ ] Add source deduplication, access/rights basis, review, and rejection.
-- [ ] Distill approved observations into candidate patterns without copying
+- [x] Add source deduplication, access/rights basis, review, and rejection.
+- [x] Distill approved observations into candidate patterns without copying
   expressive content.
 
 ### Phase 3 - retrieval and evaluation
 
-- [ ] Add database-backed retrieval with deterministic fallback.
+- [x] Add database-backed approved-principle retrieval with deterministic
+  static fallback.
 - [ ] Record a first-class decision trace for every writing and render run.
 - [ ] Evaluate attention, geography, tactic change, continuity, period, sound,
   provider adherence, and human verdicts.
@@ -241,7 +245,8 @@ expert review. Failed hypotheses remain in the audit ledger.
 - [ ] Weekly research queue and review.
 - [ ] Monthly provider re-benchmark.
 - [ ] Pattern decay and contradiction review.
-- [ ] Coverage dashboard by craft, genre, time, region, and confidence.
+- [x] Initial coverage, confidence, source-diversity, rights, and human
+  comparison dashboard.
 - [ ] Exportable decision report for each finished production.
 
 ## Initial primary research register

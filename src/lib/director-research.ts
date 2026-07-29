@@ -56,6 +56,48 @@ export type DirectorResearchBundle = {
   studies: DirectorSceneStudy[];
 };
 
+export type ApprovedDirectorStudyContext = {
+  id: string;
+  studyTitle: string;
+  workTitle: string;
+  sourceTitle: string;
+  sourceUrl: string | null;
+  sourceKind: DirectorSourceKind;
+  rightsBasis: string;
+  principles: string[];
+  score: number;
+};
+
+export const DIRECTOR_RESEARCH_DOMAINS = [
+  "story",
+  "camera",
+  "blocking",
+  "editing",
+  "sound",
+  "action",
+  "dialogue",
+  "comedy",
+  "suspense",
+  "period",
+  "ai",
+] as const;
+
+export type DirectorResearchDiagnostics = {
+  approvedStudies: number;
+  awaitingDecision: number;
+  sourceCount: number;
+  rightsDocumented: number;
+  confidence: Record<DirectorStudyObservation["confidence"], number>;
+  coverage: Array<{ domain: typeof DIRECTOR_RESEARCH_DOMAINS[number]; approvedStudies: number }>;
+  comparisonQueue: Array<{
+    leftId: string;
+    leftTitle: string;
+    rightId: string;
+    rightTitle: string;
+    sharedTags: string[];
+  }>;
+};
+
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "";
 }
@@ -200,4 +242,67 @@ export function scoreDirectorStudyForBrief(study: DirectorSceneStudy, brief: str
     ...study.candidatePrinciples,
   ].join(" ").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/);
   return searchable.reduce((score, token) => score + (query.has(token) ? 1 : 0), 0);
+}
+
+export function rankApprovedDirectorResearch(
+  studies: DirectorSceneStudy[],
+  brief: string,
+  limit = 4,
+): ApprovedDirectorStudyContext[] {
+  return studies
+    .filter((study) => study.status === "approved")
+    .map((study) => ({ study, score: scoreDirectorStudyForBrief(study, brief) }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score || right.study.updatedAt.localeCompare(left.study.updatedAt))
+    .slice(0, Math.max(1, Math.min(10, limit)))
+    .map(({ study, score }) => ({
+      id: study.id,
+      studyTitle: study.studyTitle,
+      workTitle: study.workTitle,
+      sourceTitle: study.source.title,
+      sourceUrl: study.source.sourceUrl,
+      sourceKind: study.source.sourceKind,
+      rightsBasis: study.source.rightsBasis,
+      principles: study.candidatePrinciples,
+      score,
+    }));
+}
+
+export function buildDirectorResearchDiagnostics(studies: DirectorSceneStudy[]): DirectorResearchDiagnostics {
+  const approved = studies.filter((study) => study.status === "approved");
+  const confidence = studies
+    .flatMap((study) => study.observations)
+    .reduce<Record<DirectorStudyObservation["confidence"], number>>((counts, observation) => {
+      counts[observation.confidence] += 1;
+      return counts;
+    }, { low: 0, medium: 0, high: 0 });
+  const coverage = DIRECTOR_RESEARCH_DOMAINS.map((domain) => ({
+    domain,
+    approvedStudies: approved.filter((study) => study.tags.includes(domain)).length,
+  }));
+  const comparisonQueue: DirectorResearchDiagnostics["comparisonQueue"] = [];
+  for (let leftIndex = 0; leftIndex < approved.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < approved.length; rightIndex += 1) {
+      const left = approved[leftIndex];
+      const right = approved[rightIndex];
+      const sharedTags = left.tags.filter((tag) => right.tags.includes(tag));
+      if (sharedTags.length < 2) continue;
+      comparisonQueue.push({
+        leftId: left.id,
+        leftTitle: left.studyTitle,
+        rightId: right.id,
+        rightTitle: right.studyTitle,
+        sharedTags: sharedTags.slice(0, 5),
+      });
+    }
+  }
+  return {
+    approvedStudies: approved.length,
+    awaitingDecision: studies.filter((study) => study.status === "draft" || study.status === "reviewed").length,
+    sourceCount: new Set(studies.map((study) => study.source.id)).size,
+    rightsDocumented: studies.filter((study) => study.source.rightsBasis.trim().length >= 10).length,
+    confidence,
+    coverage,
+    comparisonQueue: comparisonQueue.slice(0, 20),
+  };
 }

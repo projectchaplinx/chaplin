@@ -61,3 +61,27 @@ test("movie titles never become a request to copy protected expression", () => {
   });
   assert.match(buildDirectorPromptBlock(trace), /Do not recreate a protected movie scene/i);
 });
+
+test("human-approved research adds only reviewed abstract principles to the prompt", () => {
+  const trace = retrieveDirectorKnowledge({
+    brief: "An original chase whose route becomes progressively narrower.",
+    format: "punch",
+    durationSeconds: 15,
+    sceneCount: 4,
+  });
+  trace.approvedStudies = [{
+    id: "study-route-pressure",
+    studyTitle: "Route pressure study",
+    workTitle: "Rights-cleared Chaplin test",
+    sourceTitle: "Chaplin production test 12",
+    sourceUrl: null,
+    sourceKind: "chaplin-test",
+    rightsBasis: "Owned internal production test.",
+    principles: ["Escalate a pursuit by visibly removing one viable route at each beat."],
+    score: 4,
+  }];
+  const prompt = buildDirectorPromptBlock(trace);
+  assert.match(prompt, /HUMAN-APPROVED RESEARCH PRINCIPLES/);
+  assert.match(prompt, /removing one viable route/);
+  assert.doesNotMatch(prompt, /Owned internal production test/);
+});

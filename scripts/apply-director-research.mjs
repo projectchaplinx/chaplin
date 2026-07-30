@@ -16,12 +16,14 @@ const sql = postgres(process.env.SUPABASE_DB_URL, {
 try {
   await sql.file("supabase/migrations/202607290002_director_research.sql");
   await sql.file("supabase/migrations/202607300001_director_research_campaign.sql");
+  await sql.file("supabase/migrations/202607300002_director_decision_traces.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
-      to_regclass('public.director_scene_studies')::text as studies
+      to_regclass('public.director_scene_studies')::text as studies,
+      to_regclass('public.director_decision_traces')::text as decisions
   `;
-  if (!tables?.sources || !tables?.studies) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.76 - 2026-07-30 - Live Director Brain graph
+
+- Add a LangGraph-style Director Brain view at the top of Super Admin's
+  Director Brain page, with selectable writing and render runs.
+- Persist the complete directing decision trace from Magic Write through the
+  production pipeline, including sources, patterns, period-world resolution,
+  attention beats, provider, model, outcome, and failure state.
+- Connect render progress and completion back to the same trace so the graph
+  distinguishes selected, running, succeeded, and failed decisions.
+- Expand the research campaign with structured Library of Congress and
+  Metropolitan Museum evidence sources for scalable period-world grounding.
+
 ## v0.2.75 - 2026-07-30 - Locked first looks in Feed
 
 - Publish the exact canonical character cover to Feed when a creator locks it

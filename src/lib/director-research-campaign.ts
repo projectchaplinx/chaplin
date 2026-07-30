@@ -27,7 +27,7 @@ export type DirectorResearchCoverageTarget = {
   reason: string;
 };
 
-export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-c";
+export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-d";
 
 export const DIRECTOR_RESEARCH_COVERAGE_TARGETS: DirectorResearchCoverageTarget[] = [
   { id: "story", label: "Story change", track: "film-craft", targetApprovedStudies: 12, reason: "Objectives, tactics, reversals, choices, and consequences." },
@@ -44,6 +44,38 @@ export const DIRECTOR_RESEARCH_COVERAGE_TARGETS: DirectorResearchCoverageTarget[
 ];
 
 export const DIRECTOR_RESEARCH_CAMPAIGN: DirectorResearchCampaignItem[] = [
+  {
+    id: "loc-json-api-era-evidence",
+    track: "period-world",
+    title: "Library of Congress structured era-evidence discovery",
+    institution: "Library of Congress",
+    sourceUrl: "https://www.loc.gov/apis/json-and-yaml/",
+    sourceKind: "institutional",
+    rightsBasis: "Official Library of Congress API documentation used to discover item-level dated evidence and rights metadata; each selected item retains its own rights advisory and record URL.",
+    accessNotes: "Use search, format, collection, and item endpoints. Filter by date, location, subject, and collection; preserve item ID, created/published date, place, medium, repository, rights advisory, and access date.",
+    targetTags: ["period", "production-design", "costume", "location", "transport"],
+    researchQuestions: [
+      "Which dated, located records support the exact city, community, occupation, and year in the production brief?",
+      "Which rights and metadata fields must remain attached when an observation becomes a reusable world constraint?",
+    ],
+    priority: "now",
+  },
+  {
+    id: "met-collection-api-material-evidence",
+    track: "period-world",
+    title: "Met Collection API material-world discovery",
+    institution: "The Metropolitan Museum of Art",
+    sourceUrl: "https://metmuseum.github.io/",
+    sourceKind: "institutional",
+    rightsBasis: "Official Metropolitan Museum of Art open-access API documentation used to discover object-level date, culture, geography, medium, and rights information.",
+    accessNotes: "Query object IDs, then retain object URL, culture, object begin/end dates, geography, classification, medium, dimensions, repository, public-domain status, and access date.",
+    targetTags: ["period", "production-design", "costume", "materials", "objects"],
+    researchQuestions: [
+      "Which objects and construction materials are evidenced for the resolved culture, date range, role, and location?",
+      "How should uncertain or elite ceremonial objects be kept out of ordinary daily-life scenes?",
+    ],
+    priority: "now",
+  },
   {
     id: "academy-craft-guides",
     track: "film-craft",

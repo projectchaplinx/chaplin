@@ -5,6 +5,7 @@ import { SEED_WORLD } from "@/data/seed";
 import { buildProductionBible } from "@/lib/production-prompting";
 import type { CameraMovementId } from "@/lib/camera-movements";
 import type { EnergyState, FramingConstraint, SceneProp } from "@/lib/direction-safety";
+import type { DirectorBrainTrace } from "@/lib/director-brain";
 import type {
   Character,
   Story,
@@ -69,6 +70,7 @@ export interface NewStoryInput {
   sceneProps?: SceneProp[];
   productImageUrl?: string;
   productImageName?: string;
+  directorTrace?: DirectorBrainTrace;
   authorId: string;
   coverHue: number;
   castCharacterIds: string[];
@@ -247,6 +249,7 @@ export const useChaplinStore = create<ChaplinState>((set, get) => ({
       sceneProps: input.sceneProps,
       productImageUrl: input.productImageUrl,
       productImageName: input.productImageName,
+      directorTrace: input.directorTrace,
       coverHue: input.coverHue,
       createdAt: timestamp,
       scenes,

@@ -8,6 +8,10 @@ import {
   securityErrorStatus,
 } from "@/lib/server/request-security";
 import { adBoardSchema } from "@/lib/ad-board";
+import { retrieveDirectorKnowledge } from "@/lib/director-brain";
+import { normalizeProductionFormat, productionDuration, productionShotCount } from "@/lib/production-formats";
+import { createDirectorDecisionTrace } from "@/lib/server/director-decisions";
+import { retrieveApprovedDirectorResearch } from "@/lib/server/director-research";
 
 export const runtime = "nodejs";
 
@@ -79,6 +83,46 @@ export async function POST(request: Request) {
       spec,
       createdBy: identity.id,
       idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined,
+    });
+    const tracedFormat = typeof spec.directorTrace === "object" && spec.directorTrace && "query" in spec.directorTrace
+      ? (spec.directorTrace as { query?: { format?: unknown } }).query?.format
+      : outputType;
+    const format = normalizeProductionFormat(
+      typeof tracedFormat === "string" ? tracedFormat : outputType,
+      outputType === "episode" ? "episode" : outputType === "spot" ? "spot" : outputType === "punch" ? "punch" : "spark",
+    );
+    const durationSeconds = productionDuration(format, Number(spec.durationSeconds));
+    const sceneCount = Number.isFinite(Number(spec.shotCount))
+      ? Math.max(1, Math.min(60, Math.round(Number(spec.shotCount))))
+      : productionShotCount(format, durationSeconds);
+    const directorBrief = [spec.title, spec.logline, spec.creativeDirection, outputType]
+      .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      .join(" ");
+    const retrieved = retrieveDirectorKnowledge({
+      brief: directorBrief || `${outputType} production`,
+      format,
+      durationSeconds,
+      sceneCount,
+    });
+    const trace = {
+      ...retrieved,
+      approvedStudies: await retrieveApprovedDirectorResearch(directorBrief).catch(() => []),
+    };
+    await createDirectorDecisionTrace({
+      runKind: "render",
+      status: run.status === "running" ? "running" : "selected",
+      userId: identity.id,
+      characterId: Array.isArray(spec.castCharacterIds) && typeof spec.castCharacterIds[0] === "string"
+        ? spec.castCharacterIds[0]
+        : scopeType === "actor" ? scopeId : null,
+      storyId: typeof spec.productionId === "string" ? spec.productionId : null,
+      pipelineRunId: run.id,
+      trace,
+      briefExcerpt: directorBrief,
+      provider: "chaplin-pipeline",
+      model: outputType,
+    }).catch((error) => {
+      console.error("Create Director Brain render decision:", error);
     });
     return Response.json({ run }, { status: 201 });
   } catch (error) {

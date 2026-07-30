@@ -611,6 +611,7 @@ export function ProductionWorkspace({
             sceneProps: story.sceneProps ?? [],
             productImageUrl: story.productImageUrl ?? null,
             productImageName: story.productImageName ?? null,
+            directorTrace: story.directorTrace ?? null,
             script: story.scenes.map((scene, index) => ({
               beat: index + 1,
               slotId: scene.slotId ?? String(index + 1),

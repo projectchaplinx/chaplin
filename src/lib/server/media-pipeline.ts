@@ -1,4 +1,5 @@
 import "server-only";
+import { syncRenderDecisionStatus } from "@/lib/server/director-decisions";
 
 import { getMediaOutputDefinition } from "@/lib/media-output-definitions";
 import type {
@@ -414,6 +415,9 @@ export async function transitionMediaPipelineStep(input: {
   if (runStatus === "succeeded") runPatch.completed_at = now;
   const runUpdate = await supabase.from("media_pipeline_runs").update(runPatch).eq("id", input.runId);
   fail(runUpdate.error, "Update media pipeline");
+  await syncRenderDecisionStatus(input.runId, runStatus).catch((error) => {
+    console.error("Sync Director Brain render decision:", error);
+  });
 
   if (runContext.output_type === "shot") {
     const takeStatus = runStatus === "succeeded"

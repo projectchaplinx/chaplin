@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AdminDirectorCampaign from "@/components/AdminDirectorCampaign";
 import AdminDirectorResearch from "@/components/AdminDirectorResearch";
+import AdminDirectorGraph from "@/components/AdminDirectorGraph";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/director-brain";
 import { getServerAuthIdentity } from "@/lib/server/auth";
 import { listDirectorResearch } from "@/lib/server/director-research";
+import { listDirectorDecisionTraces } from "@/lib/server/director-decisions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,7 @@ export default async function AdminDirectorBrainPage() {
   if (identity?.role !== "admin") redirect("/super-admin?next=/admin/director-brain");
 
   const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
-  const { research, researchError } = await (async () => {
+  const [{ research, researchError }, decisionBundle] = await Promise.all([(async () => {
     try {
       return { research: await listDirectorResearch(), researchError: "" };
     } catch (error) {
@@ -28,7 +30,7 @@ export default async function AdminDirectorBrainPage() {
         researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
       };
     }
-  })();
+  })(), listDirectorDecisionTraces(100)]);
 
   return (
     <main className="app-width min-w-0 px-4 py-8 sm:px-6 sm:py-10" data-director-brain>
@@ -41,6 +43,8 @@ export default async function AdminDirectorBrainPage() {
       </header>
 
       <AdminSectionNav />
+
+      <AdminDirectorGraph decisions={decisionBundle.decisions} storageReady={decisionBundle.storageReady} />
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[

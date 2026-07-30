@@ -194,7 +194,7 @@ Each production should eventually score:
 A pattern is promoted only when it improves a defined measure or survives
 expert review. Failed hypotheses remain in the audit ledger.
 
-## Corpus campaign 2026.07.30-c
+## Corpus campaign 2026.07.30-d
 
 The research backlog is now a versioned production object. Super Admin can see
 every queued source, its rights basis, priority, target coverage, research
@@ -215,6 +215,24 @@ The first campaign contains four tracks:
 4. **AI production** — dated official contracts for OpenAI video, Google
    Gemini/Veo, Runway, and Adobe Firefly. Provider claims remain hypotheses
    until Chaplin repeats them in controlled generation tests.
+
+### Scalable historical evidence discovery
+
+Historical worlds are no longer expanded by hand-written decade presets alone.
+The queue includes two structured, institution-owned discovery paths:
+
+1. The Library of Congress JSON API finds dated and located photographs,
+   films, maps, and catalog records. Every selected item retains its item URL,
+   created/published date, place, medium, collection, repository, rights
+   advisory, and access date.
+2. The Met Collection API finds open-access objects by culture, object date,
+   geography, classification, medium, and dimensions. An object is evidence
+   for a specific material context, not permission to treat an elite or
+   ceremonial object as ordinary daily life.
+
+Discovery records do not enter prompts. An analyst still converts item-level
+evidence into a scene study, states uncertainty and social context, and obtains
+human approval before a production rule becomes retrievable.
 
 Coverage is measured by **approved studies**, not by bookmarked sources.
 Current targets span story, camera, blocking, editing, sound, performance,
@@ -289,7 +307,9 @@ Two guarded research commands support this workflow:
 
 - [x] Add database-backed approved-principle retrieval with deterministic
   static fallback.
-- [ ] Record a first-class decision trace for every writing and render run.
+- [x] Record a first-class decision trace for every writing and render run.
+- [x] Show a live Director Graph in Super Admin with selected rules, historical
+  profile, sources, approved studies, attention map, provider, and outcome.
 - [ ] Evaluate attention, geography, tactic change, continuity, period, sound,
   provider adherence, and human verdicts.
 - [ ] Add controlled A/B evaluation before pattern promotion.

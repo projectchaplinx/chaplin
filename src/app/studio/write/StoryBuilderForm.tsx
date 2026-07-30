@@ -1218,6 +1218,7 @@ export default function StoryBuilderForm() {
       sceneProps,
       productImageUrl: productImageUrl || undefined,
       productImageName: productImageName || undefined,
+      directorTrace: directorTrace ?? undefined,
       authorId: currentUserId,
       coverHue: castCharacters[0]?.avatarHue ?? 205,
       castCharacterIds: castIds,

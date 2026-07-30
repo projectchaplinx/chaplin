@@ -1,4 +1,5 @@
 import type { CameraMovementId } from "@/lib/camera-movements";
+import type { DirectorBrainTrace } from "@/lib/director-brain";
 import type { CharacterCardV2 } from "@/lib/character-card";
 import type { EnergyState, FramingConstraint, SceneProp } from "@/lib/direction-safety";
 
@@ -255,6 +256,8 @@ export interface Story {
   sceneProps?: SceneProp[];
   productImageUrl?: string;
   productImageName?: string;
+  /** Exact explainable direction selected when Magic authored this script. */
+  directorTrace?: DirectorBrainTrace;
   coverHue: number; // fallback gradient when backdropUrl is unset
   backdropUrl?: string;
   posterUrl?: string; // finished portrait poster art (title baked in) shown on the story page

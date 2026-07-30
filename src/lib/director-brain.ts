@@ -65,7 +65,7 @@ export type DirectorBrainTrace = {
   }>;
 };
 
-export const DIRECTOR_BRAIN_VERSION = "2026.07.30-c";
+export const DIRECTOR_BRAIN_VERSION = "2026.07.30-d";
 
 export const DIRECTOR_BRAIN_POLICY = [
   "Learn reusable craft relationships, never reproduce a screenplay, transcript, shot list, or scene verbatim.",
@@ -125,6 +125,14 @@ export const DIRECTOR_SOURCES: DirectorKnowledgeSource[] = [
     note: "Millions of dated photographs documenting 1950-1970 clothing, cities, homes, work, transport, and customs.",
   },
   {
+    id: "loc-json-api",
+    title: "JSON/YAML for loc.gov",
+    institution: "Library of Congress",
+    url: "https://www.loc.gov/apis/json-and-yaml/",
+    domains: ["period-world"],
+    note: "Structured discovery of dated photographs, films, maps, metadata, rights notes, locations, and collection records without scraping.",
+  },
+  {
     id: "loc-pittsburgh-1955",
     title: "Pittsburgh Photographic Essay, 1955-56",
     institution: "Library of Congress",
@@ -147,6 +155,14 @@ export const DIRECTOR_SOURCES: DirectorKnowledgeSource[] = [
     url: "https://www.metmuseum.org/essays/uruk-the-first-city",
     domains: ["period-world"],
     note: "Evidence for southern Mesopotamia around 3500-2900 BCE, including urban form, mud brick, clay, trade, and administration.",
+  },
+  {
+    id: "met-collection-api",
+    title: "The Met Collection API",
+    institution: "The Metropolitan Museum of Art",
+    url: "https://metmuseum.github.io/",
+    domains: ["period-world"],
+    note: "Open-access object records expose culture, object dates, geography, medium, dimensions, and image availability for evidence-led material research.",
   },
   {
     id: "met-old-kingdom",

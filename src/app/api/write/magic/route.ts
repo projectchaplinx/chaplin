@@ -38,6 +38,10 @@ import {
   type DirectorBrainTrace,
 } from "@/lib/director-brain";
 import { retrieveApprovedDirectorResearch } from "@/lib/server/director-research";
+import {
+  createDirectorDecisionTrace,
+  updateDirectorDecisionTrace,
+} from "@/lib/server/director-decisions";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // json_schema output on a full scene draft can run 35-55s; give real headroom over the wall clock
@@ -370,6 +374,7 @@ export async function POST(request: Request) {
   let fallbackInput: Parameters<typeof fallbackDraft>[0] | null = null;
   let directorTrace: DirectorBrainTrace | null = null;
   let jobId: string | null = null;
+  let decisionTraceId: string | null = null;
   try {
     assertRequestBodySize(request, 512 * 1024);
     const identity = await requireRequestIdentity(request);
@@ -413,6 +418,17 @@ export async function POST(request: Request) {
       ...directorTrace,
       approvedStudies: await retrieveApprovedDirectorResearch(directorBrief).catch(() => []),
     };
+    decisionTraceId = await createDirectorDecisionTrace({
+      runKind: "writing",
+      status: "selected",
+      userId: identity.id,
+      characterId: castIds[0] ?? characters[0]?.id ?? null,
+      trace: directorTrace,
+      briefExcerpt: directorBrief,
+    }).catch((error) => {
+      console.error("Create Director Brain writing decision:", error);
+      return null;
+    });
     if (format === "spot" && !input.productImageUrl) {
       return Response.json({ error: "A product image is required before writing a brand Spot." }, { status: 400 });
     }
@@ -420,6 +436,12 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      await updateDirectorDecisionTrace(decisionTraceId, {
+        status: "succeeded",
+        provider: "chaplin-local",
+        model: "deterministic-fallback",
+        outcome: { fallback: true, reason: "OPENAI_API_KEY is not configured." },
+      });
       return Response.json({
         draft: finalizeDirectionDraft(fallbackDraft(input), input),
         provider: "chaplin-local",
@@ -521,6 +543,12 @@ export async function POST(request: Request) {
         directorWarnings: directorTrace.warnings,
         directorApprovedStudyIds: directorTrace.approvedStudies.map((study) => study.id),
       },
+    });
+    await updateDirectorDecisionTrace(decisionTraceId, {
+      status: "running",
+      generationJobId: jobId,
+      provider: "openai",
+      model,
     });
     const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
@@ -631,6 +659,15 @@ ${buildDirectorPromptBlock(directorTrace)}`,
       await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
       response.headers.get("request-id"),
     );
+    await updateDirectorDecisionTrace(decisionTraceId, {
+      status: "succeeded",
+      outcome: {
+        title: directedDraft.title,
+        sceneCount: directedDraft.scenes.length,
+        castIds: directedDraft.castIds,
+        repairedEmptyScenes,
+      },
+    });
     return Response.json({
       draft: directedDraft,
       provider: repairedEmptyScenes ? "chaplin-local" : "openai",
@@ -645,6 +682,11 @@ ${buildDirectorPromptBlock(directorTrace)}`,
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not build the magic draft.";
     if (jobId) await failGeneration(jobId, message);
+    await updateDirectorDecisionTrace(decisionTraceId, {
+      status: "failed",
+      errorMessage: message,
+      outcome: { fallbackReturned: Boolean(fallbackInput) },
+    }).catch(() => undefined);
     if (fallbackInput) {
       return Response.json({
         draft: finalizeDirectionDraft(fallbackDraft(fallbackInput), fallbackInput),

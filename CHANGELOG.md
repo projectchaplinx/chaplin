@@ -3,6 +3,20 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.73 - 2026-07-30 - Honest live actor creation
+
+- Removed the canned instant actor draft that pre-filled a generic name,
+  promise, personality, voice, sound, and score while the real model was still
+  working.
+- Made new actor forms begin without a selected archetype, sound preset, score
+  preset, voice description, or forced visual medium.
+- Stream name, role/archetype, character promise, and character engine into the
+  form only after each completed value arrives from OpenAI.
+- Replaced timer-driven progress with field-driven progress and made the model
+  select one to three supported archetypes from the creator's actual brief.
+- Prevent full actor generation from silently substituting canned local content
+  when OpenAI is unavailable or fails.
+
 ## v0.2.72 - 2026-07-30 - Anatomy-gated scene frames
 
 - Added actor-specific hand ownership and prop-grip direction to every

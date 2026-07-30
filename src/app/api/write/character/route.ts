@@ -17,8 +17,11 @@ import { beginGeneration, completeGeneration, failGeneration } from "@/lib/serve
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { assertRequestBodySize, enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
 import {
+  openAIOutputText,
   openAIWritingModel,
   requestOpenAIFromLegacyMessages,
+  requestOpenAIResponse,
+  type OpenAIResponseData,
 } from "@/lib/server/openai-responses";
 
 export const runtime = "nodejs";
@@ -26,6 +29,7 @@ export const maxDuration = 120; // json_schema output on this bible runs 35-55s;
 
 type CharacterSuggestion = {
   name: string;
+  archetypes: Archetype[];
   tagline: string;
   personality: string;
   voiceGender: VoiceGender;
@@ -37,9 +41,46 @@ type CharacterSuggestion = {
 
 const TARGETS = ["all", "tagline", "personality", "voice", "sfx", "theme"] as const;
 type SuggestionTarget = typeof TARGETS[number];
+const CHARACTER_ARCHETYPES = [
+  "villain",
+  "mentor",
+  "love-interest",
+  "comic-relief",
+  "hero",
+  "superhero",
+  "horror",
+  "rebel",
+  "sidekick",
+  "outsider",
+] as const satisfies readonly Archetype[];
+const CHARACTER_ARCHETYPE_SET = new Set<string>(CHARACTER_ARCHETYPES);
 
 function clean(value: unknown, max = 2000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function validArchetypes(value: unknown) {
+  if (!Array.isArray(value)) return [] as Archetype[];
+  return [...new Set(
+    value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => clean(item, 40))
+      .filter((item): item is Archetype => CHARACTER_ARCHETYPE_SET.has(item)),
+  )].slice(0, 3);
+}
+
+function inferLocalArchetype(brief: string): Archetype {
+  const value = brief.toLowerCase();
+  if (/\b(?:villain|antagonist|crime boss|tyrant|manipulat)/.test(value)) return "villain";
+  if (/\b(?:mentor|teacher|guide|master|elder)/.test(value)) return "mentor";
+  if (/\b(?:romance|lover|love interest|beloved)/.test(value)) return "love-interest";
+  if (/\b(?:comic|comedian|funny|joke|clown)/.test(value)) return "comic-relief";
+  if (/\b(?:superhero|superpower|powered|metahuman)/.test(value)) return "superhero";
+  if (/\b(?:horror|ghost|haunt|monster|occult)/.test(value)) return "horror";
+  if (/\b(?:rebel|revolution|defy|insurgent|renegade)/.test(value)) return "rebel";
+  if (/\b(?:sidekick|assistant|partner|second-in-command)/.test(value)) return "sidekick";
+  if (/\b(?:outsider|stranger|exile|loner|outcast)/.test(value)) return "outsider";
+  return "hero";
 }
 
 function suggestedName(input: {
@@ -224,6 +265,7 @@ function localSuggestion(input: {
   const character = { ...input, name, ...suggestion, productionBible, voiceDesc: suggestion.voiceDescription, sfxDesc: suggestion.signatureSfx, themeDesc: suggestion.themeScore };
   return {
     name,
+    archetypes: input.archetypeMix?.length ? input.archetypeMix : [input.archetype],
     ...suggestion,
     voiceDescription: composeVoiceDesignPrompt(character),
     signatureSfx: composeSfxPrompt(character),
@@ -271,9 +313,15 @@ const PRODUCTION_BIBLE_SCHEMA = {
 const OUTPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "tagline", "personality", "voiceGender", "voiceDescription", "signatureSfx", "themeScore", "productionBible"],
+  required: ["name", "archetypes", "tagline", "personality", "voiceGender", "voiceDescription", "signatureSfx", "themeScore", "productionBible"],
   properties: {
     name: STRING,
+    archetypes: {
+      type: "array",
+      minItems: 1,
+      maxItems: 3,
+      items: { type: "string", enum: CHARACTER_ARCHETYPES },
+    },
     tagline: { type: "string" },
     personality: { type: "string" },
     voiceGender: { type: "string", enum: ["feminine", "masculine", "androgynous"] },
@@ -283,6 +331,64 @@ const OUTPUT_SCHEMA = {
     productionBible: PRODUCTION_BIBLE_SCHEMA,
   },
 } as const;
+
+function finalizeCharacterSuggestion(
+  parsed: CharacterSuggestion,
+  input: Parameters<typeof localSuggestion>[0],
+  creatorName: string,
+) {
+  const resolvedArchetypes = validArchetypes(parsed.archetypes);
+  const archetypes = resolvedArchetypes.length
+    ? resolvedArchetypes
+    : input.archetypeMix?.length
+      ? input.archetypeMix
+      : [input.archetype];
+  const resolvedInput = {
+    ...input,
+    archetype: archetypes[0],
+    archetypeMix: archetypes,
+  };
+  const coherentName = coherentGeneratedCharacterName({
+    creatorName,
+    modelName: clean(parsed.name, 120),
+    archetype: resolvedInput.archetype,
+    characterBrief: input.characterBrief ?? "",
+    voiceGender: input.voiceGender,
+  });
+  const coherentSuggestion = enforceGeneratedNameCoherence(
+    enforceVoiceCoherence({ ...parsed, archetypes }, input.characterBrief ?? ""),
+    coherentName,
+  );
+  return {
+    coherentName,
+    suggestion: {
+      ...enforceModernAudioDirection(
+        enforceVisualIdentity(coherentSuggestion, input.appearanceBrief ?? "", input.worldBrief ?? ""),
+        resolvedInput,
+      ),
+      archetypes,
+    },
+  };
+}
+
+function parseOpenAIStreamEvent(rawEvent: string) {
+  const data = rawEvent
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim())
+    .join("");
+  if (!data || data === "[DONE]") return null;
+  return JSON.parse(data) as {
+    type?: string;
+    delta?: string;
+    error?: { message?: string };
+    response?: OpenAIResponseData;
+  };
+}
+
+function streamLine(value: object) {
+  return `${JSON.stringify(value)}\n`;
+}
 
 export async function POST(request: Request) {
   let fallbackInput: Parameters<typeof localSuggestion>[0] | null = null;
@@ -304,18 +410,13 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const archetypeMix = Array.isArray(body.archetypes)
-      ? body.archetypes
-          .filter((a): a is string => typeof a === "string")
-          .map((a) => clean(a, 40) as Archetype)
-          .slice(0, 5)
-      : [];
+    const archetypeMix = validArchetypes(body.archetypes);
     const characterBrief = clean(body.characterBrief, 1500);
     const visualFormat = clean(body.visualFormat, 500);
     const requestedVoiceGender = clean(body.voiceGender, 30) as VoiceGender;
     const input = {
       name,
-      archetype: (clean(body.archetype, 40) as Archetype) || archetypeMix[0] || "hero",
+      archetype: archetypeMix[0] || inferLocalArchetype(characterBrief),
       archetypeMix,
       characterBrief,
       voiceGender: explicitVoiceGender(characterBrief) ??
@@ -330,16 +431,14 @@ export async function POST(request: Request) {
         .join("\n"),
       worldBrief: clean(body.worldBrief, 1200),
     };
-    fallbackInput = input;
-    if (body.draftOnly === true) {
-      return Response.json({
-        suggestion: localSuggestion(input),
-        provider: "chaplin-draft",
-        configured: Boolean(process.env.OPENAI_API_KEY),
-      });
-    }
+    // Full actor generation must never masquerade a canned local draft as
+    // model output. Partial single-field helpers retain their local fallback.
+    fallbackInput = target === "all" ? null : input;
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      if (target === "all") {
+        return Response.json({ error: "OpenAI actor generation is not configured." }, { status: 503 });
+      }
       return Response.json({ suggestion: localSuggestion(input), provider: "chaplin-local", configured: false });
     }
 
@@ -359,6 +458,115 @@ export async function POST(request: Request) {
         suggestionTarget: target,
       },
     });
+    if (body.stream === true && target === "all") {
+      const providerResponse = await requestOpenAIResponse({
+        model,
+        maxOutputTokens: Math.max(4000, writingConfig.maxTokens ?? 8000),
+        stream: true,
+        schema: OUTPUT_SCHEMA,
+        schemaName: "chaplin_character",
+        instructions: `${writingConfig.promptPrelude} You are Chaplin's casting director and production designer. Build one original, production-ready fictional actor from the maker's brief. Return every schema field. Choose one to three role archetypes from the allowed schema values; put the dominant role first and derive the choice from the actual character brief rather than defaulting to hero. Preserve a creator-supplied name exactly, otherwise invent one plausible culturally grounded name. Make every dramatic, performance, visual, cinematography, voice, sound, music, and story value concrete and usable in production. Keep explicit creator direction binding. Never imitate a celebrity, public figure, copyrighted character, existing composition, or generic archetype costume. Voice language and accent must come from explicit canon; otherwise use neutral international English. Visual face anchors, hair, wardrobe, silhouette, light, and recognition locks must be specific and repeatable.`,
+        messages: [{
+          role: "user",
+          content: JSON.stringify({
+            target,
+            instruction: "Write the complete actor now. Emit name and archetypes first, followed by the remaining identity fields.",
+            archetypeGuidance: input.archetypeMix.length
+              ? `The creator selected ${input.archetypeMix.join(", ")}. Preserve the dominant choice first and add only genuinely supported secondary roles.`
+              : "No role was selected. Infer one to three archetypes from the character brief and never silently default to hero.",
+            briefGuidance: "The characterBrief is binding creator canon.",
+            nameCoherenceGuidance: "Infer presentation from explicit words in the brief. Keep name, pronouns, voice, and appearance coherent.",
+            currentCharacter: input,
+            visualIdentityGuidance: "Return exactly four concise recognition locks spanning the most distinctive face, hair, wardrobe, or signature prop invariants.",
+          }),
+        }],
+      });
+      if (!providerResponse.ok || !providerResponse.body) {
+        const failure = await providerResponse.text();
+        throw new Error(failure || `OpenAI returned ${providerResponse.status}.`);
+      }
+      const generationJobId = jobId;
+      const providerRequestId = providerResponse.headers.get("request-id");
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let providerBuffer = "";
+          let generatedText = "";
+          let completedResponse: OpenAIResponseData | undefined;
+          try {
+            const reader = providerResponse.body!.getReader();
+            const decoder = new TextDecoder();
+            while (true) {
+              const { done, value } = await reader.read();
+              providerBuffer += decoder.decode(value, { stream: !done });
+              providerBuffer = providerBuffer.replace(/\r\n/g, "\n");
+              let boundary = providerBuffer.indexOf("\n\n");
+              while (boundary >= 0) {
+                const rawEvent = providerBuffer.slice(0, boundary);
+                providerBuffer = providerBuffer.slice(boundary + 2);
+                const event = parseOpenAIStreamEvent(rawEvent);
+                if (event?.type === "response.output_text.delta" && typeof event.delta === "string") {
+                  generatedText += event.delta;
+                  controller.enqueue(encoder.encode(streamLine({ type: "delta", delta: event.delta })));
+                } else if (event?.type === "response.completed" && event.response) {
+                  completedResponse = event.response;
+                } else if (
+                  event?.type === "error" ||
+                  event?.type === "response.failed" ||
+                  event?.type === "response.incomplete"
+                ) {
+                  throw new Error(event.error?.message || event.response?.error?.message || "OpenAI could not finish the actor.");
+                }
+                boundary = providerBuffer.indexOf("\n\n");
+              }
+              if (done) break;
+            }
+            generatedText ||= completedResponse ? openAIOutputText(completedResponse) : "";
+            if (!generatedText) throw new Error("OpenAI returned no character suggestion.");
+            const parsed = JSON.parse(generatedText) as CharacterSuggestion;
+            const finalized = finalizeCharacterSuggestion(parsed, input, name);
+            const providerUsage = completedResponse?.usage ?? {};
+            const usage = {
+              inputTokens: Number(providerUsage.input_tokens ?? 0),
+              outputTokens: Number(providerUsage.output_tokens ?? 0),
+              providerTokens: Number(providerUsage.input_tokens ?? 0) + Number(providerUsage.output_tokens ?? 0),
+              providerUsage,
+            };
+            await completeGeneration(
+              generationJobId,
+              undefined,
+              {
+                suggestionTarget: target,
+                generatedName: finalized.coherentName,
+                generatedArchetypes: finalized.suggestion.archetypes,
+                streamed: true,
+              },
+              await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
+              completedResponse?.id ?? providerRequestId,
+            );
+            controller.enqueue(encoder.encode(streamLine({
+              type: "complete",
+              suggestion: finalized.suggestion,
+              provider: "openai",
+              model,
+              usage: providerUsage,
+            })));
+          } catch (streamError) {
+            const message = streamError instanceof Error ? streamError.message : "Character streaming failed.";
+            await failGeneration(generationJobId, message);
+            controller.enqueue(encoder.encode(streamLine({ type: "error", error: message })));
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "content-type": "application/x-ndjson; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+    }
     const response = await requestOpenAIFromLegacyMessages({
       method: "POST",
       headers: {
@@ -404,17 +612,7 @@ export async function POST(request: Request) {
     } catch {
       throw new Error("OpenAI's output was cut off mid-write. Try again.");
     }
-    const coherentName = coherentGeneratedCharacterName({
-      creatorName: name,
-      modelName: clean(parsed.name, 120),
-      archetype: input.archetype,
-      characterBrief: input.characterBrief,
-      voiceGender: input.voiceGender,
-    });
-    const coherentSuggestion = enforceGeneratedNameCoherence(
-      enforceVoiceCoherence(parsed, input.characterBrief),
-      coherentName,
-    );
+    const finalized = finalizeCharacterSuggestion(parsed, input, name);
     const usage = {
       inputTokens: Number(data.usage?.input_tokens ?? 0),
       outputTokens: Number(data.usage?.output_tokens ?? 0),
@@ -424,15 +622,16 @@ export async function POST(request: Request) {
     await completeGeneration(
       jobId,
       undefined,
-      { suggestionTarget: target, generatedName: coherentName },
+      {
+        suggestionTarget: target,
+        generatedName: finalized.coherentName,
+        generatedArchetypes: finalized.suggestion.archetypes,
+      },
       await calculateGenerationBilling({ kind: "openai-prompt", provider: "openai", model, usage }),
       response.headers.get("request-id"),
     );
     return Response.json({
-      suggestion: enforceModernAudioDirection(
-        enforceVisualIdentity(coherentSuggestion, input.appearanceBrief, input.worldBrief),
-        input,
-      ),
+      suggestion: finalized.suggestion,
       provider: "openai",
       model,
       usage: data.usage,

@@ -12,6 +12,7 @@ import { ARCHETYPES } from "@/data/seed";
 import type { Archetype, CharacterProductionBible, LicenseType, VoiceGender } from "@/lib/types";
 import { ARCHETYPE_HUE, ARCHETYPE_LABEL } from "@/lib/format";
 import { alignVoiceDescription, explicitVoiceGender } from "@/lib/character-coherence";
+import { completedJsonValue } from "@/lib/character-stream";
 import { buildProductionBible } from "@/lib/production-prompting";
 
 const VOICE_PRESETS = [
@@ -139,6 +140,7 @@ const QUICK_ACTOR_PRESETS = [
 type SuggestionTarget = "all" | "tagline" | "personality" | "voice" | "sfx" | "theme";
 type CharacterSuggestion = {
   name: string;
+  archetypes: Archetype[];
   tagline: string;
   personality: string;
   voiceGender: VoiceGender;
@@ -175,50 +177,31 @@ type CharacterBuilderDraft = {
 
 const IDENTITY_BUILD_STAGES = [
   {
-    shortLabel: "Idea",
-    label: "Understanding your idea",
-    detail: "Finding the actor’s role, tension, and point of view.",
-    startsAt: 0,
+    shortLabel: "Waiting",
+    label: "Waiting for the first model output",
+    detail: "No character fields are filled until the live response provides them.",
   },
   {
-    shortLabel: "Personality",
-    label: "Building the personality",
-    detail: "Writing desires, contradictions, and pressure behavior.",
-    startsAt: 8,
+    shortLabel: "Role",
+    label: "Choosing the role",
+    detail: "The name arrived. The model is choosing the actor’s actual archetype.",
   },
   {
-    shortLabel: "Look",
-    label: "Designing the look",
-    detail: "Shaping face, age, wardrobe, palette, and world.",
-    startsAt: 18,
+    shortLabel: "Promise",
+    label: "Writing the character promise",
+    detail: "The generated role is visible. The character promise is arriving next.",
   },
   {
-    shortLabel: "Voice",
-    label: "Shaping voice and sound",
-    detail: "Directing delivery, signature sound, and musical identity.",
-    startsAt: 30,
+    shortLabel: "Engine",
+    label: "Writing the character engine",
+    detail: "The promise is visible. Wants, contradictions, and pressure behavior are streaming.",
   },
   {
     shortLabel: "Bible",
-    label: "Locking the actor bible",
-    detail: "Checking continuity across every generated field.",
-    startsAt: 42,
+    label: "Completing the production bible",
+    detail: "The core identity is visible. Look, voice, sound, music, and continuity are finishing.",
   },
 ] as const;
-
-function estimatedBuildProgress(target: SuggestionTarget, elapsedSeconds: number) {
-  if (target !== "all") return Math.min(92, 12 + elapsedSeconds * 4);
-  if (elapsedSeconds <= 8) return 4 + elapsedSeconds;
-  if (elapsedSeconds <= 30) return Math.round(12 + (elapsedSeconds - 8) * 2.4);
-  return Math.min(94, Math.round(65 + (elapsedSeconds - 30) * 1.2));
-}
-
-function activeBuildStage(elapsedSeconds: number) {
-  return IDENTITY_BUILD_STAGES.reduce(
-    (active, stage, index) => elapsedSeconds >= stage.startsAt ? index : active,
-    0,
-  );
-}
 
 function appearanceDirectionFromBible(bible: CharacterProductionBible) {
   return [
@@ -271,23 +254,23 @@ export default function NewCharacterPage() {
   const removeCharacter = useChaplinStore((s) => s.removeCharacter);
 
   const [name, setName] = useState("");
-  const [archetypes, setArchetypes] = useState<Archetype[]>(["hero"]);
+  const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [characterBrief, setCharacterBrief] = useState("");
   const [tagline, setTagline] = useState("");
   const [personality, setPersonality] = useState("");
   const [appearanceBrief, setAppearanceBrief] = useState("");
   const [worldBrief, setWorldBrief] = useState("");
   const [voiceGender, setVoiceGender] = useState<VoiceGender>("androgynous");
-  const [voicePreset, setVoicePreset] = useState(VOICE_PRESETS[0]);
+  const [voicePreset, setVoicePreset] = useState(VOICE_PRESETS[VOICE_PRESETS.length - 1]);
   const [customVoice, setCustomVoice] = useState("");
-  const [sfxPreset, setSfxPreset] = useState(SFX_PRESETS[0]);
+  const [sfxPreset, setSfxPreset] = useState(SFX_PRESETS[SFX_PRESETS.length - 1]);
   const [customSfx, setCustomSfx] = useState("");
-  const [scorePreset, setScorePreset] = useState(SCORE_PRESETS[0]);
+  const [scorePreset, setScorePreset] = useState(SCORE_PRESETS[SCORE_PRESETS.length - 1]);
   const [customScore, setCustomScore] = useState("");
   const [licenseType, setLicenseType] = useState<LicenseType>("paid");
   const [royaltyRate, setRoyaltyRate] = useState(30);
   const [hue, setHue] = useState(205);
-  const [visualFormat, setVisualFormat] = useState<CharacterFormat | null>("live-action");
+  const [visualFormat, setVisualFormat] = useState<CharacterFormat | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -295,6 +278,7 @@ export default function NewCharacterPage() {
   const [suggestionMessage, setSuggestionMessage] = useState("");
   const [productionBible, setProductionBible] = useState<CharacterProductionBible | undefined>();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [streamedFieldCount, setStreamedFieldCount] = useState(0);
   const [revealingField, setRevealingField] = useState("");
   const suggestStartedAt = useRef<number | null>(null);
   const magicWriteRunRef = useRef(0);
@@ -302,8 +286,8 @@ export default function NewCharacterPage() {
   const [recoverableDraft, setRecoverableDraft] = useState<Partial<CharacterBuilderDraft> | null>(null);
   const restoredDraftKey = useRef<string | null>(null);
   const draftStorageKey = `chaplin-character-builder:${currentUserId}`;
-  const progress = suggestingTarget ? estimatedBuildProgress(suggestingTarget, elapsedSeconds) : 0;
-  const buildStage = activeBuildStage(elapsedSeconds);
+  const progress = suggestingTarget === "all" ? streamedFieldCount * 20 : 0;
+  const buildStage = Math.min(streamedFieldCount, IDENTITY_BUILD_STAGES.length - 1);
 
   useEffect(() => {
     if (!suggestingTarget) {
@@ -332,7 +316,7 @@ export default function NewCharacterPage() {
     setArchetypes(
       Array.isArray(draft.archetypes) && draft.archetypes.length
         ? draft.archetypes.filter((value): value is Archetype => (ARCHETYPES as readonly string[]).includes(value))
-        : ["hero"],
+        : [],
     );
     setCharacterBrief(draft.characterBrief ?? "");
     setTagline(draft.tagline ?? "");
@@ -340,16 +324,16 @@ export default function NewCharacterPage() {
     setAppearanceBrief(restoredAppearanceBrief);
     setWorldBrief(restoredWorldBrief);
     setVoiceGender(restoredVoiceGender);
-    setVoicePreset(draft.voicePreset ?? VOICE_PRESETS[0]);
+    setVoicePreset(draft.voicePreset ?? VOICE_PRESETS[VOICE_PRESETS.length - 1]);
     setCustomVoice(alignVoiceDescription(draft.customVoice ?? "", restoredVoiceGender));
-    setSfxPreset(draft.sfxPreset ?? SFX_PRESETS[0]);
+    setSfxPreset(draft.sfxPreset ?? SFX_PRESETS[SFX_PRESETS.length - 1]);
     setCustomSfx(draft.customSfx ?? "");
-    setScorePreset(draft.scorePreset ?? SCORE_PRESETS[0]);
+    setScorePreset(draft.scorePreset ?? SCORE_PRESETS[SCORE_PRESETS.length - 1]);
     setCustomScore(draft.customScore ?? "");
     setLicenseType(draft.licenseType ?? "paid");
     setRoyaltyRate(typeof draft.royaltyRate === "number" ? draft.royaltyRate : 30);
     setHue(typeof draft.hue === "number" ? draft.hue : 205);
-    setVisualFormat(draft.visualFormat ?? "live-action");
+    setVisualFormat(draft.visualFormat ?? null);
     setProductionBible(draft.productionBible);
   }
 
@@ -495,8 +479,7 @@ export default function NewCharacterPage() {
   function toggleArchetype(a: Archetype) {
     setArchetypes((current) => {
       if (current.includes(a)) {
-        // keep at least one selected
-        return current.length > 1 ? current.filter((item) => item !== a) : current;
+        return current.filter((item) => item !== a);
       }
       return [...current, a];
     });
@@ -512,6 +495,7 @@ export default function NewCharacterPage() {
   const showCustomSfx = isCustomSfx || Boolean(customSfx.trim());
   const showCustomScore = isCustomScore || Boolean(customScore.trim());
   const requiredCreationFields = [
+    ["role / archetype", archetypes[0] ?? ""],
     ["name", name],
     ["character promise", tagline],
     ["character engine", personality],
@@ -563,6 +547,7 @@ export default function NewCharacterPage() {
       return;
     }
     setElapsedSeconds(0);
+    setStreamedFieldCount(0);
     setSuggestingTarget(target);
     setError("");
     setSuggestionMessage("");
@@ -570,7 +555,7 @@ export default function NewCharacterPage() {
     const requestPayload = {
       target,
       name: effectiveName,
-      archetype: effectiveArchetypes[0] ?? "hero",
+      archetype: effectiveArchetypes[0] ?? "",
       archetypes: effectiveArchetypes,
       characterBrief: effectiveBrief,
       tagline,
@@ -584,54 +569,95 @@ export default function NewCharacterPage() {
       visualFormat: selectedVisualFormat?.direction,
     };
     try {
-      if (target === "all") {
-        void fetch("/api/write/character", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...requestPayload, draftOnly: true }),
-        })
-          .then(async (draftResponse) => {
-            const draftData = await draftResponse.json() as { suggestion?: CharacterSuggestion };
-            if (
-              !draftResponse.ok ||
-              !draftData.suggestion ||
-              magicWriteRunRef.current !== magicWriteRun
-            ) return;
-            const draft = draftData.suggestion;
-            const draftVoiceGender = explicitVoiceGender(
-              `${effectiveBrief} ${draft.personality}`,
-            ) ?? draft.voiceGender;
-            setName(effectiveName.trim() || draft.name.trim());
-            setTagline(draft.tagline);
-            setPersonality(draft.personality);
-            setAppearanceBrief((current) => current.trim() || appearanceDirectionFromBible(draft.productionBible));
-            setWorldBrief((current) => current.trim() || worldDirectionFromBible(draft.productionBible));
-            setVoiceGender(draftVoiceGender);
-            setVoicePreset(VOICE_PRESETS[VOICE_PRESETS.length - 1]);
-            setCustomVoice(alignVoiceDescription(draft.voiceDescription, draftVoiceGender));
-            setSfxPreset(SFX_PRESETS[SFX_PRESETS.length - 1]);
-            setCustomSfx(draft.signatureSfx);
-            setScorePreset(SCORE_PRESETS[SCORE_PRESETS.length - 1]);
-            setCustomScore(draft.themeScore);
-            setRevealingField("draft");
-            setSuggestionMessage("The first identity draft is on the page. GPT-5.6 Terra is refining the details now…");
-          })
-          .catch(() => {
-            // The full AI request remains authoritative if the instant draft fails.
-          });
-      }
-
       const response = await fetch("/api/write/character", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestPayload),
+        body: JSON.stringify({ ...requestPayload, stream: target === "all" }),
       });
-      const data = await response.json() as {
+      let data: {
         suggestion?: CharacterSuggestion;
         provider?: string;
         warning?: string;
         error?: string;
       };
+      if (
+        target === "all" &&
+        response.ok &&
+        response.body &&
+        response.headers.get("content-type")?.includes("application/x-ndjson")
+      ) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let lineBuffer = "";
+        let generatedJson = "";
+        let completeEvent: typeof data | null = null;
+        const revealed = new Set<string>();
+        const revealCompletedFields = () => {
+          const streamedName = completedJsonValue(generatedJson, "name");
+          if (!effectiveName.trim() && typeof streamedName === "string" && !revealed.has("name")) {
+            setName(streamedName);
+            setRevealingField("name");
+            revealed.add("name");
+          }
+          const streamedArchetypes = completedJsonValue(generatedJson, "archetypes");
+          const validStreamedArchetypes = Array.isArray(streamedArchetypes)
+            ? streamedArchetypes.filter((item): item is Archetype =>
+                typeof item === "string" && (ARCHETYPES as readonly string[]).includes(item))
+            : [];
+          if (validStreamedArchetypes.length && !revealed.has("archetypes")) {
+            setArchetypes(validStreamedArchetypes);
+            setRevealingField("archetypes");
+            revealed.add("archetypes");
+          }
+          const streamedTagline = completedJsonValue(generatedJson, "tagline");
+          if (typeof streamedTagline === "string" && !revealed.has("tagline")) {
+            setTagline(streamedTagline);
+            setRevealingField("tagline");
+            revealed.add("tagline");
+          }
+          const streamedPersonality = completedJsonValue(generatedJson, "personality");
+          if (typeof streamedPersonality === "string" && !revealed.has("personality")) {
+            setPersonality(streamedPersonality);
+            setRevealingField("personality");
+            revealed.add("personality");
+          }
+          if (revealed.size) {
+            setStreamedFieldCount(Math.min(4, revealed.size));
+            const latest = [...revealed].at(-1) ?? "identity";
+            setSuggestionMessage(`Writing ${latest.replace("-", " ")} from the live model response…`);
+          }
+        };
+        while (true) {
+          const { done, value } = await reader.read();
+          lineBuffer += decoder.decode(value, { stream: !done });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const event = JSON.parse(line) as {
+              type?: "delta" | "complete" | "error";
+              delta?: string;
+              suggestion?: CharacterSuggestion;
+              error?: string;
+              provider?: string;
+            };
+            if (event.type === "delta" && event.delta) {
+              generatedJson += event.delta;
+              revealCompletedFields();
+            }
+            if (event.type === "complete" && event.suggestion) {
+              setStreamedFieldCount(5);
+              completeEvent = { suggestion: event.suggestion, provider: event.provider };
+            }
+            if (event.type === "error") throw new Error(event.error || "Character streaming failed.");
+          }
+          if (done) break;
+        }
+        if (!completeEvent) throw new Error("Magic Write ended before the actor was complete.");
+        data = completeEvent;
+      } else {
+        data = await response.json() as typeof data;
+      }
       if (!response.ok || !data.suggestion) throw new Error(data.error || "Character suggestions failed.");
       const suggestion = data.suggestion;
       const suggestedName = effectiveName.trim() || suggestion.name.trim();
@@ -648,15 +674,14 @@ export default function NewCharacterPage() {
         coherentVoiceGender,
       );
       if (target === "all") {
-        // Save the complete response before the staged reveal begins. A dev
-        // refresh during the animation can therefore restore every generated
-        // field, not only the brief that was present when the request started.
+        // Save the authoritative complete result after the live provider stream
+        // finishes so a refresh can restore the same generated actor.
         const recoveredDraft: CharacterBuilderDraft = {
           version: 1,
           updatedAt: new Date().toISOString(),
           name: suggestedName,
           nameSource: creatorNamedRef.current ? "creator" : "generated",
-          archetypes: effectiveArchetypes,
+          archetypes: suggestion.archetypes,
           characterBrief: effectiveBrief,
           tagline: suggestion.tagline,
           personality: suggestion.personality,
@@ -677,45 +702,23 @@ export default function NewCharacterPage() {
         };
         window.localStorage.setItem(draftStorageKey, JSON.stringify(recoveredDraft));
 
-        // Magic Write fills the form field by field, so you watch the actor
-        // assemble instead of everything appearing in one blink.
-        const reveal: Array<[string, () => void]> = [
-          ["name", () => setName(suggestedName)],
-          ["tagline", () => setTagline(suggestion.tagline)],
-          ["personality", () => setPersonality(suggestion.personality)],
-          ["look", () => {
-            setAppearanceBrief(generatedAppearanceBrief);
-            setWorldBrief(generatedWorldBrief);
-          }],
-          ["voice", () => {
-            setVoiceGender(coherentVoiceGender);
-            setVoicePreset(VOICE_PRESETS[VOICE_PRESETS.length - 1]);
-            setCustomVoice(coherentVoiceDescription);
-          }],
-          ["sfx", () => {
-            setSfxPreset(SFX_PRESETS[SFX_PRESETS.length - 1]);
-            setCustomSfx(suggestion.signatureSfx);
-          }],
-          ["theme", () => {
-            setScorePreset(SCORE_PRESETS[SCORE_PRESETS.length - 1]);
-            setCustomScore(suggestion.themeScore);
-          }],
-          ["bible", () => setProductionBible(suggestion.productionBible)],
-        ];
-        reveal.forEach(([label, apply], index) => {
-          window.setTimeout(() => {
-            if (magicWriteRunRef.current !== magicWriteRun) return;
-            apply();
-            setRevealingField(label);
-            setSuggestionMessage(`✦ ${label === "bible" ? "Actor Direction Bible" : label.charAt(0).toUpperCase() + label.slice(1)} written…`);
-            if (index === reveal.length - 1) {
-              window.setTimeout(() => {
-                setRevealingField("");
-                setSuggestionMessage("");
-              }, 700);
-            }
-          }, 450 * index);
-        });
+        if (magicWriteRunRef.current !== magicWriteRun) return;
+        setName(suggestedName);
+        setArchetypes(suggestion.archetypes);
+        setTagline(suggestion.tagline);
+        setPersonality(suggestion.personality);
+        setAppearanceBrief(generatedAppearanceBrief);
+        setWorldBrief(generatedWorldBrief);
+        setVoiceGender(coherentVoiceGender);
+        setVoicePreset(VOICE_PRESETS[VOICE_PRESETS.length - 1]);
+        setCustomVoice(coherentVoiceDescription);
+        setSfxPreset(SFX_PRESETS[SFX_PRESETS.length - 1]);
+        setCustomSfx(suggestion.signatureSfx);
+        setScorePreset(SCORE_PRESETS[SCORE_PRESETS.length - 1]);
+        setCustomScore(suggestion.themeScore);
+        setProductionBible(suggestion.productionBible);
+        setRevealingField("");
+        setSuggestionMessage("");
       } else {
         setProductionBible(suggestion.productionBible);
         if (target === "tagline") setTagline(suggestion.tagline);
@@ -747,6 +750,7 @@ export default function NewCharacterPage() {
     e.preventDefault();
     if (
       !name.trim() ||
+      archetypes.length === 0 ||
       !tagline.trim() ||
       !personality.trim() ||
       !voiceDesc.trim() ||

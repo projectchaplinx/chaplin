@@ -5,6 +5,7 @@ import {
   buildDirectorDecisionDiagnostics,
   type DirectorDecisionTraceRecord,
 } from "@/lib/director-decisions";
+import { DIRECTOR_SOURCES } from "@/lib/director-brain";
 
 type GraphNode = {
   id: string;
@@ -36,7 +37,14 @@ const NODES: GraphNode[] = [
   { id: "rights", label: "Rights gate", detail: "Provenance and analytical-only evidence", x: 190, y: 190, active: () => true },
   { id: "approval", label: "Human approval", detail: "Only reviewed principles can reach a production", x: 360, y: 190, active: (run) => Boolean(run) },
   { id: "retrieval", label: "Director retrieval", detail: "Signals rank rules for this exact brief", x: 530, y: 190, active: (run) => Boolean(run) },
-  { id: "period", label: "World resolver", detail: "Time × place × role × material evidence", x: 530, y: 20, active: (run) => Boolean(run?.trace.periodProfileId) },
+  {
+    id: "period",
+    label: "World resolver",
+    detail: "Time + place + role + material evidence",
+    x: 530,
+    y: 20,
+    active: (run) => Boolean(run?.trace.worldResolution && run.trace.worldResolution.status !== "not-requested"),
+  },
   { id: "attention", label: "Attention map", detail: "Every delivered second receives a story job", x: 530, y: 360, active: (run) => Boolean(run?.trace.attentionMap.length) },
   { id: "writing", label: "Magic Write", detail: "Original editable scene plan with trace attached", x: 720, y: 190, active: (run) => run?.runKind === "writing" || run?.runKind === "render" },
   { id: "render", label: "Render pipeline", detail: "Frames, motion, sound, assembly, continuity", x: 890, y: 190, active: (run) => run?.runKind === "render" },
@@ -70,6 +78,12 @@ function timeLabel(value: string) {
   }).format(new Date(value));
 }
 
+function worldStatusTone(status: "not-requested" | "unresolved" | "partial" | "resolved") {
+  if (status === "resolved") return "border-emerald-400/40 bg-emerald-400/[0.08] text-emerald-200";
+  if (status === "partial") return "border-amber-300/40 bg-amber-300/[0.07] text-amber-100";
+  if (status === "unresolved") return "border-red-400/40 bg-red-400/[0.07] text-red-200";
+  return "border-white/10 text-grey";
+}
 export default function AdminDirectorGraph({
   decisions,
   storageReady,
@@ -263,6 +277,60 @@ export default function AdminDirectorGraph({
 
           {selected ? (
             <div className="grid gap-3 lg:grid-cols-2">
+              {selected.trace.worldResolution && selected.trace.worldResolution.status !== "not-requested" ? (
+                <article className="poster-card rounded-xl p-4 lg:col-span-2" data-world-resolution={selected.trace.worldResolution.status}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-accent-secondary">Resolved world coordinate</p>
+                      <h3 className="mt-1 text-lg font-semibold text-ink">What must be true before period styling begins</h3>
+                    </div>
+                    <span className={`rounded-full border px-3 py-1.5 text-[8px] font-semibold uppercase tracking-[0.14em] ${worldStatusTone(selected.trace.worldResolution.status)}`}>
+                      {selected.trace.worldResolution.status}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                    {[
+                      ["Time", selected.trace.worldResolution.time],
+                      ["Place", selected.trace.worldResolution.place],
+                      ["Role / community", selected.trace.worldResolution.roleOrCommunity],
+                      ["Season / time", selected.trace.worldResolution.seasonOrTime],
+                      ["Immediate location", selected.trace.worldResolution.immediateLocation],
+                    ].map(([label, value]) => (
+                      <div key={label} className={`rounded-lg border p-3 ${value ? "border-white/10 bg-black/15" : "border-red-400/25 bg-red-400/[0.04]"}`}>
+                        <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-grey">{label}</p>
+                        <p className={`mt-1 text-[10px] leading-5 ${value ? "text-ink" : "text-red-200"}`}>{value || "Needs creator input"}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {selected.trace.worldResolution.missing.length ? (
+                    <p className="mt-3 text-[10px] leading-5 text-amber-100">
+                      Missing fields remain neutral in the generation prompt: {selected.trace.worldResolution.missing.join(" · ")}.
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-[10px] leading-5 text-emerald-200">
+                      All five coordinates are present. Evidence remains source-bounded; “resolved” does not permit generic decade shorthand.
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {selected.trace.worldResolution.evidenceSourceIds.map((id) => {
+                      const source = DIRECTOR_SOURCES.find((item) => item.id === id);
+                      return source ? (
+                        <a
+                          key={id}
+                          href={source.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full border border-accent-secondary/30 px-2 py-1 text-[8px] text-accent-secondary hover:border-accent-secondary"
+                        >
+                          {source.title} ↗
+                        </a>
+                      ) : (
+                        <span key={id} className="rounded-full border border-white/10 px-2 py-1 text-[8px] text-grey">{id}</span>
+                      );
+                    })}
+                  </div>
+                </article>
+              ) : null}
               <article className="poster-card rounded-xl p-4">
                 <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-accent-secondary">Why these rules fired</p>
                 <h3 className="mt-1 text-lg font-semibold text-ink">{selected.format} · {selected.durationSeconds ?? "—"}s · {selected.sceneCount} scenes</h3>

@@ -24,7 +24,7 @@ export default async function AdminDirectorBrainPage() {
   if (identity?.role !== "admin") redirect("/super-admin?next=/admin/director-brain");
 
   const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
-  const guidedBrief = "Los Angeles, 1966. In a working service bay, a young mechanic hears an engine stumble, finds a freshly cut ignition wire, and spots the departing sedan responsible. Original 15-second suspense Punch.";
+  const guidedBrief = "Los Angeles, summer 1966, late afternoon. In a working service bay, a young mechanic hears an engine stumble, finds a freshly cut ignition wire, and spots the departing sedan responsible. Original 15-second suspense Punch.";
   const guidedTrace = retrieveDirectorKnowledge({
     brief: guidedBrief,
     format: "punch",

@@ -286,3 +286,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.78 | `95f97a9` | 2026-07-30T18:32:38+05:30 | fix(v0.2.78): keep Style Sheets out of scene seeds |
 | v0.2.79 | `e00d752` | 2026-07-30T19:02:26+05:30 | fix(v0.2.79): use replacement ElevenLabs credential |
 | v0.2.80 | `2c06638` | 2026-07-30T19:25:53+05:30 | fix(v0.2.80): reject malformed ElevenLabs header values |
+| v0.2.81 | `4c70b0e` | 2026-07-30T22:26:38+05:30 | feat(v0.2.81): guide first-time creator onboarding |

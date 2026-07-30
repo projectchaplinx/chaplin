@@ -18,6 +18,9 @@ test("an action pursuit retrieves geography, escalation, rhythm, and AI continui
   assert.ok(trace.patternIds.includes("action-escalation-ladder"));
   assert.ok(trace.patternIds.includes("ai-reference-chain"));
   assert.equal(trace.warnings.length, 0);
+  assert.equal(trace.worldResolution?.status, "partial");
+  assert.equal(trace.worldResolution?.place, "New York City");
+  assert.deepEqual(trace.worldResolution?.missing, ["season-or-time", "immediate-location"]);
   assert.ok(trace.sourceIds.includes("loc-look-collection"));
   assert.equal(trace.attentionMap.length, 15);
   assert.equal(trace.attentionMap[9].phase, "reversal");
@@ -33,6 +36,8 @@ test("3000 BCE without a place is blocked from becoming a generic ancient style"
     sceneCount: 4,
   });
   assert.equal(trace.periodProfileId, null);
+  assert.equal(trace.worldResolution?.status, "unresolved");
+  assert.ok(trace.worldResolution?.missing.includes("place"));
   assert.match(trace.warnings.join(" "), /not one visual world/i);
   assert.match(buildDirectorPromptBlock(trace), /name a region or culture/i);
 });
@@ -46,12 +51,56 @@ test("Uruk resolves to a sourced Mesopotamian material world", () => {
   });
   const details = directorTraceDetails(trace);
   assert.equal(details.period?.id, "uruk-3000-bce");
+  assert.equal(trace.worldResolution?.place, "Uruk, southern Mesopotamia");
+  assert.equal(trace.worldResolution?.roleOrCommunity, "Clerk");
+  assert.equal(trace.worldResolution?.status, "partial");
   assert.ok(details.sources.some((source) => source.id === "met-uruk"));
   const prompt = buildDirectorPromptBlock(trace);
   assert.match(prompt, /mud-brick|clay tablets/i);
   assert.match(prompt, /Roman or Greek columns/i);
 });
 
+test("a complete 1976 Los Angeles coordinate resolves to dated local evidence", () => {
+  const trace = retrieveDirectorKnowledge({
+    brief: "Echo Park, Los Angeles, summer 1976 at sunset. A neighborhood mechanic closes a working garage as traffic passes.",
+    format: "spark",
+    durationSeconds: 5,
+    sceneCount: 1,
+  });
+  assert.equal(trace.periodProfileId, "us-1970s-los-angeles");
+  assert.deepEqual(trace.worldResolution, {
+    status: "resolved",
+    time: "1976",
+    place: "Echo Park, Los Angeles, California",
+    roleOrCommunity: "Mechanic",
+    seasonOrTime: "Summer / Sunset",
+    immediateLocation: "Garage",
+    evidenceSourceIds: [
+      "lapl-photo-collection",
+      "lapl-sunset-strip-1976",
+      "lapl-echo-park-1976",
+      "lapl-hollywood-sunset-1976",
+      "loc-la-used-cars-1970s",
+    ],
+    missing: [],
+  });
+  assert.match(buildDirectorPromptBlock(trace), /WORLD GAPS: none/i);
+  assert.ok(trace.sourceIds.includes("lapl-echo-park-1976"));
+});
+
+test("a decade without a place stays unresolved instead of inventing Los Angeles", () => {
+  const trace = retrieveDirectorKnowledge({
+    brief: "A mechanic discovers sabotage in a garage in the 1970s.",
+    format: "spark",
+    durationSeconds: 5,
+    sceneCount: 1,
+  });
+  assert.equal(trace.periodProfileId, null);
+  assert.equal(trace.worldResolution?.status, "unresolved");
+  assert.equal(trace.worldResolution?.place, null);
+  assert.match(trace.warnings.join(" "), /not one visual world/i);
+  assert.match(buildDirectorPromptBlock(trace), /avoid unsupported invention/i);
+});
 test("movie titles never become a request to copy protected expression", () => {
   const trace = retrieveDirectorKnowledge({
     brief: "Make an original vehicle pursuit with the relentless momentum of a famous car movie.",

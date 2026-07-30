@@ -43,6 +43,16 @@ export type DirectorPeriodProfile = {
   sourceIds: string[];
 };
 
+export type DirectorWorldResolution = {
+  status: "not-requested" | "unresolved" | "partial" | "resolved";
+  time: string | null;
+  place: string | null;
+  roleOrCommunity: string | null;
+  seasonOrTime: string | null;
+  immediateLocation: string | null;
+  evidenceSourceIds: string[];
+  missing: Array<"time" | "place" | "role-or-community" | "season-or-time" | "immediate-location">;
+};
 export type DirectorBrainTrace = {
   version: string;
   query: {
@@ -54,6 +64,7 @@ export type DirectorBrainTrace = {
   signals: string[];
   patternIds: string[];
   periodProfileId: string | null;
+  worldResolution?: DirectorWorldResolution;
   sourceIds: string[];
   approvedStudies: ApprovedDirectorStudyContext[];
   warnings: string[];
@@ -65,7 +76,7 @@ export type DirectorBrainTrace = {
   }>;
 };
 
-export const DIRECTOR_BRAIN_VERSION = "2026.07.30-e";
+export const DIRECTOR_BRAIN_VERSION = "2026.07.30-f";
 
 export const DIRECTOR_BRAIN_POLICY = [
   "Learn reusable craft relationships, never reproduce a screenplay, transcript, shot list, or scene verbatim.",
@@ -147,6 +158,46 @@ export const DIRECTOR_SOURCES: DirectorKnowledgeSource[] = [
     url: "https://blogs.loc.gov/picturethis/2015/12/taking-to-the-streets-new-york-world-telegram-sun-staff-photos/",
     domains: ["period-world"],
     note: "Observed New York faces, streets, events, and everyday life through the 1960s.",
+  },
+  {
+    id: "lapl-photo-collection",
+    title: "Los Angeles Public Library Photo Collection",
+    institution: "Los Angeles Public Library",
+    url: "https://tessa.lapl.org/photocol",
+    domains: ["period-world"],
+    note: "Dated photographs document Southern California life with an emphasis on Los Angeles, across neighborhoods, work, streets, buildings, transport, and communities.",
+  },
+  {
+    id: "lapl-sunset-strip-1976",
+    title: "Sunset Strip, April 1976",
+    institution: "Los Angeles Public Library",
+    url: "https://tessa2.lapl.org/digital/collection/photos/id/137167/",
+    domains: ["period-world"],
+    note: "A dated color street record identifies automobiles, commercial buildings, billboards, street signs, stores, street lighting, and sidewalks at Sunset Boulevard and Sunset Plaza Drive.",
+  },
+  {
+    id: "loc-la-used-cars-1970s",
+    title: "Giant Felix Used Cars, Los Angeles",
+    institution: "Library of Congress",
+    url: "https://www.loc.gov/pictures/item/2017707618/",
+    domains: ["period-world"],
+    note: "A 1977 color-slide record documents a Los Angeles automobile dealership, roadside sign, pumps, and commercial street context.",
+  },
+  {
+    id: "lapl-echo-park-1976",
+    title: "Echo Park, October 1976",
+    institution: "Los Angeles Public Library",
+    url: "https://tessa2.lapl.org/digital/collection/photos/id/137719/",
+    domains: ["period-world"],
+    note: "A dated neighborhood view records homes, apartments, businesses, a church, market, bank, billboards, overhead wires, automobiles, and traffic.",
+  },
+  {
+    id: "lapl-hollywood-sunset-1976",
+    title: "La Brea and Sunset, October 1976",
+    institution: "Los Angeles Public Library",
+    url: "https://tessa2.lapl.org/digital/collection/photos/id/137028/",
+    domains: ["period-world"],
+    note: "A sunset view of a Hollywood intersection records traffic, buses, offices, automobiles, street lighting, and recording-industry businesses.",
   },
   {
     id: "met-uruk",
@@ -378,6 +429,38 @@ export const DIRECTOR_PERIOD_PROFILES: DirectorPeriodProfile[] = [
     sourceIds: ["loc-look-collection", "loc-nyc-streets"],
   },
   {
+    id: "us-1970s-los-angeles",
+    label: "Los Angeles, observed 1970s",
+    dateRange: "1970-1979",
+    region: "Los Angeles, California; exact year, neighborhood, community, occupation, and occasion must still be specified",
+    tags: ["1970", "1970s", "seventies"],
+    evidence: [
+      "Use dated Los Angeles Public Library photographs to resolve the exact street, neighborhood, community, work, clothing, signage, transport, and public-life context.",
+      "A 1976 Sunset Strip record exposes automobiles, commercial buildings, billboards, street signs, shops, street lighting, and sidewalks as separate evidence fields rather than one retro impression.",
+      "The Library of Congress roadside archive supplies dated Los Angeles automotive-business and streetside references from the decade.",
+    ],
+    visualRules: [
+      "Treat Los Angeles as many distinct neighborhoods and working environments; do not substitute a single Hollywood or Sunset Strip look for the whole city.",
+      "Separate period production design from capture language. Dated color slides, newspaper photography, television news, 16mm documentary, and polished narrative cinema are not interchangeable grades.",
+    ],
+    materialRules: [
+      "Verify vehicle model year, accumulated wear, plates, fuel and service equipment, road furniture, shop signage, tools, telephones, print, clothing, and hair against the named year and occupation.",
+      "Allow older vehicles, buildings, and tools to remain in service; a 1974 street is not composed only of objects manufactured in 1974.",
+    ],
+    soundRules: [
+      "Build the location from physically present engines, tires, horns, workshop tools, ventilation, radios, telephones, traffic distance, aircraft, crowds, and room reflections.",
+      "Keep licensed music and score separate from historical ambience; a popular song is not a substitute for the sound of a real Los Angeles location.",
+    ],
+    anachronisms: ["smartphones", "LED signs and fixtures", "modern vehicle lighting", "current road furniture", "contemporary plates", "digital diagnostic tools", "all-purpose orange retro grade", "empty streets where the selected location evidence shows active public life"],
+    sourceIds: [
+      "lapl-photo-collection",
+      "lapl-sunset-strip-1976",
+      "lapl-echo-park-1976",
+      "lapl-hollywood-sunset-1976",
+      "loc-la-used-cars-1970s",
+    ],
+  },
+  {
     id: "uruk-3000-bce",
     label: "Southern Mesopotamia around 3000 BCE",
     dateRange: "ca. 3200-2900 BCE",
@@ -436,7 +519,7 @@ const SIGNAL_RULES: Array<{ id: string; expression: RegExp }> = [
   { id: "suspense", expression: /\b(suspense|tension|stalk|secret|trap|threat|mystery|heist)\b/i },
   { id: "comedy", expression: /\b(comedy|comic|funny|joke|awkward|farce)\b/i },
   { id: "dialogue", expression: /\b(dialogue|conversation|argument|confession|interview|negotiation)\b/i },
-  { id: "history", expression: /\b(history|historical|period|ancient|bc|bce|1950|1960|fifties|sixties)\b/i },
+  { id: "history", expression: /\b(history|historical|period|ancient|bc|bce|1950|1960|1970s|197\d|fifties|sixties|seventies)\b/i },
   { id: "ai", expression: /\b(ai|generated|seedance|veo|runway|video model|image to video)\b/i },
 ];
 
@@ -495,14 +578,76 @@ function normalize(value: string) {
 }
 
 function periodScore(profile: DirectorPeriodProfile, text: string) {
+  if (
+    profile.id === "us-1970s-los-angeles"
+    && !/\b(los angeles|hollywood|west hollywood|sunset strip|echo park)\b/.test(text)
+  ) return 0;
   const tagScore = profile.tags.reduce((score, tag) => score + (text.includes(tag) ? Math.max(2, tag.split(" ").length * 2) : 0), 0);
   const exactYearScore =
     profile.id === "us-1950s-observed" && /\b195\d\b/.test(text) ? 6
       : profile.id === "us-1960s-observed" && /\b196\d\b/.test(text) ? 6
-        : 0;
+        : profile.id === "us-1970s-los-angeles" && /\b197\d\b/.test(text) ? 6
+          : 0;
   return tagScore + exactYearScore;
 }
 
+const WORLD_PLACE_PATTERNS: Array<[RegExp, string]> = [
+  [/\bsunset strip\b/i, "Sunset Strip, West Hollywood, California"],
+  [/\bwest hollywood\b/i, "West Hollywood, California"],
+  [/\beast hollywood\b/i, "East Hollywood, Los Angeles, California"],
+  [/\becho park\b/i, "Echo Park, Los Angeles, California"],
+  [/\bhollywood\b/i, "Hollywood, Los Angeles, California"],
+  [/\blos angeles\b/i, "Los Angeles, California"],
+  [/\bnew york(?: city)?\b/i, "New York City"],
+  [/\bchicago\b/i, "Chicago"],
+  [/\bpittsburgh\b/i, "Pittsburgh"],
+  [/\bdetroit\b/i, "Detroit"],
+  [/\bsan francisco\b/i, "San Francisco"],
+  [/\buruk\b/i, "Uruk, southern Mesopotamia"],
+  [/\b(?:southern )?mesopotamia\b/i, "Southern Mesopotamia"],
+  [/\b(?:ancient )?egypt\b/i, "Egypt"],
+  [/\bunited states\b|\bu\.s\.\b|\bamerica\b/i, "United States"],
+];
+
+const WORLD_ROLE_PATTERN = /\b(mechanic|driver|clerk|worker|merchant|artisan|soldier|officer|farmer|priest|scribe|doctor|nurse|teacher|student|journalist|detective|courier|shopkeeper|performer|family|commuter|crew|community)\b/i;
+const WORLD_LOCATION_PATTERN = /\b(service bay|garage|workshop|street|sidewalk|highway|freeway|road|alley|apartment|house|home|office|shop|store|market|courtyard|temple|palace|tomb|field|river edge|desert|station|airport|school|hospital|factory|warehouse)\b/i;
+
+function titleCase(value: string) {
+  return value.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export function resolveDirectorWorld(
+  brief: string,
+  period: DirectorPeriodProfile | null,
+  historyRequested: boolean,
+): DirectorWorldResolution {
+  const timeMatch = brief.match(/\b(?:ca\.\s*)?\d{3,4}\s*(?:bc|bce|ce|ad)?\b/i);
+  const place = WORLD_PLACE_PATTERNS.find(([expression]) => expression.test(brief))?.[1] ?? null;
+  const role = brief.match(WORLD_ROLE_PATTERN)?.[1] ?? null;
+  const seasonOrTime = [...brief.matchAll(/\b(spring|summer|autumn|fall|winter|dawn|sunrise|morning|noon|afternoon|sunset|dusk|evening|night|midnight)\b/gi)]
+    .map((match) => titleCase(match[1]))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(" / ") || null;
+  const immediateLocation = brief.match(WORLD_LOCATION_PATTERN)?.[1] ?? null;
+  const time = timeMatch?.[0].trim() ?? (period ? period.dateRange : null);
+  const missing: DirectorWorldResolution["missing"] = [];
+  if (!time) missing.push("time");
+  if (!place) missing.push("place");
+  if (!role) missing.push("role-or-community");
+  if (!seasonOrTime) missing.push("season-or-time");
+  if (!immediateLocation) missing.push("immediate-location");
+  const requested = historyRequested || Boolean(period || timeMatch);
+  return {
+    status: !requested ? "not-requested" : !period ? "unresolved" : missing.length ? "partial" : "resolved",
+    time,
+    place,
+    roleOrCommunity: role ? titleCase(role) : null,
+    seasonOrTime,
+    immediateLocation: immediateLocation ? titleCase(immediateLocation) : null,
+    evidenceSourceIds: period?.sourceIds ?? [],
+    missing,
+  };
+}
 export function retrieveDirectorKnowledge(input: {
   brief: string;
   format: ProductionFormat;
@@ -526,9 +671,17 @@ export function retrieveDirectorKnowledge(input: {
     period = null;
     warnings.push("3000 BCE is not one visual world. Name a region or culture before Chaplin selects architecture, clothing, objects, or ritual.");
   }
+  if (
+    /\b(?:197\d|1970s|seventies)\b/i.test(text)
+    && !/\b(los angeles|hollywood|west hollywood|sunset strip|echo park)\b/i.test(text)
+  ) {
+    warnings.push("The 1970s is not one visual world. Name a supported country, city, neighborhood, community or occupation, season or time of day, and immediate location.");
+  }
   if (period?.id.startsWith("us-") && !/\b(united states|u\.s\.|america|american|new york|los angeles|chicago|pittsburgh|detroit|san francisco)\b/i.test(text)) {
     warnings.push(`${period.label} is a US reference profile, not a global decade style. Add the country, city, community, season, and social context.`);
   }
+
+  const worldResolution = resolveDirectorWorld(input.brief, period, signals.includes("history"));
 
   const taggedSignals = unique([
     "all",
@@ -554,6 +707,11 @@ export function retrieveDirectorKnowledge(input: {
     `${input.format} asks for ${input.sceneCount} authored shot${input.sceneCount === 1 ? "" : "s"} across ${input.durationSeconds} seconds.`,
     signals.length ? `Detected craft signals: ${signals.join(", ")}.` : "No specialist genre signal detected; using core visual-story rules.",
     period ? `Matched historical evidence profile: ${period.label}.` : "No unambiguous historical evidence profile matched.",
+    worldResolution.status === "resolved"
+      ? "World coordinate resolved: time, place, role or community, season or time of day, and immediate location."
+      : worldResolution.status === "partial" || worldResolution.status === "unresolved"
+        ? `World coordinate still needs: ${worldResolution.missing.join(", ") || "a supported evidence profile"}.`
+        : "No historical world coordinate was requested.",
     input.sceneCount > 1
       ? "Sequence rules include geography, causality, rhythm, and reference continuity."
       : "Single-shot rules prioritize one readable change, controlled motion, and a clear landing.",
@@ -569,6 +727,7 @@ export function retrieveDirectorKnowledge(input: {
     signals,
     patternIds: unique(selected.map((pattern) => pattern.id)),
     periodProfileId: period?.id ?? null,
+    worldResolution,
     sourceIds,
     approvedStudies: [],
     warnings,
@@ -592,6 +751,7 @@ export function directorTraceDetails(trace: DirectorBrainTrace) {
 
 export function buildDirectorPromptBlock(trace: DirectorBrainTrace) {
   const { patterns, period } = directorTraceDetails(trace);
+  const world = trace.worldResolution;
   return [
     "DIRECTOR BRAIN - RETRIEVED CRAFT, NOT STYLE IMITATION",
     `Brain version: ${trace.version}. Signals: ${trace.signals.join(", ")}.`,
@@ -607,6 +767,14 @@ export function buildDirectorPromptBlock(trace: DirectorBrainTrace) {
           ...period.materialRules.map((item) => `- Material: ${item}`),
           ...period.soundRules.map((item) => `- Sound: ${item}`),
           `- Forbid anachronisms: ${period.anachronisms.join("; ")}.`,
+        ]
+      : []),
+    ...(world && world.status !== "not-requested"
+      ? [
+          `WORLD COORDINATE: status=${world.status}; time=${world.time ?? "missing"}; place=${world.place ?? "missing"}; role/community=${world.roleOrCommunity ?? "missing"}; season/time=${world.seasonOrTime ?? "missing"}; immediate location=${world.immediateLocation ?? "missing"}.`,
+          ...(world.missing.length
+            ? [`WORLD GAPS: ${world.missing.join(", ")}. Keep these fields neutral, avoid unsupported invention, and expose the gaps to the creator.`]
+            : ["WORLD GAPS: none. The production still uses source-bounded evidence rather than generic period shorthand."]),
         ]
       : []),
     ...trace.warnings.map((warning) => `HISTORICAL RESOLUTION WARNING: ${warning}`),

@@ -283,3 +283,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.75 | `597ea29` | 2026-07-30T16:28:54+05:30 | fix(v0.2.75): publish locked first looks to feed |
 | v0.2.76 | `3c1a73a` | 2026-07-30T17:03:21+05:30 | feat(v0.2.76): add live Director Brain graph |
 | v0.2.77 | `0263734` | 2026-07-30T17:34:33+05:30 | feat(v0.2.77): explain and evaluate Director decisions |
+| v0.2.78 | `95f97a9` | 2026-07-30T18:32:38+05:30 | fix(v0.2.78): keep Style Sheets out of scene seeds |

@@ -1,4 +1,5 @@
 import { listCharacters } from "@/lib/server/supabase-admin";
+import { elevenLabsApiKey } from "@/lib/elevenlabs-config";
 import {
   assertMutationOrigin,
   assertRequestBodySize,
@@ -24,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const text = typeof body.text === "string" ? body.text.trim().slice(0, 700) : "";
     if (!text) return Response.json({ error: "A reply is required." }, { status: 400 });
 
-  const apiKey = process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+  const apiKey = elevenLabsApiKey();
   if (!apiKey) return Response.json({ error: "Voice playback is not configured." }, { status: 503 });
 
   let character;

@@ -12,7 +12,7 @@ const projectDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(projectDir);
 
-const apiKey = process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+const apiKey = process.env.CHAPLIN_ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY_NEW ?? process.env.ELEVENLABS_API_KEY_NEW ?? process.env.ELEVEN_LABS_API_KEY_2 ?? process.env.ELEVENLABS_API_KEY_2 ?? process.env.ELEVEN_LABS_API_KEY_V2 ?? process.env.ELEVENLABS_API_KEY_V2 ?? process.env.ELEVEN_LABS_API_KEY ?? process.env.ELEVENLABS_API_KEY;
 if (!apiKey) throw new Error("ELEVEN_LABS_API_KEY is missing from .env.local");
 
 const SYSTEM_PROMPT = `You are the Chaplin Concierge — the first voice creators and brands hear inside Chaplin, a casting marketplace for AI actors. Users build original AI actors (locked face, voice, signature sound, production bible), then cast them into videos, ads, reels, and series.

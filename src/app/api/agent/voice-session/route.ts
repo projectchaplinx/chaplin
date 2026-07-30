@@ -1,5 +1,6 @@
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { enforceRateLimit, securityErrorStatus } from "@/lib/server/request-security";
+import { elevenLabsApiKey } from "@/lib/elevenlabs-config";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
       windowSeconds: 60 * 60,
       identityId: identity.id,
     });
-    const apiKey = process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+    const apiKey = elevenLabsApiKey();
     const agentId = process.env.CHAPLIN_ELEVENLABS_AGENT_ID;
     if (!apiKey || !agentId) {
       return Response.json({ error: "Voice concierge is not configured." }, { status: 503 });

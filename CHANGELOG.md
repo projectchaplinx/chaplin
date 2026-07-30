@@ -1,5 +1,19 @@
 # Chaplin Changelog
 
+## v0.2.79 - 2026-07-30 - Use the replacement ElevenLabs account
+
+- Centralize ElevenLabs credential selection across voice design, voice locking,
+  dialogue, playback, Concierge, deletion, capacity recovery, and provider health.
+- Prefer the Chaplin-specific and documented replacement variables over the
+  legacy `ELEVENLABS_API_KEY`, so an older full account cannot shadow a newly
+  added key.
+- Support staged rotation aliases ending in `_NEW`, `_2`, or `_V2` without
+  exposing credential values.
+- Show the winning environment-variable name in Super Admin provider health and
+  correctly recognize restricted keys that can access voices but cannot read
+  subscription quota.
+- Add regression coverage proving replacement keys override the legacy
+  credential while legacy-only setups continue to work.
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 

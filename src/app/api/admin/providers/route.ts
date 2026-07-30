@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { requireRequestIdentity } from "@/lib/server/auth";
+import { resolveElevenLabsCredential } from "@/lib/elevenlabs-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +45,8 @@ async function probe(url: string, headers: Record<string, string>) {
  * key is distinguished from a rejected key, because they need different fixes.
  */
 async function elevenLabs(): Promise<ProviderStatus> {
-  const key = process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+  const credential = resolveElevenLabsCredential();
+  const key = credential?.apiKey;
   const base: ProviderStatus = {
     id: "elevenlabs", label: "ElevenLabs", purpose: "Voice, dialogue, SFX, theme",
     configured: Boolean(key), reachable: null, quota: null, usedRatio: null,
@@ -53,7 +55,21 @@ async function elevenLabs(): Promise<ProviderStatus> {
   if (!key) return base;
   const result = await probe("https://api.elevenlabs.io/v1/user/subscription", { "xi-api-key": key });
   if (!result.ok) {
-    return { ...base, reachable: false, detail: result.status === 401 ? "Key rejected (401)." : `Unreachable (${result.status || "network"}).` };
+    const providerDetail = result.body?.detail;
+    const errorCode = providerDetail && typeof providerDetail === "object" && !Array.isArray(providerDetail)
+      ? String((providerDetail as Record<string, unknown>).code ?? "")
+      : "";
+    if (result.status === 401 && errorCode === "missing_permissions") {
+      const voiceResult = await probe("https://api.elevenlabs.io/v2/voices?page_size=1", { "xi-api-key": key });
+      return {
+        ...base,
+        reachable: voiceResult.ok,
+        detail: voiceResult.ok
+          ? `Connected via ${credential.envName}. Voice access works; subscription quota is hidden because this restricted key lacks user_read.`
+          : `Credential ${credential.envName} lacks user_read and could not access voices (${voiceResult.status || "network"}).`,
+      };
+    }
+    return { ...base, reachable: false, detail: result.status === 401 ? `Credential ${credential.envName} was rejected (401).` : `Unreachable (${result.status || "network"}).` };
   }
   const used = Number(result.body?.character_count ?? NaN);
   const limit = Number(result.body?.character_limit ?? NaN);
@@ -63,10 +79,10 @@ async function elevenLabs(): Promise<ProviderStatus> {
       ...base, reachable: true,
       quota: `${used.toLocaleString()} / ${limit.toLocaleString()} characters`,
       usedRatio: Math.min(1, used / limit),
-      detail: tier ? `${tier} plan` : "Connected",
+      detail: `${tier ? `${tier} plan` : "Connected"} via ${credential.envName}.`,
     };
   }
-  return { ...base, reachable: true, detail: "Connected. No quota reported." };
+  return { ...base, reachable: true, detail: `Connected via ${credential.envName}. No quota reported.` };
 }
 
 async function openAi(): Promise<ProviderStatus> {

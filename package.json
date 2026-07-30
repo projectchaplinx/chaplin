@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.78",
+  "version": "0.2.79",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,7 @@
     "test:character-access": "node --import tsx --test src/lib/character-access.test.ts",
     "test:admin-homepage": "node --import tsx --test src/lib/admin-homepage.test.ts",
     "test:credits": "node --import tsx --test src/lib/credits.test.ts",
-    "test:elevenlabs-voices": "node --import tsx --test src/lib/elevenlabs-voices.test.ts",
+    "test:elevenlabs-voices": "node --import tsx --test src/lib/elevenlabs-config.test.ts src/lib/elevenlabs-voices.test.ts",
     "test:voice-preview": "node --import tsx --test src/lib/voice-preview.test.ts",
     "test:character-card": "node --import tsx --test src/lib/character-card.test.ts src/lib/character-coherence.test.ts",
     "test:character-stream": "node --import tsx --test src/lib/character-stream.test.ts",

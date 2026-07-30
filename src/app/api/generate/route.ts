@@ -95,6 +95,7 @@ import {
   type ElevenLabsVoiceSummary,
 } from "@/lib/elevenlabs-voices";
 import { deleteElevenLabsVoice } from "@/lib/server/elevenlabs";
+import { elevenLabsApiKey } from "@/lib/elevenlabs-config";
 import {
   adBoardSchema,
   assertAdSlotQueueable,
@@ -145,7 +146,7 @@ function text(input: Input, key: string, min = 1, max = 4000) {
 }
 
 function elevenKey() {
-  return process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+  return elevenLabsApiKey();
 }
 
 function modelArkKey() {

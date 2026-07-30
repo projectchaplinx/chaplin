@@ -1,6 +1,7 @@
 import { requireRequestIdentity } from "@/lib/server/auth";
 import { calculateGenerationBilling } from "@/lib/server/billing";
 import { beginGeneration, completeGeneration, failGeneration } from "@/lib/server/supabase-admin";
+import { elevenLabsApiKey } from "@/lib/elevenlabs-config";
 import {
   assertRequestBodySize,
   enforceRateLimit,
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       windowSeconds: 60 * 60,
       identityId: identity.id,
     });
-    const apiKey = process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+    const apiKey = elevenLabsApiKey();
     if (!apiKey) {
       return Response.json({ error: "ElevenLabs speech is not configured." }, { status: 503 });
     }

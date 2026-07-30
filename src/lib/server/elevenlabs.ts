@@ -1,12 +1,13 @@
 import "server-only";
 
 import type { ElevenLabsVoiceSummary } from "@/lib/elevenlabs-voices";
+import { elevenLabsApiKey } from "@/lib/elevenlabs-config";
 
 const ELEVEN_ROOT = "https://api.elevenlabs.io";
 const ELEVEN_API = `${ELEVEN_ROOT}/v1`;
 
 function key() {
-  const value = process.env.ELEVENLABS_API_KEY ?? process.env.ELEVEN_LABS_API_KEY;
+  const value = elevenLabsApiKey();
   if (!value) throw new Error("ELEVEN_LABS_API_KEY is not configured.");
   return value;
 }

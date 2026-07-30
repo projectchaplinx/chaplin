@@ -3,6 +3,16 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.68 - 2026-07-30 - Rights-aware contact-sheet research
+
+- Added a guarded Director Brain research command that analyzes local,
+  rights-cleared contact sheets with GPT-5.6 Terra.
+- Constrained the output to observable visual craft evidence, explicit sampling
+  limits, and human-reviewed passage recommendations without copied dialogue,
+  subtitles, performer identification, or inferred sound evidence.
+- Kept source images inside the repository boundary, capped inputs at 10 MB,
+  disabled response storage, and required strict structured output.
+
 ## v0.2.62 - 2026-07-29 - Explainable Director Brain
 
 - Added a source-linked Director Brain corpus covering story beats, action

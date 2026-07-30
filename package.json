@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.67",
+  "version": "0.2.68",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "db:director-research": "node scripts/apply-director-research.mjs",
     "db:director-research-campaign": "tsx scripts/seed-director-research-campaign.ts",
     "db:director-research-studies": "tsx scripts/seed-director-research-studies.ts",
+    "research:director-contact-sheet": "tsx scripts/analyze-director-contact-sheet.ts",
     "verify:providers": "node scripts/verify-providers.mjs",
     "verify:pipeline-state": "node scripts/verify-pipeline-state.mjs",
     "verify:system": "node scripts/verify-system.mjs",

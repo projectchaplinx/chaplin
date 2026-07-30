@@ -272,3 +272,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.64 | `91eb3a3` | 2026-07-29T23:40:37+05:30 | feat: add Director Brain research ledger |
 | v0.2.65 | `387ad5f` | 2026-07-30T00:04:23+05:30 | feat: activate Director Brain research review |
 | v0.2.66 | `2fbc123` | 2026-07-30T00:33:57+05:30 | feat: launch Director Brain corpus campaign |
+| v0.2.67 | `aa2cad7` | 2026-07-30T11:41:28+05:30 | feat: deepen Director Brain scene evidence |

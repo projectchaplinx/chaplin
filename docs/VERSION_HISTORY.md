@@ -276,3 +276,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.68 | `d6db23c` | 2026-07-30T12:06:37+05:30 | feat: add rights-aware contact-sheet research |
 | v0.2.69 | `670f4a2` | 2026-07-30T14:27:44+05:30 | feat(v0.2.69): add sound-aware Director Brain research |
 | v0.2.70 | `2ecafff` | 2026-07-30T15:14:26+05:30 | fix(v0.2.70): focus scene production canvas |
+| v0.2.71 | `cbaf909` | 2026-07-30T15:26:47+05:30 | feat(v0.2.71): show live render telemetry |

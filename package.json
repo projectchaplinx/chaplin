@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.71",
+  "version": "0.2.72",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -28,6 +28,7 @@
     "test:character-card": "node --import tsx --test src/lib/character-card.test.ts src/lib/character-coherence.test.ts",
     "test:style-sheet": "node --import tsx --test src/lib/character-style-sheet.test.ts",
     "test:prompt-lint": "node --import tsx --test src/lib/prompt-lint.test.ts",
+    "test:image-anatomy": "node --import tsx --test src/lib/image-anatomy.test.ts",
     "test:direction-safety": "node --import tsx --test src/lib/direction-safety.test.ts",
     "test:feed": "node --import tsx --test src/lib/feed-mentions.test.ts",
     "test:scene-variety": "node --import tsx --test src/lib/scene-variety.test.ts",

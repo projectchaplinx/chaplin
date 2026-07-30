@@ -3,6 +3,7 @@ import {
   type CameraMovementId,
   type CameraPlan,
 } from "@/lib/camera-movements";
+import { buildSceneHandAnatomyDirection } from "@/lib/image-anatomy";
 import {
   safeCameraForEnergy,
   type EnergyState,
@@ -128,7 +129,7 @@ export const SHOT_KNOWLEDGE_BASE = {
   ],
   negative: [
     "No identity drift, beautification, age shift, body morphing, duplicate person, or costume redesign.",
-    "No floating props, detached hands, extra fingers, merged bodies, disappearing products, relabeled packaging, or background rebuild.",
+    "No floating props, detached hands, extra hands, duplicate hands, branching wrists, fused or extra fingers, merged bodies, disappearing products, relabeled packaging, or background rebuild.",
     "No held poster, sign, placard, banner, card, or any object that was not already in the actor's hand in the first frame.",
     "No robotic or mechanical motion, no puppet-like joints, no evenly-timed looping gestures, no slow-motion drift, and no physically impossible movement.",
     /*
@@ -326,6 +327,10 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
       : ["STORY EVIDENCE: Show only the physical evidence required by this scene's action and objective. Do not invent a product, storefront, service demonstration, or advertising setup that is absent from the script. Never return an empty portrait-only frame."]),
     `CAMERA: ${camera.angle}; ${camera.lens}. Compose enough space for ${camera.movementName}: ${camera.movementPrompt}`,
     "COMPOSITION: Show the actor's face, hands, important object or product, and environment in one coherent depth structure. Keep foreground occlusion intentional and preserve a clean direction of travel.",
+    buildSceneHandAnatomyDirection({
+      actorNames: actors.map((actor) => actor.name),
+      action: input.scene.action,
+    }),
     "LIGHT: Use motivated cinematic light from visible or plausible sources. Natural skin, tactile materials, controlled contrast, and no bright studio-light contamination unless the scene explicitly requires a studio.",
     `CONTINUITY: ${input.continuityNote || "Preserve identity, wardrobe, props, product, screen direction, background geography, palette, and time of day across adjacent shots."}`,
     "REALISM: Photoreal live-action captured through a physical camera unless the concept explicitly requests animation, manga, illustration, or another stylized medium.",

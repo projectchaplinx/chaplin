@@ -77,6 +77,18 @@ import { cropCharacterSheet } from "@/lib/server/character-sheet-crop";
 import { buildPromptHandoff } from "@/lib/prompt-handoff";
 import { PromptLintError } from "@/lib/prompt-lint";
 import {
+  buildAnatomyRetryDirection,
+  parseSceneImageAnatomyReview,
+  SCENE_IMAGE_ANATOMY_REVIEW_INSTRUCTIONS,
+  SCENE_IMAGE_ANATOMY_SCHEMA,
+  type SceneImageAnatomyReview,
+} from "@/lib/image-anatomy";
+import {
+  createOpenAIResponse,
+  openAIInputImage,
+  openAIWritingModel,
+} from "@/lib/server/openai-responses";
+import {
   reclaimableChaplinVoices,
   reclaimableOwnedChaplinVoices,
   supersededChaplinVoices,
@@ -204,6 +216,7 @@ function softenPromptForSafety(prompt: string, attempt: number) {
 }
 
 const MAX_IMAGE_ATTEMPTS = 3;
+const MAX_ANATOMY_ATTEMPTS = 3;
 
 /**
  * Scene audio direction.
@@ -530,6 +543,38 @@ type GeneratedImage = {
   providerUsage?: Record<string, unknown>;
   requestId?: string | null;
 };
+
+async function reviewSceneImageAnatomy(input: {
+  image: GeneratedImage;
+  prompt: string;
+}): Promise<SceneImageAnatomyReview> {
+  const imageReference = input.image.remoteUrl
+    ?? `data:${input.image.contentType};base64,${Buffer.from(input.image.bytes!).toString("base64")}`;
+  const imageContent = await openAIInputImage(imageReference, "high");
+  const result = await createOpenAIResponse({
+    model: openAIWritingModel(),
+    instructions: SCENE_IMAGE_ANATOMY_REVIEW_INSTRUCTIONS,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: [
+            "Inspect this generated scene frame before it is admitted to the Chaplin Studio.",
+            "Return pass=false for any visible extra hand, malformed fingers, disconnected limb, branching arm, or ambiguous overlapping hand-to-prop contact.",
+            "Do not penalize a hand that is naturally cropped, hidden, or outside the frame.",
+            `Original scene direction:\n${input.prompt.slice(0, 6000)}`,
+          ].join("\n\n"),
+        },
+        imageContent,
+      ],
+    }],
+    maxOutputTokens: 800,
+    schema: SCENE_IMAGE_ANATOMY_SCHEMA,
+    schemaName: "scene_image_anatomy_review",
+  });
+  return parseSceneImageAnatomyReview(JSON.parse(result.text));
+}
 
 function imageProvider(provider: string) {
   const normalized = provider.trim().toLowerCase();
@@ -1476,7 +1521,7 @@ export async function POST(request: Request) {
       const rawNegativePrompt = settingString(
         imageConfig,
         "negativePrompt",
-        "multiple people, duplicate face, celebrity likeness, generic pose, plastic skin, distorted anatomy, extra fingers, text, logo, UI, border, watermark"
+        "multiple people, duplicate face, celebrity likeness, generic pose, plastic skin, distorted anatomy, extra hands, duplicate hands, extra fingers, fused fingers, branching wrists, disconnected arms, overlapping hand anatomy, text, logo, UI, border, watermark"
       );
       // "multiple people" is correct for a solo portrait and fatal for a
       // two-hander — it is the instruction that erased the second actor. For an
@@ -1582,33 +1627,80 @@ export async function POST(request: Request) {
         };
       };
 
-      // A safety refusal used to kill the shot outright, which is why a ten-scene
-      // run could end with holes in it. Retry with progressively softer phrasing
-      // before giving up; anything that is not a safety refusal still fails fast.
+      // Provider acceptance is only the first gate. Scene frames are inspected
+      // before persistence, and any visible anatomy failure is regenerated from
+      // the original written scene with a precise correction. A rejected frame
+      // never becomes a Studio asset.
       let generated: GeneratedImage | null = null;
       let safetyAttempts = 0;
       let safetySoftened = false;
-      for (let attempt = 0; attempt < MAX_IMAGE_ATTEMPTS; attempt += 1) {
-        const attemptPrompt = attempt === 0 ? effectivePrompt : softenPromptForSafety(effectivePrompt, attempt);
-        try {
-          generated = await providerScheduler(
-            provider,
-            settingNumber(imageConfig, "concurrencyCap", 4),
-          ).submit(attemptPrompt, runImageProvider);
-          safetySoftened = attempt > 0;
-          break;
-        } catch (error) {
-          if (!isSafetyRejection(error) || attempt === MAX_IMAGE_ATTEMPTS - 1) throw error;
-          safetyAttempts = attempt + 1;
+      let anatomyReview: SceneImageAnatomyReview | null = null;
+      let anatomyRetryAttempts = 0;
+      let imageProviderRequestCount = 0;
+      let generatedImageCount = 0;
+      let providerReportedCostUsd = 0;
+      let finalGenerationPrompt = effectivePrompt;
+      const anatomyAttemptLimit = imagePurpose === "scene" ? MAX_ANATOMY_ATTEMPTS : 1;
+      for (let anatomyAttempt = 0; anatomyAttempt < anatomyAttemptLimit; anatomyAttempt += 1) {
+        const qualityPrompt = anatomyAttempt === 0 || !anatomyReview
+          ? effectivePrompt
+          : `${effectivePrompt}\n\n${buildAnatomyRetryDirection(anatomyReview)}`;
+        let candidate: GeneratedImage | null = null;
+        for (let safetyAttempt = 0; safetyAttempt < MAX_IMAGE_ATTEMPTS; safetyAttempt += 1) {
+          const attemptPrompt = safetyAttempt === 0
+            ? qualityPrompt
+            : softenPromptForSafety(qualityPrompt, safetyAttempt);
+          try {
+            imageProviderRequestCount += 1;
+            candidate = await providerScheduler(
+              provider,
+              settingNumber(imageConfig, "concurrencyCap", 4),
+            ).submit(attemptPrompt, runImageProvider);
+            generatedImageCount += 1;
+            providerReportedCostUsd += recordNumber(candidate.providerUsage, "cost_usd", "cost") ?? 0;
+            safetySoftened = safetySoftened || safetyAttempt > 0;
+            finalGenerationPrompt = attemptPrompt;
+            break;
+          } catch (error) {
+            if (!isSafetyRejection(error) || safetyAttempt === MAX_IMAGE_ATTEMPTS - 1) throw error;
+            safetyAttempts += 1;
+          }
         }
+        if (!candidate) throw new Error("Image generation did not return a result.");
+        if (imagePurpose !== "scene") {
+          generated = candidate;
+          break;
+        }
+        anatomyReview = await reviewSceneImageAnatomy({
+          image: candidate,
+          prompt: qualityPrompt,
+        });
+        if (anatomyReview.pass) {
+          generated = candidate;
+          break;
+        }
+        anatomyRetryAttempts = anatomyAttempt + 1;
       }
-      if (!generated) throw new Error("Image generation did not return a result.");
+      if (!generated) {
+        const issues = anatomyReview?.issues.length
+          ? anatomyReview.issues.join("; ")
+          : anatomyReview?.correction || "visible hand anatomy failed review";
+        throw new Error(`Scene frame failed anatomy review after ${MAX_ANATOMY_ATTEMPTS} attempts: ${issues}`);
+      }
       const providerMetadata = {
         ...referenceMetadata,
         ...(imagePurpose === "character-sheet"
           ? { characterSheetRole: "composite", videoReferenceSafe: false }
           : {}),
         ...(safetyAttempts ? { safetyRetryAttempts: safetyAttempts, safetyPromptSoftened: safetySoftened } : {}),
+        ...(imagePurpose === "scene" && anatomyReview
+          ? {
+              anatomyReview,
+              anatomyRetryAttempts,
+              imageProviderRequestCount,
+              generatedImageCount,
+            }
+          : {}),
         provider,
         model: imageConfig.model,
         quality: settingString(imageConfig, "quality", "medium"),
@@ -1621,7 +1713,7 @@ export async function POST(request: Request) {
             kind: "gallery",
             provider,
             remoteUrl: generated.remoteUrl,
-            prompt: effectivePrompt,
+            prompt: finalGenerationPrompt,
             metadata: providerMetadata,
           })
         : await saveMediaAsset({
@@ -1630,7 +1722,7 @@ export async function POST(request: Request) {
             provider,
             bytes: generated.bytes!,
             contentType: generated.contentType,
-            prompt: effectivePrompt,
+            prompt: finalGenerationPrompt,
             metadata: providerMetadata,
           });
       const providerUsage = generated.providerUsage;
@@ -1640,7 +1732,7 @@ export async function POST(request: Request) {
             compositeAssetId: asset.id,
             compositeUrl: asset.url,
             provider,
-            prompt: effectivePrompt,
+            prompt: finalGenerationPrompt,
           })
         : null;
       const inputTokens = recordNumber(providerUsage, "prompt_tokens", "input_tokens");
@@ -1656,13 +1748,13 @@ export async function POST(request: Request) {
           provider,
           model: imageConfig.model,
           usage: {
-            imageCount: 1,
+            imageCount: generatedImageCount,
             inputTokens,
             outputTokens,
             providerTokens,
             providerUsage,
           },
-          providerCostUsd: recordNumber(providerUsage, "cost_usd", "cost"),
+          providerCostUsd: providerReportedCostUsd > 0 ? providerReportedCostUsd : undefined,
         }),
         generated.requestId
       );
@@ -1672,6 +1764,14 @@ export async function POST(request: Request) {
         ...(panelAssetIds ? { compositeAssetId: asset.id, panelAssetIds } : {}),
         provider,
         model: imageConfig.model,
+        ...(imagePurpose === "scene"
+          ? {
+              qualityReview: {
+                anatomyPassed: true,
+                retryAttempts: anatomyRetryAttempts,
+              },
+            }
+          : {}),
       });
     }
 

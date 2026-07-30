@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.72 - 2026-07-30 - Anatomy-gated scene frames
+
+- Added actor-specific hand ownership and prop-grip direction to every
+  generated scene frame, including explicit limits on duplicate hands,
+  branching wrists, fused fingers, and disconnected limbs.
+- Added a high-detail visual anatomy review before a scene frame can be saved
+  to the Studio.
+- Automatically regenerate a rejected scene frame with a precise correction,
+  up to three attempts; malformed candidates never become usable assets.
+- Record anatomy verdicts and retry counts with the generation, and count every
+  provider attempt in credit billing.
+
 ## v0.2.71 - 2026-07-30 - Live render telemetry
 
 - Added a live center-canvas render monitor with the exact active pipeline

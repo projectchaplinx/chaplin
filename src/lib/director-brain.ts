@@ -65,7 +65,7 @@ export type DirectorBrainTrace = {
   }>;
 };
 
-export const DIRECTOR_BRAIN_VERSION = "2026.07.30-d";
+export const DIRECTOR_BRAIN_VERSION = "2026.07.30-e";
 
 export const DIRECTOR_BRAIN_POLICY = [
   "Learn reusable craft relationships, never reproduce a screenplay, transcript, shot list, or scene verbatim.",
@@ -195,6 +195,14 @@ export const DIRECTOR_SOURCES: DirectorKnowledgeSource[] = [
     url: "https://runwayml.com/research/more-control-fidelity-and-expressibility",
     domains: ["ai-production", "camera"],
     note: "Subject motion, camera motion, and style are separate control surfaces.",
+  },
+  {
+    id: "filmbench-v2",
+    title: "FilmBench v2: Benchmarking Image-to-Video Models for Film-Grade Video Generation",
+    institution: "Beijing Film Academy and collaborators",
+    url: "https://arxiv.org/abs/2607.24241",
+    domains: ["ai-production", "camera", "editing", "sound"],
+    note: "Film-grade evaluation separates instruction following, temporal continuity, and aesthetic quality across shot, performance, world, edit, and audio dimensions.",
   },
 ];
 

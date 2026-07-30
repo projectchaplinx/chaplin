@@ -8,6 +8,7 @@ import {
   scorePipelineExperimentResult,
   updatePipelineExperiment,
 } from "@/lib/server/pipeline-experiments";
+import { reviewExperimentResult } from "@/lib/server/director-evaluations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     if (body.action === "score") {
       await scorePipelineExperimentResult(body);
+    } else if (body.action === "director-evaluate") {
+      await reviewExperimentResult(body, identity.id);
     } else if (body.action === "promote") {
       if (typeof body.id !== "string") throw new Error("Experiment ID is required.");
       const config = await promotePipelineExperiment(body.id, identity.id);

@@ -27,7 +27,7 @@ export type DirectorResearchCoverageTarget = {
   reason: string;
 };
 
-export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-d";
+export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-e";
 
 export const DIRECTOR_RESEARCH_COVERAGE_TARGETS: DirectorResearchCoverageTarget[] = [
   { id: "story", label: "Story change", track: "film-craft", targetApprovedStudies: 12, reason: "Objectives, tactics, reversals, choices, and consequences." },
@@ -316,6 +316,22 @@ export const DIRECTOR_RESEARCH_CAMPAIGN: DirectorResearchCampaignItem[] = [
     researchQuestions: [
       "Which identity and continuity properties survive reference, edit, extension, and remix operations?",
       "How do 4, 8, and 12-second units differ in usable motion, landing quality, latency, and cost?",
+    ],
+    priority: "now",
+  },
+  {
+    id: "filmbench-v2-film-grade-evaluation",
+    track: "ai-production",
+    title: "FilmBench v2 film-grade evaluation taxonomy",
+    institution: "Beijing Film Academy and collaborators",
+    sourceUrl: "https://arxiv.org/abs/2607.24241",
+    sourceKind: "provider-research",
+    rightsBasis: "The research paper's evaluation taxonomy is used analytically. Chaplin does not ingest, replay, or reverse engineer the benchmark's film clips or protected prompts.",
+    accessNotes: "Use the three-axis taxonomy and expert-ranking method as evaluation guidance: instruction following, temporal continuity, and aesthetic quality. Keep all Chaplin examples original and all output reviews tied to generated artifacts.",
+    targetTags: ["ai", "evaluation", "continuity", "camera", "performance", "audio", "editing"],
+    researchQuestions: [
+      "Which film-grade dimensions expose failures that a single visual-quality score hides?",
+      "Which hard continuity gates should block promotion even when a candidate's average score improves?",
     ],
     priority: "now",
   },

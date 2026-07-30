@@ -281,3 +281,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.73 | `000a1cc` | 2026-07-30T16:09:00+05:30 | fix(v0.2.73): stream actor identity without fake defaults |
 | v0.2.74 | `b2cace1` | 2026-07-30T16:17:54+05:30 | feat(v0.2.74): center live actor build progress |
 | v0.2.75 | `597ea29` | 2026-07-30T16:28:54+05:30 | fix(v0.2.75): publish locked first looks to feed |
+| v0.2.76 | `3c1a73a` | 2026-07-30T17:03:21+05:30 | feat(v0.2.76): add live Director Brain graph |

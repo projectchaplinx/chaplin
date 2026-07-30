@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import DirectorEvaluationScorecard from "@/components/DirectorEvaluationScorecard";
+import { DIRECTOR_EVALUATION_DIMENSIONS } from "@/lib/director-evaluation";
 import type { PipelineExperiment, PipelineExperimentVariant } from "@/lib/pipeline-experiments";
 import { PIPELINE_STAGE_IDS, PIPELINE_STAGE_META, type PipelineStageId } from "@/lib/pipeline-config";
 
@@ -180,22 +182,6 @@ export default function PipelineExperimentGround({
     } catch (error) {
       await refresh(draft.id).catch(() => undefined);
       setMessage(error instanceof Error ? error.message : "Variant test failed.");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function scoreResult(resultId: string, score: number) {
-    if (!draft) return;
-    setBusy(`score-${resultId}`);
-    try {
-      const data = await request("/api/admin/pipeline/experiments", {
-        method: "PATCH",
-        body: JSON.stringify({ action: "score", resultId, score }),
-      });
-      if (data.experiments) applyExperiments(data.experiments, draft.id);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Result could not be scored.");
     } finally {
       setBusy("");
     }
@@ -417,17 +403,18 @@ export default function PipelineExperimentGround({
                           {latestResult.outputText && <p className="branded-scroll mt-3 max-h-48 overflow-auto whitespace-pre-wrap text-[10px] leading-4 text-grey">{latestResult.outputText}</p>}
                           {latestResult.errorMessage && <p className="mt-2 text-[10px] text-red-400">{latestResult.errorMessage}</p>}
                           {latestResult.status === "succeeded" && (
-                            <div className="mt-3 flex items-center gap-1.5">
-                              <span className="mr-1 text-[8px] uppercase tracking-wider text-grey">Engineer score</span>
-                              {[1, 2, 3, 4, 5].map((score) => (
-                                <button key={score} type="button" onClick={() => scoreResult(latestResult.id, score)} className={`h-7 w-7 rounded-full border text-[9px] font-bold ${latestResult.score === score ? "border-accent bg-accent text-white" : "border-line"}`}>{score}</button>
-                              ))}
-                            </div>
+                            <DirectorEvaluationScorecard
+                              key={latestResult.id}
+                              stage={draft.stage}
+                              resultId={latestResult.id}
+                              initialEvaluation={latestResult.evaluation}
+                              onSaved={() => refresh(draft.id)}
+                            />
                           )}
                         </div>
                       )}
-                      <button type="button" onClick={() => chooseWinner(variant.id)} disabled={latestResult?.status !== "succeeded"} className="w-full rounded-full border border-[#07d2be]/45 px-4 py-2 text-[10px] font-semibold text-[#36e0cd] disabled:cursor-not-allowed disabled:opacity-30">
-                        Select as winner
+                      <button type="button" onClick={() => chooseWinner(variant.id)} disabled={latestResult?.status !== "succeeded" || latestResult.evaluation?.status !== "reviewed"} className="w-full rounded-full border border-[#07d2be]/45 px-4 py-2 text-[10px] font-semibold text-[#36e0cd] disabled:cursor-not-allowed disabled:opacity-30">
+                        Prefer this reviewed result
                       </button>
                     </div>
                   </article>
@@ -436,6 +423,37 @@ export default function PipelineExperimentGround({
             </section>
 
             <section className="poster-card rounded-xl p-5 sm:p-6">
+              <div className="mb-5 border-b border-line pb-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-secondary">Measured targets</p>
+                    <p className="mt-1 text-xs text-grey">
+                      Candidate must gain at least {draft.minimumImprovement} composite points with zero hard-gate regression.
+                    </p>
+                  </div>
+                  {draft.comparison ? (
+                    <span className={`rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase ${
+                      draft.comparison.promotable ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300"
+                    }`}>
+                      {draft.comparison.promotable ? `Eligible · +${draft.comparison.delta}` : "Blocked"}
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-line px-3 py-1.5 text-[9px] text-grey">Awaiting two reviews</span>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {draft.targetDimensions.map((id) => (
+                    <span key={id} className="rounded-full border border-white/10 px-2 py-1 text-[8px] text-grey">
+                      {DIRECTOR_EVALUATION_DIMENSIONS.find((dimension) => dimension.id === id)?.label ?? id}
+                    </span>
+                  ))}
+                </div>
+                {draft.comparison?.blockers.length ? (
+                  <ul className="mt-3 space-y-1 text-[9px] leading-4 text-red-300">
+                    {draft.comparison.blockers.map((blocker) => <li key={blocker}>→ {blocker}</li>)}
+                  </ul>
+                ) : null}
+              </div>
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Promotion gate</p>
@@ -444,7 +462,7 @@ export default function PipelineExperimentGround({
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => saveDraft()} disabled={Boolean(busy)} className="rounded-full border border-line px-5 py-2.5 text-xs font-semibold disabled:opacity-50">Save experiment</button>
-                  <button type="button" onClick={promote} disabled={!draft.winnerVariantId || busy === "promote"} className="accent-btn rounded-full px-5 py-2.5 text-xs font-semibold disabled:opacity-35">
+                  <button type="button" onClick={promote} disabled={!draft.winnerVariantId || !draft.comparison?.promotable || busy === "promote"} className="accent-btn rounded-full px-5 py-2.5 text-xs font-semibold disabled:opacity-35">
                     {busy === "promote" ? "Promoting..." : "Promote tested winner"}
                   </button>
                 </div>

@@ -3,6 +3,23 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.77 - 2026-07-30 - Guided Director example and film-grade learning
+
+- Make the Director Brain useful before its first live run with an original
+  1966 suspense-shot walkthrough that explains the brief, story job, frame,
+  camera, performance, diegetic sound, period evidence, continuity, and exact
+  generator handoff.
+- Add dimension-level Director reviews across intent following, temporal
+  continuity, and aesthetic quality, while keeping geography, identity, period,
+  prompt, prop, screen-direction, and audio failures as visible hard gates.
+- Require reviewed Control and Challenger outputs, declared-target improvement,
+  no target or hard-gate regression, a minimum composite gain, and explicit
+  human preference before an experiment can enter production.
+- Persist the rubric, scores, evidence, generated result, output asset, decision
+  trace when available, and complete promotion comparison in the audit ledger.
+- Register FilmBench v2 as an analytical evaluation source without ingesting
+  its film clips or protected prompts.
+
 ## v0.2.76 - 2026-07-30 - Live Director Brain graph
 
 - Add a LangGraph-style Director Brain view at the top of Super Admin's

@@ -15,10 +15,26 @@ type GraphNode = {
   active: (decision: DirectorDecisionTraceRecord | null) => boolean;
 };
 
+type GuidedShotExample = {
+  decision: DirectorDecisionTraceRecord;
+  shot: {
+    label: string;
+    title: string;
+    storyJob: string;
+    frame: string;
+    camera: string;
+    action: string;
+    sound: string;
+    world: string;
+    continuity: string;
+    handoff: string;
+  };
+};
+
 const NODES: GraphNode[] = [
   { id: "sources", label: "Research corpus", detail: "Craft, history, public-domain scenes, provider tests", x: 20, y: 190, active: () => true },
   { id: "rights", label: "Rights gate", detail: "Provenance and analytical-only evidence", x: 190, y: 190, active: () => true },
-  { id: "approval", label: "Human approval", detail: "Draft → reviewed → approved principles", x: 360, y: 190, active: (run) => Boolean(run?.trace.approvedStudies.length) },
+  { id: "approval", label: "Human approval", detail: "Only reviewed principles can reach a production", x: 360, y: 190, active: (run) => Boolean(run) },
   { id: "retrieval", label: "Director retrieval", detail: "Signals rank rules for this exact brief", x: 530, y: 190, active: (run) => Boolean(run) },
   { id: "period", label: "World resolver", detail: "Time × place × role × material evidence", x: 530, y: 20, active: (run) => Boolean(run?.trace.periodProfileId) },
   { id: "attention", label: "Attention map", detail: "Every delivered second receives a story job", x: 530, y: 360, active: (run) => Boolean(run?.trace.attentionMap.length) },
@@ -57,12 +73,17 @@ function timeLabel(value: string) {
 export default function AdminDirectorGraph({
   decisions,
   storageReady,
+  guidedExample,
 }: {
   decisions: DirectorDecisionTraceRecord[];
   storageReady: boolean;
+  guidedExample: GuidedShotExample;
 }) {
-  const [selectedId, setSelectedId] = useState(decisions[0]?.id ?? "");
-  const selected = decisions.find((decision) => decision.id === selectedId) ?? decisions[0] ?? null;
+  const [selectedId, setSelectedId] = useState(decisions[0]?.id ?? guidedExample.decision.id);
+  const isGuided = selectedId === guidedExample.decision.id;
+  const selected = isGuided
+    ? guidedExample.decision
+    : decisions.find((decision) => decision.id === selectedId) ?? decisions[0] ?? guidedExample.decision;
   const diagnostics = useMemo(() => buildDirectorDecisionDiagnostics(decisions), [decisions]);
   const nodeById = new Map(NODES.map((node) => [node.id, node]));
 
@@ -73,12 +94,12 @@ export default function AdminDirectorGraph({
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Director Graph · live decisions</p>
           <h2 className="reel-title mt-1 text-3xl">See the brain think</h2>
           <p className="mt-2 max-w-3xl text-xs leading-5 text-grey">
-            This is the executable data path, not a decorative flowchart. Choose a run to see the exact rules, historical evidence, attention plan, model, and outcome that moved through the graph.
+            Read left to right: evidence enters, unsafe or unreviewed material stops, the brief selects only relevant craft and period rules, every second receives a job, and the same trace follows the plan into production and review. Choose a real run—or open the guided shot—to inspect each decision.
           </p>
         </div>
         {selected ? (
           <span className={`rounded-full border px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] ${statusTone(selected.status)}`}>
-            {selected.runKind} · {selected.status}
+            {isGuided ? "guided example · original shot" : `${selected.runKind} · ${selected.status}`}
           </span>
         ) : null}
       </div>
@@ -108,6 +129,17 @@ export default function AdminDirectorGraph({
           </div>
           <p className="mt-4 text-[9px] font-semibold uppercase tracking-[0.14em] text-grey">Recent decisions</p>
           <div className="mt-2 max-h-[430px] space-y-2 overflow-y-auto pr-1">
+            <button
+              type="button"
+              onClick={() => setSelectedId(guidedExample.decision.id)}
+              className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                isGuided ? "border-accent-secondary bg-accent-secondary/10" : "border-white/10 hover:border-white/25"
+              }`}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-accent-secondary">Guided example</span>
+              <span className="mt-1 block text-[10px] font-semibold leading-4 text-ink">How one 1966 suspense shot is understood</span>
+              <span className="mt-1 block text-[8px] uppercase tracking-[0.1em] text-grey">Original · no provider cost</span>
+            </button>
             {decisions.length ? decisions.map((decision) => (
               <button
                 key={decision.id}
@@ -126,7 +158,7 @@ export default function AdminDirectorGraph({
               </button>
             )) : (
               <p className="rounded-lg border border-dashed border-line p-4 text-[10px] leading-5 text-grey">
-                No decision has run yet. Use Magic Write or initialize a production; the trace will appear here immediately.
+                The guided example is active because no real decision has run yet. Use Magic Write or initialize a production; its trace will appear here immediately without removing the example.
               </p>
             )}
           </div>
@@ -166,6 +198,7 @@ export default function AdminDirectorGraph({
               </svg>
               {NODES.map((node) => {
                 const active = node.active(selected);
+                const step = NODES.findIndex((item) => item.id === node.id) + 1;
                 return (
                   <article
                     key={node.id}
@@ -178,7 +211,10 @@ export default function AdminDirectorGraph({
                     data-graph-node={node.id}
                     data-active={active}
                   >
-                    <span className={`mb-2 block h-2 w-2 rounded-full ${active ? "animate-pulse bg-accent-secondary" : "bg-white/20"}`} />
+                    <span className="mb-2 flex items-center justify-between">
+                      <span className={`block h-2 w-2 rounded-full ${active ? "animate-pulse bg-accent-secondary" : "bg-white/20"}`} />
+                      <span className="font-mono text-[8px] text-white/35">{String(step).padStart(2, "0")}</span>
+                    </span>
                     <h3 className="text-xs font-semibold text-ink">{node.label}</h3>
                     <p className="mt-1 text-[9px] leading-4 text-grey">{node.detail}</p>
                   </article>
@@ -186,6 +222,44 @@ export default function AdminDirectorGraph({
               })}
             </div>
           </div>
+
+          {isGuided ? (
+            <article className="overflow-hidden rounded-xl border border-accent-secondary/35 bg-[linear-gradient(135deg,rgba(54,224,205,.08),rgba(5,8,7,.35)_42%,rgba(244,72,111,.07))]">
+              <div className="grid lg:grid-cols-[310px_minmax(0,1fr)]">
+                <div className="border-b border-line p-5 lg:border-b-0 lg:border-r">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-accent-secondary">One-shot walkthrough</p>
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-grey">{guidedExample.shot.label}</p>
+                  <h3 className="reel-title mt-1 text-3xl">{guidedExample.shot.title}</h3>
+                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">Input brief</p>
+                  <p className="mt-2 text-xs leading-6 text-ink">{guidedExample.decision.briefExcerpt}</p>
+                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">What this shot must do</p>
+                  <p className="mt-2 text-xs leading-6 text-grey">{guidedExample.shot.storyJob}</p>
+                </div>
+                <div className="p-5">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-grey">The brain converts meaning into production controls</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {[
+                      ["Frame & geography", guidedExample.shot.frame],
+                      ["Camera", guidedExample.shot.camera],
+                      ["Performance & action", guidedExample.shot.action],
+                      ["Diegetic sound", guidedExample.shot.sound],
+                      ["1966 world evidence", guidedExample.shot.world],
+                      ["Continuity out", guidedExample.shot.continuity],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-white/10 bg-black/15 p-3">
+                        <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-accent-secondary">{label}</p>
+                        <p className="mt-1 text-[10px] leading-5 text-grey">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 rounded-lg border border-accent/35 bg-accent/[0.05] p-3">
+                    <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-accent">Exact handoff to the shot generator</p>
+                    <p className="mt-2 font-mono text-[10px] leading-5 text-ink">{guidedExample.shot.handoff}</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          ) : null}
 
           {selected ? (
             <div className="grid gap-3 lg:grid-cols-2">

@@ -1,4 +1,9 @@
 import type { PipelineStageConfig, PipelineStageId } from "@/lib/pipeline-config";
+import type {
+  DirectorComparison,
+  DirectorEvaluationDimensionId,
+  DirectorEvaluationRecord,
+} from "@/lib/director-evaluation";
 
 export type PipelineExperimentVariant = {
   id: string;
@@ -23,6 +28,7 @@ export type PipelineExperimentResult = {
   errorMessage: string | null;
   score: number | null;
   notes: string | null;
+  evaluation: DirectorEvaluationRecord | null;
   createdAt: string;
   completedAt: string | null;
 };
@@ -38,6 +44,11 @@ export type PipelineExperiment = {
   baselineRevision: number;
   variants: PipelineExperimentVariant[];
   winnerVariantId: string | null;
+  targetDimensions: DirectorEvaluationDimensionId[];
+  minimumImprovement: number;
+  maxGateRegression: number;
+  promotionSnapshot: Record<string, unknown>;
+  comparison: DirectorComparison | null;
   promotedRevision: number | null;
   createdBy: string;
   createdAt: string;

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import AdminDirectorCampaign from "@/components/AdminDirectorCampaign";
 import AdminDirectorResearch from "@/components/AdminDirectorResearch";
 import AdminDirectorGraph from "@/components/AdminDirectorGraph";
+import AdminDirectorLearning from "@/components/AdminDirectorLearning";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -9,10 +10,12 @@ import {
   DIRECTOR_PATTERNS,
   DIRECTOR_PERIOD_PROFILES,
   DIRECTOR_SOURCES,
+  retrieveDirectorKnowledge,
 } from "@/lib/director-brain";
 import { getServerAuthIdentity } from "@/lib/server/auth";
 import { listDirectorResearch } from "@/lib/server/director-research";
 import { listDirectorDecisionTraces } from "@/lib/server/director-decisions";
+import { listDirectorEvaluations } from "@/lib/server/director-evaluations";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +24,14 @@ export default async function AdminDirectorBrainPage() {
   if (identity?.role !== "admin") redirect("/super-admin?next=/admin/director-brain");
 
   const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
-  const [{ research, researchError }, decisionBundle] = await Promise.all([(async () => {
+  const guidedBrief = "Los Angeles, 1966. In a working service bay, a young mechanic hears an engine stumble, finds a freshly cut ignition wire, and spots the departing sedan responsible. Original 15-second suspense Punch.";
+  const guidedTrace = retrieveDirectorKnowledge({
+    brief: guidedBrief,
+    format: "punch",
+    durationSeconds: 15,
+    sceneCount: 4,
+  });
+  const [{ research, researchError }, decisionBundle, evaluationBundle] = await Promise.all([(async () => {
     try {
       return { research: await listDirectorResearch(), researchError: "" };
     } catch (error) {
@@ -30,7 +40,7 @@ export default async function AdminDirectorBrainPage() {
         researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
       };
     }
-  })(), listDirectorDecisionTraces(100)]);
+  })(), listDirectorDecisionTraces(100), listDirectorEvaluations(250)]);
 
   return (
     <main className="app-width min-w-0 px-4 py-8 sm:px-6 sm:py-10" data-director-brain>
@@ -44,7 +54,50 @@ export default async function AdminDirectorBrainPage() {
 
       <AdminSectionNav />
 
-      <AdminDirectorGraph decisions={decisionBundle.decisions} storageReady={decisionBundle.storageReady} />
+      <AdminDirectorGraph
+        decisions={decisionBundle.decisions}
+        storageReady={decisionBundle.storageReady}
+        guidedExample={{
+          decision: {
+            id: "guided-director-example",
+            runKind: "writing",
+            status: "succeeded",
+            userId: null,
+            characterId: null,
+            storyId: null,
+            generationJobId: null,
+            pipelineRunId: null,
+            brainVersion: guidedTrace.version,
+            format: guidedTrace.query.format,
+            durationSeconds: guidedTrace.query.durationSeconds,
+            sceneCount: guidedTrace.query.sceneCount,
+            briefExcerpt: guidedBrief,
+            trace: guidedTrace,
+            provider: "guided explanation",
+            model: "no generation used",
+            outcome: { example: true },
+            errorMessage: "",
+            createdAt: "2026-07-30T00:00:00.000Z",
+            updatedAt: "2026-07-30T00:00:00.000Z",
+            startedAt: null,
+            completedAt: null,
+          },
+          shot: {
+            label: "Shot 02 of 04 · four seconds",
+            title: "The broken wire",
+            storyJob: "Turn an engine problem into evidence of deliberate danger, then give the threat a direction of travel.",
+            frame: "Over the open hood at chest height. The mechanic occupies the right third; the cut ignition wire is sharp in the near foreground; the service-bay exit remains readable behind her.",
+            camera: "40mm medium close shot with a restrained six-inch push only after the wire enters her eyeline. No orbit, whip, or unmotivated shake.",
+            action: "Her hand follows the failing vibration to the severed wire. She stops, understands, then shifts her eyes—not her whole body—toward the sedan crossing the bay exit.",
+            sound: "Uneven carbureted idle, one dry electrical miss, hood vibration, then the departing sedan moving from near-right to far-left. No dialogue and no period-song shorthand.",
+            world: "1966 Los Angeles working service bay: period engine components, painted steel tools, work-worn cotton coveralls, analog signage, oil and heat wear. No modern ECU, LED display, polymer diagnostic tool, or contemporary car.",
+            continuity: "Keep the wire in her right hand, the sedan travelling right-to-left, the same grease marks and rolled sleeve, and the exit geography for Shot 03.",
+            handoff: "One readable discovery. Foreground evidence first, reaction second, escaping threat third. Preserve right-to-left sedan travel and end with her eyeline locked on the exit.",
+          },
+        }}
+      />
+
+      <AdminDirectorLearning evaluations={evaluationBundle.evaluations} storageReady={evaluationBundle.storageReady} />
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[

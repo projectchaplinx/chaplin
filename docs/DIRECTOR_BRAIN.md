@@ -36,6 +36,9 @@ expression. It learns relationships such as:
 10. Rights-cleared studies enter a separate draft/review/approval ledger.
 11. Magic can retrieve only approved abstract principles; raw observations,
     rights notes, and rejected or unreviewed studies never enter its prompt.
+12. When no production has run, the graph opens an original guided shot example
+    that explains the input brief, story job, frame, camera, performance, sound,
+    historical evidence, continuity handoff, and exact generator instruction.
 
 ## Knowledge layers
 
@@ -176,25 +179,42 @@ request contract, output evidence, and known failure modes.
 
 ## Evaluation loop
 
-Each production should eventually score:
+The current film-grade scorecard keeps three axes separate:
 
-- story change per shot;
-- adjacent-beat similarity;
-- geography readability;
-- objective and tactic coverage;
-- second-by-second attention coverage;
-- identity, wardrobe, prop, period, and screen-direction continuity;
-- anachronism findings;
-- prompt adherence;
-- usable duration;
-- audio-source coherence;
-- keeper/kill result and human reason;
-- provider, model, references, cost, and latency.
+1. **Intent following** — story change, objective and tactic, cinematic
+   language, prompt adherence, period accuracy, and audio-source logic.
+2. **Temporal continuity** — spatial geography, time progression, identity and
+   wardrobe, prop state, screen direction, and audio continuity.
+3. **Aesthetic quality** — image quality, edit fluency, camera appeal,
+   performance believability, and sound quality.
 
-A pattern is promoted only when it improves a defined measure or survives
-expert review. Failed hypotheses remain in the audit ledger.
+Every completed review scores only dimensions relevant to that pipeline stage.
+The record keeps the exact generated result, generation job, output asset, and
+Director decision trace when one exists. Geography, identity, period, prompt,
+prop, screen-direction, and audio-continuity failures are hard gates: a clean
+image or high average cannot hide them.
 
-## Corpus campaign 2026.07.30-d
+The Experiment Ground now follows a controlled learning contract:
+
+1. run the same brief through Control and Challenger;
+2. review both outputs against all applicable dimensions;
+3. declare the dimensions the experiment is trying to improve;
+4. require a passing control and candidate;
+5. require the candidate to improve the composite score by the configured
+   threshold;
+6. reject any hard-gate or declared-target regression;
+7. require an explicit human preference;
+8. store the comparison and rubric with the promoted configuration revision.
+
+Failed hypotheses and rejected outputs remain in the audit ledger. No automatic
+evaluator is presented as a human review; automatic scoring can be added later
+as a separately labeled evaluator.
+
+The scorecard taxonomy is informed by film-generation evaluation research,
+especially FilmBench v2, VBench++, EvalCrafter, and T2V-CompBench. Chaplin uses
+their analytical dimensions, not their protected film clips or prompts.
+
+## Corpus campaign 2026.07.30-e
 
 The research backlog is now a versioned production object. Super Admin can see
 every queued source, its rights basis, priority, target coverage, research
@@ -214,7 +234,9 @@ The first campaign contains four tracks:
    occupation, and occasion.
 4. **AI production** — dated official contracts for OpenAI video, Google
    Gemini/Veo, Runway, and Adobe Firefly. Provider claims remain hypotheses
-   until Chaplin repeats them in controlled generation tests.
+   until Chaplin repeats them in controlled generation tests. FilmBench v2 is
+   included only as an analytical evaluation taxonomy; its film material is not
+   ingested.
 
 ### Scalable historical evidence discovery
 

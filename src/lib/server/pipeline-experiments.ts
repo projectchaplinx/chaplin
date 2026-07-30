@@ -13,7 +13,16 @@ import {
   type PipelineExperimentResult,
   type PipelineExperimentVariant,
 } from "@/lib/pipeline-experiments";
+import {
+  compareDirectorEvaluations,
+  defaultTargetDimensions,
+  DIRECTOR_EVALUATION_DIMENSIONS,
+  type DirectorComparison,
+  type DirectorEvaluationDimensionId,
+  type DirectorEvaluationRecord,
+} from "@/lib/director-evaluation";
 import { getPipelineConfig, savePipelineConfig } from "@/lib/server/pipeline-config";
+import { listDirectorEvaluations } from "@/lib/server/director-evaluations";
 import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
 
 type ExperimentRow = {
@@ -27,6 +36,10 @@ type ExperimentRow = {
   baseline_revision: number;
   variants: unknown;
   winner_variant_id: string | null;
+  target_dimensions: string[];
+  minimum_improvement: number | string;
+  max_gate_regression: number | string;
+  promotion_snapshot: unknown;
   promoted_revision: number | null;
   created_by: string;
   created_at: string;
@@ -92,7 +105,11 @@ function normalizeVariants(stage: PipelineStageId, value: unknown): PipelineExpe
   return variants;
 }
 
-function mapResult(row: ResultRow, outputUrl: string | null): PipelineExperimentResult {
+function mapResult(
+  row: ResultRow,
+  outputUrl: string | null,
+  evaluation: DirectorEvaluationRecord | null,
+): PipelineExperimentResult {
   return {
     id: row.id,
     experimentId: row.experiment_id,
@@ -109,18 +126,59 @@ function mapResult(row: ResultRow, outputUrl: string | null): PipelineExperiment
     errorMessage: row.error_message,
     score: row.score,
     notes: row.notes,
+    evaluation,
     createdAt: row.created_at,
     completedAt: row.completed_at,
   };
 }
 
+function normalizeTargetDimensions(stage: PipelineStageId, value: unknown): DirectorEvaluationDimensionId[] {
+  const valid = new Set(
+    DIRECTOR_EVALUATION_DIMENSIONS
+      .filter((dimension) => dimension.stages.includes(stage))
+      .map((dimension) => dimension.id),
+  );
+  const targets = Array.isArray(value)
+    ? value.filter((id): id is DirectorEvaluationDimensionId => typeof id === "string" && valid.has(id as DirectorEvaluationDimensionId))
+    : [];
+  return targets.length ? [...new Set(targets)] : defaultTargetDimensions(stage);
+}
+
+function experimentComparison(input: {
+  stage: PipelineStageId;
+  variants: PipelineExperimentVariant[];
+  results: PipelineExperimentResult[];
+  winnerVariantId: string | null;
+  targetDimensions: DirectorEvaluationDimensionId[];
+  minimumImprovement: number;
+  maxGateRegression: number;
+}): DirectorComparison | null {
+  if (!input.winnerVariantId) return null;
+  const controlId = input.variants.find((variant) => variant.id === "control")?.id ?? input.variants[0]?.id;
+  if (!controlId || controlId === input.winnerVariantId) return null;
+  const control = input.results.find((result) =>
+    result.variantId === controlId && result.status === "succeeded" && result.evaluation?.status === "reviewed");
+  const candidate = input.results.find((result) =>
+    result.variantId === input.winnerVariantId && result.status === "succeeded" && result.evaluation?.status === "reviewed");
+  if (!control?.evaluation || !candidate?.evaluation) return null;
+  return compareDirectorEvaluations({
+    stage: input.stage,
+    baseline: control.evaluation.scores,
+    candidate: candidate.evaluation.scores,
+    targetDimensions: input.targetDimensions,
+    minimumImprovement: input.minimumImprovement,
+    maxGateRegression: input.maxGateRegression,
+    humanWinnerIsCandidate: true,
+  });
+}
+
 export async function listPipelineExperiments(): Promise<PipelineExperiment[]> {
   const supabase = getSupabaseAdminClient();
-  const experimentsResult = await supabase
+  const [experimentsResult, evaluationBundle] = await Promise.all([supabase
     .from("pipeline_experiments")
     .select("*")
     .order("updated_at", { ascending: false })
-    .limit(40);
+    .limit(40), listDirectorEvaluations(500)]);
   if (experimentsResult.error) {
     if (/pipeline_experiments|schema cache|does not exist/i.test(experimentsResult.error.message)) return [];
     throw new Error(`Load pipeline experiments: ${experimentsResult.error.message}`);
@@ -139,26 +197,57 @@ export async function listPipelineExperiments(): Promise<PipelineExperiment[]> {
   if (assetsResult.error) throw new Error(`Load experiment media: ${assetsResult.error.message}`);
   const assetUrls = new Map((assetsResult.data ?? []).map((asset) => [String(asset.id), String(asset.url)]));
 
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    stage: row.stage,
-    status: row.status,
-    inputPrompt: row.input_prompt,
-    characterId: row.character_id,
-    referenceImageUrl: row.reference_image_url,
-    baselineRevision: row.baseline_revision,
-    variants: normalizeVariants(row.stage, row.variants),
-    winnerVariantId: row.winner_variant_id,
-    promotedRevision: row.promoted_revision,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    promotedAt: row.promoted_at,
-    results: resultRows
+  const evaluationByResult = new Map(
+    evaluationBundle.evaluations
+      .filter((evaluation) => evaluation.experimentResultId)
+      .map((evaluation) => [evaluation.experimentResultId!, evaluation]),
+  );
+  return rows.map((row) => {
+    const variants = normalizeVariants(row.stage, row.variants);
+    const targetDimensions = normalizeTargetDimensions(row.stage, row.target_dimensions);
+    const minimumImprovement = Number(row.minimum_improvement ?? 5);
+    const maxGateRegression = Number(row.max_gate_regression ?? 0);
+    const results = resultRows
       .filter((result) => result.experiment_id === row.id)
-      .map((result) => mapResult(result, result.output_asset_id ? assetUrls.get(result.output_asset_id) ?? null : null)),
-  }));
+      .map((result) => mapResult(
+        result,
+        result.output_asset_id ? assetUrls.get(result.output_asset_id) ?? null : null,
+        evaluationByResult.get(result.id) ?? null,
+      ));
+    return {
+      id: row.id,
+      name: row.name,
+      stage: row.stage,
+      status: row.status,
+      inputPrompt: row.input_prompt,
+      characterId: row.character_id,
+      referenceImageUrl: row.reference_image_url,
+      baselineRevision: row.baseline_revision,
+      variants,
+      winnerVariantId: row.winner_variant_id,
+      targetDimensions,
+      minimumImprovement,
+      maxGateRegression,
+      promotionSnapshot: row.promotion_snapshot && typeof row.promotion_snapshot === "object" && !Array.isArray(row.promotion_snapshot)
+        ? row.promotion_snapshot as Record<string, unknown>
+        : {},
+      comparison: experimentComparison({
+        stage: row.stage,
+        variants,
+        results,
+        winnerVariantId: row.winner_variant_id,
+        targetDimensions,
+        minimumImprovement,
+        maxGateRegression,
+      }),
+      promotedRevision: row.promoted_revision,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      promotedAt: row.promoted_at,
+      results,
+    };
+  });
 }
 
 export async function getPipelineExperiment(id: string) {
@@ -190,6 +279,9 @@ export async function createPipelineExperiment(input: {
       reference_image_url: typeof input.referenceImageUrl === "string" && input.referenceImageUrl ? input.referenceImageUrl : null,
       baseline_revision: active.revision,
       variants,
+      target_dimensions: defaultTargetDimensions(stage),
+      minimum_improvement: 5,
+      max_gate_regression: 0,
       created_by: userId,
       updated_at: new Date().toISOString(),
     })
@@ -207,6 +299,9 @@ export async function updatePipelineExperiment(input: {
   referenceImageUrl?: unknown;
   variants?: unknown;
   winnerVariantId?: unknown;
+  targetDimensions?: unknown;
+  minimumImprovement?: unknown;
+  maxGateRegression?: unknown;
   status?: unknown;
 }) {
   if (typeof input.id !== "string" || !input.id) throw new Error("Experiment ID is required.");
@@ -219,6 +314,15 @@ export async function updatePipelineExperiment(input: {
   const winnerVariantId = typeof input.winnerVariantId === "string" && variants.some((variant) => variant.id === input.winnerVariantId)
     ? input.winnerVariantId
     : null;
+  const targetDimensions = input.targetDimensions === undefined
+    ? normalizeTargetDimensions(current.stage, current.target_dimensions)
+    : normalizeTargetDimensions(current.stage, input.targetDimensions);
+  const minimumImprovement = input.minimumImprovement === undefined
+    ? Number(current.minimum_improvement ?? 5)
+    : Math.max(0, Math.min(100, Number(input.minimumImprovement)));
+  const maxGateRegression = input.maxGateRegression === undefined
+    ? Number(current.max_gate_regression ?? 0)
+    : Math.max(0, Math.min(4, Number(input.maxGateRegression)));
   const update = await getSupabaseAdminClient().from("pipeline_experiments").update({
     name: typeof input.name === "string" && input.name.trim() ? input.name.trim().slice(0, 120) : current.name,
     input_prompt: typeof input.inputPrompt === "string" ? input.inputPrompt.slice(0, 6000) : current.input_prompt,
@@ -226,6 +330,9 @@ export async function updatePipelineExperiment(input: {
     reference_image_url: typeof input.referenceImageUrl === "string" && input.referenceImageUrl ? input.referenceImageUrl : null,
     variants,
     winner_variant_id: winnerVariantId,
+    target_dimensions: targetDimensions,
+    minimum_improvement: Number.isFinite(minimumImprovement) ? minimumImprovement : 5,
+    max_gate_regression: Number.isFinite(maxGateRegression) ? maxGateRegression : 0,
     status,
     updated_at: new Date().toISOString(),
   }).eq("id", input.id);
@@ -256,16 +363,13 @@ export async function promotePipelineExperiment(id: string, userId: string): Pro
   const variants = normalizeVariants(experiment.stage, experiment.variants);
   const winner = variants.find((variant) => variant.id === experiment.winner_variant_id);
   if (!winner) throw new Error("The winning variant no longer exists.");
-  const winningResult = await supabase
-    .from("pipeline_experiment_results")
-    .select("id")
-    .eq("experiment_id", id)
-    .eq("variant_id", winner.id)
-    .eq("status", "succeeded")
-    .limit(1)
-    .maybeSingle();
-  if (winningResult.error) throw new Error(`Check winning result: ${winningResult.error.message}`);
-  if (!winningResult.data) throw new Error("Run the winning variant successfully before promotion.");
+  const hydrated = await getPipelineExperiment(id);
+  if (!hydrated.comparison) {
+    throw new Error("Review the latest successful control and winning outputs with the Director scorecard before promotion.");
+  }
+  if (!hydrated.comparison.promotable) {
+    throw new Error(`Director promotion gate: ${hydrated.comparison.blockers.join(" ")}`);
+  }
   const active = await getPipelineConfig();
   const promoted = await savePipelineConfig({
     ...active,
@@ -274,6 +378,13 @@ export async function promotePipelineExperiment(id: string, userId: string): Pro
   const update = await supabase.from("pipeline_experiments").update({
     status: "promoted",
     promoted_revision: promoted.revision,
+    promotion_snapshot: {
+      rubricVersion: hydrated.results.find((result) => result.variantId === winner.id)?.evaluation?.rubricVersion,
+      comparison: hydrated.comparison,
+      targetDimensions: hydrated.targetDimensions,
+      winnerVariantId: winner.id,
+      reviewedAt: new Date().toISOString(),
+    },
     promoted_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", id);

@@ -6,6 +6,10 @@ import { buildProductionBible } from "@/lib/production-prompting";
 import { readCharacterCardV2 } from "@/lib/character-card";
 import { SEED_WORLD } from "@/data/seed";
 import type { GenerationBilling } from "@/lib/server/billing";
+import {
+  isCharacterStyleSheetAsset,
+  isSelectableVideoSeedAsset,
+} from "@/lib/video-seed-assets";
 import type { Character } from "@/lib/types";
 
 export interface AdminCharacterRow {
@@ -379,6 +383,7 @@ export async function listCharacters(): Promise<Character[]> {
   */
   const isPublishableGalleryAsset = (asset: { kind: string; metadata: unknown; character_id: string | null }) => {
     if (asset.kind !== "gallery") return false;
+    if (isCharacterStyleSheetAsset(asset)) return false;
     const metadata = asset.metadata as Record<string, unknown> | null;
     if (metadata?.imagePurpose === "identity" || metadata?.imagePurpose === "character-sheet") return false;
     if (metadata?.ensembleShot === true) return false;
@@ -703,7 +708,7 @@ export async function getCharacterProductionState(characterId: string) {
     return metadata?.featuredSfx === true;
   });
   const selectedSceneImage = rows.find((asset) => {
-    if (asset.kind !== "gallery") return false;
+    if (!isSelectableVideoSeedAsset(asset)) return false;
     const metadata = asset.metadata as Record<string, unknown> | null;
     return metadata?.selectedForVideo === true;
   });
@@ -732,8 +737,13 @@ export async function getCharacterProductionState(characterId: string) {
   };
   const isIdentityCandidate = (asset: { kind: string; metadata: unknown }) => {
     const metadata = asset.metadata as Record<string, unknown> | null;
-    return metadata?.imagePurpose !== "scene" && !isEnsembleAsset(asset);
+    return metadata?.imagePurpose !== "scene"
+      && !isEnsembleAsset(asset)
+      && !isCharacterStyleSheetAsset(asset);
   };
+  const identityCover = featuredCover && isIdentityCandidate(featuredCover)
+    ? featuredCover
+    : undefined;
   const identityReference = rows.find((asset) => {
     if (asset.kind !== "gallery") return false;
     if (isEnsembleAsset(asset)) return false;
@@ -742,8 +752,8 @@ export async function getCharacterProductionState(characterId: string) {
   });
   const fallbackReference = rows.find((asset) =>
     ["gallery", "avatar", "banner"].includes(asset.kind) && isIdentityCandidate(asset));
-  const visualReference = featuredCover
-    ? { url: featuredCover.url, assetId: featuredCover.id, source: "selected-cover" as const }
+  const visualReference = identityCover
+    ? { url: identityCover.url, assetId: identityCover.id, source: "selected-cover" as const }
     : identityReference
       ? { url: identityReference.url, assetId: identityReference.id, source: "identity-asset" as const }
       : featured.image_url
@@ -783,7 +793,7 @@ export async function getCharacterProductionState(characterId: string) {
     // Same rule for the displayed image: an explicit selection wins, but the
     // automatic fallback must not surface a frame containing another actor.
     latestImageUrl: selectedSceneImage?.url
-      ?? featuredCover?.url
+      ?? identityCover?.url
       ?? rows.find((asset) => asset.kind === "gallery" && isIdentityCandidate(asset))?.url
       ?? null,
     latestVideoUrl: latestVideo?.url ?? null,
@@ -838,6 +848,9 @@ export async function selectCharacterSceneImageAsset(input: { characterId: strin
   assert(assets.error, "Load scene image candidates");
   const selected = (assets.data ?? []).find((asset) => asset.id === input.assetId);
   if (!selected) throw new Error("Select scene image: candidate not found.");
+  if (!isSelectableVideoSeedAsset(selected)) {
+    throw new Error("Style-sheet and reference-board assets stay in Style Sheet and cannot be animation seeds.");
+  }
   const updates = await Promise.all((assets.data ?? []).map((asset) => {
     const metadata = asset.metadata && typeof asset.metadata === "object"
       ? asset.metadata as Record<string, unknown>
@@ -939,6 +952,9 @@ export async function selectCharacterProfileMedia(input: {
     throw new Error(`This asset cannot be used as the profile ${input.slot}.`);
   }
 
+  if (input.slot === "cover" && isCharacterStyleSheetAsset(asset.data)) {
+    throw new Error("Style-sheet assets stay in Style Sheet and cannot become the actor cover.");
+  }
   if (input.slot === "voice") {
     const metadata = asset.data.metadata as Record<string, unknown> | null;
     const voiceId = typeof metadata?.voiceId === "string" ? metadata.voiceId : null;
@@ -1217,7 +1233,7 @@ async function publishCharacterAssetToFeed(input: {
     input.jobId
       ? supabase.from("generation_jobs").select("character_id,kind,pipeline_experiment_id,video_type,metadata").eq("id", input.jobId).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    supabase.from("media_assets").select("id,character_id,kind,url,prompt,created_at").eq("id", input.assetId).eq("character_id", input.characterId).maybeSingle(),
+    supabase.from("media_assets").select("id,character_id,kind,url,prompt,metadata,created_at").eq("id", input.assetId).eq("character_id", input.characterId).maybeSingle(),
     supabase.from("characters").select("name,maker_id").eq("id", input.characterId).maybeSingle(),
   ]);
   assert(jobResult.error, "Load feed generation");
@@ -1248,6 +1264,7 @@ async function publishCharacterAssetToFeed(input: {
       ? "video"
       : "image";
   if (!isGenerationVisibleInFeed({
+    assetMetadata: asset.metadata,
     sourceAssetId: input.assetId,
     assetKind: kind,
     mediaKind,

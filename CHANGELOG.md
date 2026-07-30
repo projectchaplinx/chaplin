@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.78 - 2026-07-30 - Keep Style Sheets out of scene seeds
+
+- Remove character Style Sheet composites and all cropped turnaround panels
+  from the animation seed-image chooser while preserving real identity images
+  and authored scene stills.
+- Enforce the same boundary on the server so an older client cannot select a
+  Style Sheet asset as a video seed or public actor cover.
+- Keep Style Sheet assets inside the private Style Sheet workspace instead of
+  allowing them into public actor galleries or Feed publication.
+- Add regression coverage for composite, panel, identity, scene, explicitly
+  unsafe, profile, and Feed visibility cases.
+
 ## v0.2.77 - 2026-07-30 - Guided Director example and film-grade learning
 
 - Make the Director Brain useful before its first live run with an original

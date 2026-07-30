@@ -1,3 +1,4 @@
+import { isCharacterStyleSheetAsset } from "@/lib/video-seed-assets";
 type FeedGenerationVisibility = {
   assetMetadata?: unknown;
   assetKind?: string | null;
@@ -52,6 +53,12 @@ export function isPunchGeneration(videoType?: string | null, metadata?: unknown)
  * event. Admin generation logs retain every asset regardless of this policy.
  */
 export function isGenerationVisibleInFeed(input: FeedGenerationVisibility) {
+  if (isCharacterStyleSheetAsset({
+    kind: input.assetKind ?? "",
+    metadata: input.assetMetadata,
+  }) || isCharacterStyleSheetAsset({ kind: "gallery", metadata: input.jobMetadata })) {
+    return false;
+  }
   if (isUnchosenComparisonCandidate(input)) return false;
   if (!input.sourceAssetId) return normalized(input.mediaKind) !== "audio";
 

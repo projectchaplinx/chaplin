@@ -22,6 +22,7 @@ import {
   buildThemePlan,
   type ThemePlanKind,
 } from "@/lib/theme-composition-plan";
+import { isSelectableVideoSeedAsset } from "@/lib/video-seed-assets";
 
 type ProductionAsset = {
   id: string;
@@ -36,7 +37,7 @@ type ProductionAsset = {
 
 function latestSceneReference(assets: ProductionAsset[]) {
   return assets.find((asset) =>
-    asset.kind === "gallery" && asset.metadata?.selectedForVideo === true
+    isSelectableVideoSeedAsset(asset) && asset.metadata?.selectedForVideo === true
   )?.url ?? "";
 }
 
@@ -618,7 +619,7 @@ export default function CharacterProductionStudio({
       label: imageProviderLabel(candidate.provider),
     }));
     assetHistory
-      .filter((asset) => asset.kind === "gallery")
+      .filter(isSelectableVideoSeedAsset)
       .forEach((asset, index) => addSeed({
         id: asset.id,
         assetId: asset.id,
@@ -716,7 +717,7 @@ export default function CharacterProductionStudio({
         const assets = production.assets ?? [];
         setAssetHistory(assets);
         const selectedVideoSeed = assets.find((asset) =>
-          asset.kind === "gallery" && asset.metadata?.selectedForVideo === true
+          isSelectableVideoSeedAsset(asset) && asset.metadata?.selectedForVideo === true
         );
         setGeneratedImage(selectedVideoSeed?.url ?? "");
         if (selectedVideoSeed) {
@@ -770,7 +771,7 @@ export default function CharacterProductionStudio({
       const latestGeneratedImage = latestSceneReference(assets);
       if (latestGeneratedImage) {
         const selectedVideoSeed = assets.find((asset) =>
-          asset.kind === "gallery" && asset.metadata?.selectedForVideo === true
+          isSelectableVideoSeedAsset(asset) && asset.metadata?.selectedForVideo === true
         );
         setGeneratedImage(latestGeneratedImage);
         setSelectedVideoSeedId(selectedVideoSeed?.id ?? "");

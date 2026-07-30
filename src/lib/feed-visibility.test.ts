@@ -55,3 +55,22 @@ test("recognizes persisted creator selections on both cover and scene assets", (
   assert.equal(isCreatorSelectedFeedAsset({ selectedForProfileCover: false }), false);
   assert.equal(isCreatorSelectedFeedAsset(null), false);
 });
+
+test("style-sheet composites and panels remain private workspace evidence", () => {
+  assert.equal(isGenerationVisibleInFeed({
+    sourceAssetId: "sheet-composite",
+    assetKind: "gallery",
+    mediaKind: "image",
+    jobMetadata: { imagePurpose: "character-sheet", characterSheetRole: "composite" },
+  }), false);
+  assert.equal(isGenerationVisibleInFeed({
+    sourceAssetId: "sheet-panel",
+    assetKind: "gallery",
+    mediaKind: "image",
+    assetMetadata: {
+      characterSheetRole: "panel",
+      characterSheetView: "front",
+      compositeAssetId: "sheet-composite",
+    },
+  }), false);
+});

@@ -110,7 +110,7 @@ async function main() {
     if (found.length !== DIRECTOR_RESEARCH_STUDY_SEEDS.length) {
       throw new Error(`Expected ${DIRECTOR_RESEARCH_STUDY_SEEDS.length} seeded studies, found ${found.length}.`);
     }
-    console.log(`Director Brain has ${found.length} evidence-based draft scene study.`);
+    console.log(`Director Brain has ${found.length} evidence-based draft scene ${found.length === 1 ? "study" : "studies"}.`);
   } finally {
     await sql.end();
   }

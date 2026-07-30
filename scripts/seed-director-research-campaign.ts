@@ -90,7 +90,7 @@ try {
   if (summary?.source_count !== DIRECTOR_RESEARCH_CAMPAIGN.length) {
     throw new Error(`Expected ${DIRECTOR_RESEARCH_CAMPAIGN.length} campaign sources, found ${summary?.source_count ?? 0}.`);
   }
-  console.log(`Director Brain campaign ${DIRECTOR_RESEARCH_CAMPAIGN_VERSION} has ${summary.source_count} queued sources.`);
+  console.log(`Director Brain campaign ${DIRECTOR_RESEARCH_CAMPAIGN_VERSION} has ${summary.source_count} registered sources.`);
 } finally {
   await sql.end();
 }

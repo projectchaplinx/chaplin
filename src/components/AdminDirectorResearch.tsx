@@ -224,9 +224,12 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               ["Approved", diagnostics.approvedStudies],
-              ["Awaiting decision", diagnostics.awaitingDecision],
+              ["Ready for review", diagnostics.reviewReady],
+              ["Incomplete drafts", diagnostics.incompleteDrafts],
               ["Distinct sources", diagnostics.sourceCount],
               ["Rights documented", `${diagnostics.rightsDocumented}/${bundle.studies.length}`],
+              ["Observed runtime", `${diagnostics.totalObservedSeconds}s`],
+              ["Awaiting decision", diagnostics.awaitingDecision],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border border-white/10 p-3">
                 <p className="text-lg font-semibold text-ink">{value}</p>

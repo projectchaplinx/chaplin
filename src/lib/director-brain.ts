@@ -65,7 +65,7 @@ export type DirectorBrainTrace = {
   }>;
 };
 
-export const DIRECTOR_BRAIN_VERSION = "2026.07.30-a";
+export const DIRECTOR_BRAIN_VERSION = "2026.07.30-b";
 
 export const DIRECTOR_BRAIN_POLICY = [
   "Learn reusable craft relationships, never reproduce a screenplay, transcript, shot list, or scene verbatim.",

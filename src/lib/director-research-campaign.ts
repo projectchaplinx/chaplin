@@ -27,7 +27,7 @@ export type DirectorResearchCoverageTarget = {
   reason: string;
 };
 
-export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-a";
+export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-b";
 
 export const DIRECTOR_RESEARCH_COVERAGE_TARGETS: DirectorResearchCoverageTarget[] = [
   { id: "story", label: "Story change", track: "film-craft", targetApprovedStudies: 12, reason: "Objectives, tactics, reversals, choices, and consequences." },
@@ -121,6 +121,24 @@ export const DIRECTOR_RESEARCH_CAMPAIGN: DirectorResearchCampaignItem[] = [
     researchQuestions: [
       "How is action geography communicated before continuity editing conventions stabilized?",
       "Which tableau changes carry cause and consequence without close coverage?",
+    ],
+    priority: "now",
+    periodLabel: "United States, 1903",
+    region: "United States",
+  },
+  {
+    id: "commons-great-train-robbery-viewing-file",
+    track: "public-domain-scene",
+    title: "The Great Train Robbery full-movie viewing file",
+    institution: "Wikimedia Commons / Library of Congress",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:The_Great_Train_Robbery_(1903).webm",
+    sourceKind: "public-domain",
+    rightsBasis: "The Wikimedia Commons file record identifies the 1903 U.S. film and digital copy as free of known copyright restrictions under the Public Domain Mark; the Library of Congress independently includes the work in its public-domain National Film Registry selection.",
+    accessNotes: "Research copy verified 2026-07-30: 13:28 WebM sourced from the Library of Congress. Timed locators use this file's clock; the Library of Congress item record remains the catalog and rights cross-check.",
+    targetTags: ["public-domain-scene", "action", "camera", "blocking", "editing", "geography", "1900s"],
+    researchQuestions: [
+      "How does static tableau staging maintain readable pursuit and combat geography without modern coverage?",
+      "Which entrances, exits, depth changes, smoke events, and body-state changes provide new information inside a held shot?",
     ],
     priority: "now",
     periodLabel: "United States, 1903",

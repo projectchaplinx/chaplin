@@ -97,6 +97,9 @@ export const DIRECTOR_RESEARCH_DOMAINS = [
 export type DirectorResearchDiagnostics = {
   approvedStudies: number;
   awaitingDecision: number;
+  reviewReady: number;
+  incompleteDrafts: number;
+  totalObservedSeconds: number;
   sourceCount: number;
   rightsDocumented: number;
   confidence: Record<DirectorStudyObservation["confidence"], number>;
@@ -282,6 +285,13 @@ export function rankApprovedDirectorResearch(
 
 export function buildDirectorResearchDiagnostics(studies: DirectorSceneStudy[]): DirectorResearchDiagnostics {
   const approved = studies.filter((study) => study.status === "approved");
+  const isReviewReady = (study: DirectorSceneStudy) =>
+    study.status === "draft"
+    && study.observations.length >= 3
+    && study.candidatePrinciples.length >= 1
+    && study.limitations.trim().length >= 40
+    && study.source.rightsBasis.trim().length >= 10;
+  const reviewReady = studies.filter(isReviewReady).length;
   const confidence = studies
     .flatMap((study) => study.observations)
     .reduce<Record<DirectorStudyObservation["confidence"], number>>((counts, observation) => {
@@ -311,6 +321,9 @@ export function buildDirectorResearchDiagnostics(studies: DirectorSceneStudy[]):
   return {
     approvedStudies: approved.length,
     awaitingDecision: studies.filter((study) => study.status === "draft" || study.status === "reviewed").length,
+    reviewReady,
+    incompleteDrafts: studies.filter((study) => study.status === "draft" && !isReviewReady(study)).length,
+    totalObservedSeconds: studies.reduce((total, study) => total + (study.durationSeconds ?? 0), 0),
     sourceCount: new Set(studies.map((study) => study.source.id)).size,
     rightsDocumented: studies.filter((study) => study.source.rightsBasis.trim().length >= 10).length,
     confidence,

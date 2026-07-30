@@ -139,9 +139,31 @@ test("research diagnostics expose coverage gaps and overlapping studies for huma
     { ...baseStudy, id: "study-b", studyTitle: "Route pressure", tags: ["action", "camera"], source: { ...baseStudy.source, id: "source-2" } },
   ]);
   assert.equal(diagnostics.approvedStudies, 2);
+  assert.equal(diagnostics.reviewReady, 0);
+  assert.equal(diagnostics.incompleteDrafts, 0);
+  assert.equal(diagnostics.totalObservedSeconds, 30);
   assert.equal(diagnostics.sourceCount, 2);
   assert.equal(diagnostics.confidence.high, 2);
   assert.equal(diagnostics.coverage.find((entry) => entry.domain === "action")?.approvedStudies, 2);
   assert.equal(diagnostics.coverage.find((entry) => entry.domain === "sound")?.approvedStudies, 0);
   assert.deepEqual(diagnostics.comparisonQueue[0]?.sharedTags, ["action", "camera"]);
+  const readyDraft = {
+    ...baseStudy,
+    id: "study-ready",
+    studyTitle: "Ready evidence",
+    status: "draft" as const,
+    tags: ["action", "camera"],
+    observations: [
+      baseStudy.observations[0],
+      { ...baseStudy.observations[0], startSecond: 2, endSecond: 4 },
+      { ...baseStudy.observations[0], startSecond: 4, endSecond: 6 },
+    ],
+    limitations: "Timed visual-only evidence with no audio claims and a deliberately narrow source sample.",
+  };
+  const queueDiagnostics = buildDirectorResearchDiagnostics([
+    readyDraft,
+    { ...readyDraft, id: "study-incomplete", observations: [], limitations: "" },
+  ]);
+  assert.equal(queueDiagnostics.reviewReady, 1);
+  assert.equal(queueDiagnostics.incompleteDrafts, 1);
 });

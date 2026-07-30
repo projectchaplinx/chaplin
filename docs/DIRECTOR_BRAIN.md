@@ -194,7 +194,7 @@ Each production should eventually score:
 A pattern is promoted only when it improves a defined measure or survives
 expert review. Failed hypotheses remain in the audit ledger.
 
-## Corpus campaign 2026.07.30-a
+## Corpus campaign 2026.07.30-b
 
 The research backlog is now a versioned production object. Super Admin can see
 every queued source, its rights basis, priority, target coverage, research
@@ -236,6 +236,12 @@ process montage in the public-domain Wikimedia viewing copy of *Master Hands*
 (1936). It stores five contiguous observations, confidence labels, candidate
 principles, and explicit timing/audio limitations. It remains a draft until a
 human reviews it; seeding never promotes a principle into Magic.
+
+The second seeded draft analyzes the 11:30-13:00 pursuit and showdown in the
+public-domain Wikimedia viewing copy of *The Great Train Robbery* (1903). Its
+eight contiguous observations contrast empty-route anticipation, deep staging,
+spatial handoff, stable landmarks, temporary smoke occlusion, measurable body
+state changes, and an aftermath hold with the first study's process montage.
 
 ## Delivery phases
 

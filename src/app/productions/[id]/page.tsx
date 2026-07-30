@@ -205,6 +205,8 @@ export function ProductionWorkspace({
   autoStart = false,
   autoRender = false,
   canvasOnly = false,
+  selectedSceneIndex,
+  onSelectedSceneChange,
   onFrameUrlsChange,
 }: {
   storyId: string;
@@ -212,6 +214,8 @@ export function ProductionWorkspace({
   autoStart?: boolean;
   autoRender?: boolean;
   canvasOnly?: boolean;
+  selectedSceneIndex?: number;
+  onSelectedSceneChange?: (index: number) => void;
   onFrameUrlsChange?: (urls: string[]) => void;
 }) {
   const id = storyId;
@@ -234,7 +238,12 @@ export function ProductionWorkspace({
   const [renderProgress, setRenderProgress] = useState("");
   const [renderFrameUrl, setRenderFrameUrl] = useState<string | null>(null);
   const [renderShots, setRenderShots] = useState<ShotRenderState[]>([]);
-  const [selectedShotIndex, setSelectedShotIndex] = useState(0);
+  const [internalSelectedShotIndex, setInternalSelectedShotIndex] = useState(0);
+  const selectedShotIndex = selectedSceneIndex ?? internalSelectedShotIndex;
+  const selectShot = useCallback((index: number) => {
+    setInternalSelectedShotIndex(index);
+    onSelectedSceneChange?.(index);
+  }, [onSelectedSceneChange]);
   const [clock, setClock] = useState(() => Date.now());
   const autoInitializeRef = useRef(false);
   const autoRenderRef = useRef(false);
@@ -929,7 +938,7 @@ export function ProductionWorkspace({
     setError("");
     setRenderProgress("Preparing one native 15-second audiovisual take");
     setRenderFrameUrl(lockedReference);
-    setSelectedShotIndex(0);
+    selectShot(0);
     setRenderShots(Array.from({ length: 4 }, () => ({ status: "queued" })));
     let activeRun = run;
     let activePipelineStepKey = "";
@@ -1139,7 +1148,7 @@ export function ProductionWorkspace({
     setError("");
     setRenderProgress("Preparing the locked actor reference");
     setRenderFrameUrl(null);
-    setSelectedShotIndex(0);
+    selectShot(0);
     setRenderShots(Array.from({ length: contract.shotCount }, () => ({ status: "queued" })));
     let activeShotIndex = 0;
     let activeRun = run;
@@ -1232,7 +1241,7 @@ export function ProductionWorkspace({
         }
         framesDesigned += 1;
         setRenderFrameUrl(frameUrl);
-        setSelectedShotIndex(index);
+        selectShot(index);
         setRenderProgress(`Parallel generation · ${framesDesigned}/${contract.shotCount} frames · ${scenesRecorded}/${contract.shotCount} soundtracks`);
         setRenderShots((shots) => shots.map((shot, shotIndex) => (
           shotIndex === index
@@ -1431,7 +1440,7 @@ export function ProductionWorkspace({
             throw error;
           });
           scenesAnimated += 1;
-          setSelectedShotIndex(index);
+          selectShot(index);
           setRenderFrameUrl(frameData.frameUrl);
           setRenderProgress(`Animated ${scenesAnimated} of ${contract.shotCount} scenes`);
           setRenderShots((shots) => shots.map((shot, shotIndex) => (
@@ -1722,7 +1731,7 @@ export function ProductionWorkspace({
                 ? renderProgress || "The Studio is preparing the production."
                 : contract.punchGenerationMode === "single-take"
                   ? "Generate one native 15-second, four-shot take with synchronized dialogue, ambience, effects, and score."
-                  : "Create four provider-safe scene clips, then trim and assemble the exact 15-second master here."}
+                  : "Generate all four scenes together, then trim and assemble the exact 15-second master here."}
             </p>
           </div>
           <button
@@ -1735,7 +1744,7 @@ export function ProductionWorkspace({
               ? "Working…"
               : contract.punchGenerationMode === "single-take"
                 ? "Generate one 15-second take"
-                : "Generate four scene clips"}
+                : "Generate four scenes"}
           </button>
         </section>
       )}
@@ -1817,12 +1826,15 @@ export function ProductionWorkspace({
 
       {run && (
         <section
-          className={`mt-4 overflow-hidden rounded-[1.75rem] border shadow-[0_24px_80px_rgba(0,0,0,0.3)] ${
+          className={`${canvasOnly ? "" : "mt-4"} overflow-hidden rounded-[1.75rem] border shadow-[0_24px_80px_rgba(0,0,0,0.3)] ${
             finalVideoUrl ? "border-emerald-400/45" : "border-amber-300/45"
           }`}
           data-production-preview-primary
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/35 px-4 py-3">
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/35 px-4 py-3"
+            data-production-duplicate-strip={canvasOnly || undefined}
+          >
             <div className="flex min-w-0 items-center gap-2">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
                 {productionState.tone === "live" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />}
@@ -1867,7 +1879,10 @@ export function ProductionWorkspace({
             </div>
           </div>
 
-          <div className="border-b border-white/10 bg-[#090d07] px-3 py-3 sm:px-4">
+          <div
+            className="border-b border-white/10 bg-[#090d07] px-3 py-3 sm:px-4"
+            data-production-duplicate-strip={canvasOnly || undefined}
+          >
             <div className="mb-4 grid grid-cols-5 gap-1" aria-label="Production phase progress">
               {productionPhases.map((phase) => (
                 <div key={phase.label} className="min-w-0">
@@ -1913,7 +1928,7 @@ export function ProductionWorkspace({
                   <button
                     type="button"
                     key={`${shot.index}-${shot.title}`}
-                    onClick={() => setSelectedShotIndex(shot.index)}
+                    onClick={() => selectShot(shot.index)}
                     className={`group relative min-w-[9.5rem] max-w-[9.5rem] snap-start overflow-hidden rounded-xl border text-left transition ${
                       selected
                         ? "border-accent shadow-[0_0_0_1px_rgba(244,63,105,0.35),0_10px_30px_rgba(0,0,0,0.32)]"
@@ -1998,7 +2013,10 @@ export function ProductionWorkspace({
             </div>
           </div>
 
-          <div className="relative aspect-video overflow-hidden bg-black">
+          <div
+            className={`relative overflow-hidden bg-black ${canvasOnly ? "min-h-0 flex-1" : "aspect-video"}`}
+            data-production-primary-media
+          >
             {canvasVideoUrl ? (
               <video
                 key={canvasVideoUrl}
@@ -2049,7 +2067,7 @@ export function ProductionWorkspace({
                     </p>
                   )}
                 </div>
-                {contract.format === "punch" && (
+                {contract.format === "punch" && !canvasOnly && (
                   <button
                     type="button"
                     onClick={() => void renderPunchOutput()}
@@ -2090,7 +2108,7 @@ export function ProductionWorkspace({
                 <p className="mt-1 text-[10px] leading-4 text-grey">{productionState.detail}</p>
               </div>
             </div>
-            {!busy && !finalVideoUrl && contract.format === "punch" && (
+            {!canvasOnly && !busy && !finalVideoUrl && contract.format === "punch" && (
               <button
                 type="button"
                 onClick={() => void renderPunchOutput()}
@@ -2745,6 +2763,7 @@ export default function ProductionDetailPage() {
     [story, world],
   );
   const [frameUrls, setFrameUrls] = useState<string[]>([]);
+  const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
   const handleFrameUrls = useCallback((urls: string[]) => {
     setFrameUrls((current) => (
       current.length === urls.length && current.every((url, index) => url === urls[index])
@@ -2822,17 +2841,20 @@ export default function ProductionDetailPage() {
                 embedded
                 autoStart
                 canvasOnly
+                selectedSceneIndex={selectedSceneIndex}
+                onSelectedSceneChange={setSelectedSceneIndex}
                 onFrameUrlsChange={handleFrameUrls}
               />
             </div>
             <SceneStudioAssets
               assets={assets}
               busyIndex={null}
-              onSelect={() => undefined}
+              onSelect={setSelectedSceneIndex}
               onGenerateAll={() => undefined}
               canGenerate={false}
               productImageUrl={story.productImageUrl}
               productionMode
+              selectedIndex={selectedSceneIndex}
             />
           </div>
         )}

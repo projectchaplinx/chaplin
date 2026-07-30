@@ -772,16 +772,41 @@ body:has([data-home-shell]) > main {
   }
 
   .studio-production-canvas {
-    padding: 0.85rem 1rem 2rem;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0.85rem 1rem 1rem;
   }
 
   .studio-production-canvas .studio-embedded-production__actionbar {
+    flex: 0 0 auto;
     margin: -0.85rem -1rem 0;
     padding-inline: 1rem;
   }
 
   .studio-production-canvas [data-production-preview-primary] {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
     margin-top: 0.85rem;
+  }
+
+  .studio-production-canvas [data-production-duplicate-strip] {
+    display: none;
+  }
+
+  .studio-production-canvas [data-production-primary-media] {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .studio-production-canvas [data-studio-production-decision] {
+    max-height: 35%;
+    flex: 0 0 auto;
+    overflow-y: auto;
   }
 }
 

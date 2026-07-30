@@ -24,6 +24,7 @@ export default function SceneStudioAssets({
   canGenerate,
   productImageUrl,
   productionMode = false,
+  selectedIndex,
 }: {
   assets: SceneAsset[];
   busyIndex: number | null;
@@ -32,6 +33,7 @@ export default function SceneStudioAssets({
   canGenerate: boolean;
   productImageUrl?: string;
   productionMode?: boolean;
+  selectedIndex?: number;
 }) {
   const ready = assets.filter((asset) => asset.previewImageUrl).length;
 
@@ -65,13 +67,19 @@ export default function SceneStudioAssets({
       <ul className="flex shrink-0 flex-col gap-2">
         {assets.map((asset) => {
           const busy = busyIndex === asset.index;
+          const selected = selectedIndex === asset.index;
           const state = busy ? "rendering" : asset.previewImageUrl ? "ready" : asset.authored ? "queued" : "empty";
           return (
             <li key={asset.index}>
               <button
                 type="button"
                 onClick={() => onSelect(asset.index)}
-                className="group w-full overflow-hidden rounded-xl border border-line/70 bg-black/20 text-left transition-colors hover:border-accent/45"
+                className={`group w-full overflow-hidden rounded-xl border bg-black/20 text-left transition-colors ${
+                  selected
+                    ? "border-accent shadow-[0_0_0_1px_rgba(244,63,105,0.18)]"
+                    : "border-line/70 hover:border-accent/45"
+                }`}
+                aria-current={selected ? "true" : undefined}
               >
                 <span className="relative block aspect-video w-full overflow-hidden bg-black/40">
                   {asset.previewImageUrl ? (

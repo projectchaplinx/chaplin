@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.70 - 2026-07-30 - Single-canvas scene production
+
+- Removed the duplicated four-scene timeline from the desktop production
+  canvas because the right Production Assets rail already owns scene selection.
+- Made Scene 1 the initial center preview and wired every right-rail scene card
+  to switch that same focused canvas, including during live generation.
+- Reduced the multi-shot action to one clear `Generate four scenes` control and
+  removed duplicate center-canvas generation buttons.
+- Locked the desktop production workspace to a flex-fitted `100dvh` surface,
+  with any exceptional decision panel scrolling internally instead of creating
+  a page crawl.
+
 ## v0.2.69 - 2026-07-30 - Sound-aware Director Brain evidence
 
 - Added a guarded audio-research command that combines non-verbatim

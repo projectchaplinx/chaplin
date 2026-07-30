@@ -149,6 +149,12 @@ type CharacterSuggestion = {
   themeScore: string;
   productionBible: CharacterProductionBible;
 };
+type CharacterStreamPreview = {
+  name?: string;
+  archetypes?: Archetype[];
+  tagline?: string;
+  personality?: string;
+};
 
 type CharacterBuilderDraft = {
   version: 1;
@@ -202,6 +208,96 @@ const IDENTITY_BUILD_STAGES = [
     detail: "The core identity is visible. Look, voice, sound, music, and continuity are finishing.",
   },
 ] as const;
+
+function CharacterBuildPopup({
+  target,
+  progress,
+  buildStage,
+  elapsedSeconds,
+  preview,
+}: {
+  target: SuggestionTarget | null;
+  progress: number;
+  buildStage: number;
+  elapsedSeconds: number;
+  preview: CharacterStreamPreview;
+}) {
+  if (!target) return null;
+  const buildingAll = target === "all";
+  const stage = IDENTITY_BUILD_STAGES[buildStage];
+  const roleLabels = preview.archetypes?.map((item) => ARCHETYPE_LABEL[item]).join(" + ");
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4 backdrop-blur-[5px]">
+      <section
+        className="magic-surface w-full max-w-lg overflow-hidden rounded-2xl border border-accent/45 bg-[#090d0b]/95 shadow-[0_32px_100px_rgba(0,0,0,0.72)]"
+        data-suggest-progress
+        role="status"
+        aria-live="polite"
+        aria-label={buildingAll ? "Building the actor identity" : `Writing ${target}`}
+      >
+        <div className="border-b border-white/10 px-6 py-5">
+          <div className="flex items-start justify-between gap-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-accent/45 bg-accent/10">
+                <span className="absolute inset-1 animate-ping rounded-full bg-accent/15" />
+                <span className="relative h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_16px_var(--accent)]" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-accent">
+                  Chaplin is writing
+                </p>
+                <h2 className="mt-1 text-lg font-semibold text-ink">
+                  {buildingAll ? stage.label : `Writing ${target}`}
+                </h2>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="block font-mono text-2xl font-bold leading-none text-accent">
+                {buildingAll ? `${progress}%` : "LIVE"}
+              </span>
+              <span className="mt-1.5 block text-[9px] tabular-nums text-grey">{elapsedSeconds}s elapsed</span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              className={`h-full rounded-full bg-gradient-to-r from-accent to-[#26d7c5] ${
+                buildingAll ? "transition-[width] duration-500" : "w-1/2 animate-pulse"
+              }`}
+              style={buildingAll ? { width: `${progress}%` } : undefined}
+            />
+          </div>
+          <p className="mt-3 text-[11px] leading-5 text-grey">
+            {buildingAll ? stage.detail : "The finished value will move into the editor when it is ready."}
+          </p>
+        </div>
+
+        {buildingAll && (
+          <div className="space-y-2.5 px-6 py-5">
+            {[
+              ["Name", preview.name],
+              ["Role", roleLabels],
+              ["Promise", preview.tagline],
+              ["Engine", preview.personality],
+            ].map(([label, value]) => (
+              <div key={label} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-grey">{label}</span>
+                <span className={`line-clamp-2 text-[10px] leading-4 ${value ? "text-ink" : "text-grey/45"}`}>
+                  {value || "Waiting for model output…"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between border-t border-white/10 px-6 py-3 text-[9px] text-grey">
+          <span>{buildingAll ? `Step ${buildStage + 1} of ${IDENTITY_BUILD_STAGES.length}` : "One field"}</span>
+          <span>The right-side editor updates when complete</span>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function appearanceDirectionFromBible(bible: CharacterProductionBible) {
   return [
@@ -279,6 +375,7 @@ export default function NewCharacterPage() {
   const [productionBible, setProductionBible] = useState<CharacterProductionBible | undefined>();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [streamedFieldCount, setStreamedFieldCount] = useState(0);
+  const [streamPreview, setStreamPreview] = useState<CharacterStreamPreview>({});
   const [revealingField, setRevealingField] = useState("");
   const suggestStartedAt = useRef<number | null>(null);
   const magicWriteRunRef = useRef(0);
@@ -548,6 +645,7 @@ export default function NewCharacterPage() {
     }
     setElapsedSeconds(0);
     setStreamedFieldCount(0);
+    setStreamPreview(effectiveName.trim() ? { name: effectiveName.trim() } : {});
     setSuggestingTarget(target);
     setError("");
     setSuggestionMessage("");
@@ -595,8 +693,7 @@ export default function NewCharacterPage() {
         const revealCompletedFields = () => {
           const streamedName = completedJsonValue(generatedJson, "name");
           if (!effectiveName.trim() && typeof streamedName === "string" && !revealed.has("name")) {
-            setName(streamedName);
-            setRevealingField("name");
+            setStreamPreview((current) => ({ ...current, name: streamedName }));
             revealed.add("name");
           }
           const streamedArchetypes = completedJsonValue(generatedJson, "archetypes");
@@ -605,26 +702,21 @@ export default function NewCharacterPage() {
                 typeof item === "string" && (ARCHETYPES as readonly string[]).includes(item))
             : [];
           if (validStreamedArchetypes.length && !revealed.has("archetypes")) {
-            setArchetypes(validStreamedArchetypes);
-            setRevealingField("archetypes");
+            setStreamPreview((current) => ({ ...current, archetypes: validStreamedArchetypes }));
             revealed.add("archetypes");
           }
           const streamedTagline = completedJsonValue(generatedJson, "tagline");
           if (typeof streamedTagline === "string" && !revealed.has("tagline")) {
-            setTagline(streamedTagline);
-            setRevealingField("tagline");
+            setStreamPreview((current) => ({ ...current, tagline: streamedTagline }));
             revealed.add("tagline");
           }
           const streamedPersonality = completedJsonValue(generatedJson, "personality");
           if (typeof streamedPersonality === "string" && !revealed.has("personality")) {
-            setPersonality(streamedPersonality);
-            setRevealingField("personality");
+            setStreamPreview((current) => ({ ...current, personality: streamedPersonality }));
             revealed.add("personality");
           }
           if (revealed.size) {
             setStreamedFieldCount(Math.min(4, revealed.size));
-            const latest = [...revealed].at(-1) ?? "identity";
-            setSuggestionMessage(`Writing ${latest.replace("-", " ")} from the live model response…`);
           }
         };
         while (true) {
@@ -833,6 +925,13 @@ export default function NewCharacterPage() {
 
   return (
     <>
+      <CharacterBuildPopup
+        target={suggestingTarget}
+        progress={progress}
+        buildStage={buildStage}
+        elapsedSeconds={elapsedSeconds}
+        preview={streamPreview}
+      />
       <div
         data-character-creation-shell
         className="hidden h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#070a09] lg:flex"
@@ -1088,27 +1187,6 @@ export default function NewCharacterPage() {
                         : "Write everything →"}
                   </button>
                 </div>
-
-                {suggestingTarget === "all" && (
-                  <div className="mt-4 rounded-xl border border-accent/40 bg-black/30 p-4 shadow-[inset_0_1px_rgba(255,255,255,0.04)]" role="progressbar" aria-valuenow={progress}>
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-grey">
-                          Step {buildStage + 1} of {IDENTITY_BUILD_STAGES.length}
-                        </p>
-                        <span className="mt-1 block text-sm font-semibold text-ink">{IDENTITY_BUILD_STAGES[buildStage].label}</span>
-                      </div>
-                      <span className="font-mono text-2xl font-bold leading-none text-accent">{progress}%</span>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-accent to-[#26d7c5] transition-all duration-1000"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                    <p className="mt-3 text-[11px] leading-5 text-grey">{IDENTITY_BUILD_STAGES[buildStage].detail}</p>
-                  </div>
-                )}
 
               </section>
 
@@ -1422,88 +1500,6 @@ export default function NewCharacterPage() {
               className="mt-3 w-full resize-none rounded-sm border border-line bg-paper px-3 py-2 text-sm focus:border-accent focus:outline-none"
             />
             <p className="mt-1 text-[10px] text-grey">Autosaved · Everything stays editable</p>
-          {suggestingTarget && (
-            <div
-              className="mt-3 overflow-hidden rounded-xl border border-accent/35 bg-[linear-gradient(135deg,rgba(244,67,108,0.10),rgba(26,52,38,0.28))] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-              data-suggest-progress
-              role="progressbar"
-              aria-label={suggestingTarget === "all" ? "Building the actor identity" : `Writing ${suggestingTarget}`}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={progress}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-accent/40 bg-accent/10">
-                    <span className="absolute inset-1 animate-ping rounded-full bg-accent/15" />
-                    <span className="relative h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_14px_var(--accent)]" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-grey">
-                      Building now
-                    </span>
-                    <span className="mt-0.5 block text-sm font-semibold leading-5 text-ink">
-                      {suggestingTarget === "all"
-                        ? IDENTITY_BUILD_STAGES[buildStage].label
-                        : `Writing ${suggestingTarget}`}
-                    </span>
-                  </span>
-                </div>
-                <span className="shrink-0 font-mono text-lg font-semibold tabular-nums text-accent">
-                  {progress}%
-                </span>
-              </div>
-
-              {suggestingTarget === "all" && (
-                <p className="mt-2.5 rounded-lg border border-white/[0.06] bg-black/15 px-3 py-2 text-[10px] leading-4 text-grey">
-                  {IDENTITY_BUILD_STAGES[buildStage].detail}
-                </p>
-              )}
-
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/25">
-                <div
-                  className="relative h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-light))] transition-[width] duration-1000 ease-out"
-                  style={{ width: `${progress}%` }}
-                >
-                  <span className="absolute inset-y-0 right-0 w-8 animate-pulse bg-white/40 blur-sm" />
-                </div>
-              </div>
-
-              {suggestingTarget === "all" && (
-                <div className="mt-3 grid grid-cols-5 gap-1">
-                  {IDENTITY_BUILD_STAGES.map((stage, index) => (
-                    <div key={stage.label} className="min-w-0">
-                      <span
-                        className={`block h-0.5 rounded-full transition-colors ${
-                          index < buildStage
-                            ? "bg-accent-secondary"
-                            : index === buildStage
-                              ? "bg-accent"
-                              : "bg-white/10"
-                        }`}
-                      />
-                      <span
-                        className={`mt-1 block truncate text-[8px] ${
-                          index === buildStage ? "font-semibold text-ink" : "text-grey/70"
-                        }`}
-                      >
-                        {stage.shortLabel}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-2.5 flex items-center justify-between gap-3 text-[9px] text-grey">
-                <span>
-                  {suggestingTarget === "all" && buildStage < IDENTITY_BUILD_STAGES.length - 1
-                    ? `Next: ${IDENTITY_BUILD_STAGES[buildStage + 1].shortLabel}`
-                    : "Usually ready in 30–55 seconds"}
-                </span>
-                <span className="shrink-0 tabular-nums">{elapsedSeconds}s elapsed</span>
-              </div>
-            </div>
-          )}
           {suggestionMessage && (
             <p className="mt-3 text-[11px] text-grey" data-suggestion-message>
               {suggestionMessage}

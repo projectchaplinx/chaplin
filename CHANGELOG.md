@@ -3,6 +3,17 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.74 - 2026-07-30 - Centered actor build handoff
+
+- Replaced the duplicated inline actor-writing progress cards with one centered
+  build pop-up shared by desktop and mobile.
+- Show live name, role, promise, engine, elapsed time, and field-driven progress
+  inside the pop-up while the model is working.
+- Keep the right-side identity editor unchanged during generation, then apply
+  the complete authoritative actor in one handoff and close the pop-up.
+- Keep single-field Magic Write actions in the same centered progress surface
+  with an indeterminate live state.
+
 ## v0.2.73 - 2026-07-30 - Honest live actor creation
 
 - Removed the canned instant actor draft that pre-filled a generic name,

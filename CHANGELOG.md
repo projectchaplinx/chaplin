@@ -1,5 +1,16 @@
 # Chaplin Changelog
 
+## v0.2.80 - 2026-07-30 - Keep malformed voice keys out of request headers
+
+- Validate every configured ElevenLabs credential before it is placed in the
+  `xi-api-key` request header.
+- Skip copied masked values containing Unicode bullets and continue to the next
+  valid configured credential instead of failing voice auditions in Fetch.
+- Recover an otherwise valid API key when it was accidentally pasted with one
+  leading bullet-list marker.
+- Add regression coverage for both masked-value fallback and bullet-prefix
+  recovery; the ElevenLabs voice tests and production build pass.
+
 ## v0.2.79 - 2026-07-30 - Use the replacement ElevenLabs account
 
 - Centralize ElevenLabs credential selection across voice design, voice locking,

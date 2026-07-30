@@ -39,3 +39,20 @@ test("blank values are skipped and the legacy key remains a fallback", () => {
   }), "legacy-account");
   assert.equal(elevenLabsApiKey({}), undefined);
 });
+
+test("masked Unicode values are skipped before they can enter an HTTP header", () => {
+  const credential = resolveElevenLabsCredential({
+    CHAPLIN_ELEVENLABS_API_KEY: "••••••••••••",
+    ELEVEN_LABS_API_KEY: "valid-byte-safe-key",
+  });
+  assert.deepEqual(credential, {
+    apiKey: "valid-byte-safe-key",
+    envName: "ELEVEN_LABS_API_KEY",
+  });
+});
+
+test("a copied bullet list marker is removed from an otherwise valid key", () => {
+  assert.equal(elevenLabsApiKey({
+    CHAPLIN_ELEVENLABS_API_KEY: "• valid-byte-safe-key",
+  }), "valid-byte-safe-key");
+});

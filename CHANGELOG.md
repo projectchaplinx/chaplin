@@ -3,6 +3,19 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.69 - 2026-07-30 - Sound-aware Director Brain evidence
+
+- Added a guarded audio-research command that combines non-verbatim
+  `gpt-audio-1.5` perception, GPT-5.6 Terra structured synthesis, and local
+  signal measurements without creating or storing a transcript.
+- Added a third, 90-second rights-aware scene study joining timed visual,
+  blocking, transition, audio, and sound-function evidence while keeping every
+  reusable principle in draft until an administrator reviews the source.
+- Expanded Super Admin research diagnostics with sound-study runtime and
+  period-world coverage, and documented the nine-column evidence intake.
+- Seeded 17 registered research sources and three draft studies in production;
+  no study was automatically approved.
+
 ## v0.2.68 - 2026-07-30 - Rights-aware contact-sheet research
 
 - Added a guarded Director Brain research command that analyzes local,

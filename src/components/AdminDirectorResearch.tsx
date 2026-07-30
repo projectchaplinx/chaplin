@@ -76,6 +76,8 @@ function StudyCard({
                   {observation.startSecond}–{observation.endSecond}s
                 </span>{" "}
                 {observation.evidence}
+                {observation.audioEvidence ? <span className="block text-cyan-100/70">Audio: {observation.audioEvidence}</span> : null}
+                {observation.soundFunction ? <span className="block text-cyan-100/50">Sound function: {observation.soundFunction}</span> : null}
                 {observation.narrativeJob ? <span className="block text-white/45">Job: {observation.narrativeJob}</span> : null}
               </li>
             ))}
@@ -228,6 +230,8 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
               ["Incomplete drafts", diagnostics.incompleteDrafts],
               ["Distinct sources", diagnostics.sourceCount],
               ["Rights documented", `${diagnostics.rightsDocumented}/${bundle.studies.length}`],
+              ["Sound evidence", `${diagnostics.soundEvidenceStudies} studies / ${diagnostics.soundObservedSeconds}s`],
+              ["Period worlds", `${diagnostics.periodEvidenceStudies} studies / ${diagnostics.periodRegions} regions`],
               ["Observed runtime", `${diagnostics.totalObservedSeconds}s`],
               ["Awaiting decision", diagnostics.awaitingDecision],
             ].map(([label, value]) => (
@@ -299,9 +303,9 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
           <label className="text-xs text-grey">
             Timed observations
             <span className="mt-1 block text-[10px] leading-4 text-white/45">
-              One line per beat: seconds | observable change | camera/blocking | edit/sound | narrative job | inference | confidence
+              One line per beat: seconds | visual evidence | camera/blocking | transition | narrative job | inference | confidence | audio evidence | sound function
             </span>
-            <textarea required name="observationLines" className="mt-2 min-h-40 w-full rounded-lg border border-line bg-black/20 p-3 font-mono text-[11px] leading-5 text-ink" placeholder={"0-2 | Exit and destination share the frame | wide, fixed geography | engine remains off-screen | establishes route and threat | clarity precedes speed | high"} />
+            <textarea required name="observationLines" className="mt-2 min-h-40 w-full rounded-lg border border-line bg-black/20 p-3 font-mono text-[11px] leading-5 text-ink" placeholder={"0-2 | Exit and destination share the frame | wide, fixed geography | impact leads the cut | establishes route and threat | clarity precedes speed | high | distant engine approaches through sparse ambience | offscreen threat narrows options"} />
           </label>
           <label className="text-xs text-grey">
             Candidate reusable principles

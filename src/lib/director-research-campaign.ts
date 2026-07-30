@@ -27,7 +27,7 @@ export type DirectorResearchCoverageTarget = {
   reason: string;
 };
 
-export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-b";
+export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-c";
 
 export const DIRECTOR_RESEARCH_COVERAGE_TARGETS: DirectorResearchCoverageTarget[] = [
   { id: "story", label: "Story change", track: "film-craft", targetApprovedStudies: 12, reason: "Objectives, tactics, reversals, choices, and consequences." },
@@ -195,6 +195,25 @@ export const DIRECTOR_RESEARCH_CAMPAIGN: DirectorResearchCampaignItem[] = [
       "When do sound, gaze, and withheld reverse angles move attention?",
     ],
     priority: "next",
+    periodLabel: "United States and Mexico, early 1950s",
+    region: "Southwestern United States and Baja California",
+  },
+  {
+    id: "commons-hitch-hiker-viewing-file",
+    track: "public-domain-scene",
+    title: "The Hitch-Hiker full-movie viewing file",
+    institution: "Wikimedia Commons / Library of Congress",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:The_Hitch-Hiker.webm",
+    sourceKind: "public-domain",
+    rightsBasis: "The Wikimedia Commons file record marks this U.S. film public domain in the United States and cites Library of Congress item mbrs00047382 as confirmation. Jurisdiction-specific reuse caveats remain attached to the file record.",
+    accessNotes: "Research copy verified 2026-07-30: 70:58 WebM; the timed study uses 15:00-16:30 on this file's clock. Contact-sheet and audio analysis are transient; no frames, soundtrack, transcript, subtitles, or dialogue are stored in the corpus.",
+    targetTags: ["public-domain-scene", "suspense", "camera", "blocking", "editing", "sound", "dialogue", "performance", "1950s", "vehicle"],
+    researchQuestions: [
+      "How does the car partition access, bodies, eyelines, and escape routes before the action moves into open rocks?",
+      "How do sparse ambience, separated speech turns, impact sounds, and late score shape pressure without storing dialogue?",
+      "Which weapon vectors, gestures, wide resets, and reaction close-ups create causal edit opportunities?",
+    ],
+    priority: "now",
     periodLabel: "United States and Mexico, early 1950s",
     region: "Southwestern United States and Baja California",
   },

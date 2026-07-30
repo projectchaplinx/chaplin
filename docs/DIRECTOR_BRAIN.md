@@ -194,7 +194,7 @@ Each production should eventually score:
 A pattern is promoted only when it improves a defined measure or survives
 expert review. Failed hypotheses remain in the audit ledger.
 
-## Corpus campaign 2026.07.30-b
+## Corpus campaign 2026.07.30-c
 
 The research backlog is now a versioned production object. Super Admin can see
 every queued source, its rights basis, priority, target coverage, research
@@ -229,7 +229,7 @@ npm run db:director-research-campaign
 npm run db:director-research-studies
 ```
 
-Both operations are idempotent. Re-running the campaign refreshes source
+The campaign and study seed operations are idempotent. Re-running the campaign refreshes source
 metadata and verification dates without resetting an analyst's queue state.
 The first seeded draft is a timed, visual-only study of the 03:00-03:20
 process montage in the public-domain Wikimedia viewing copy of *Master Hands*
@@ -242,6 +242,22 @@ public-domain Wikimedia viewing copy of *The Great Train Robbery* (1903). Its
 eight contiguous observations contrast empty-route anticipation, deep staging,
 spatial handoff, stable landmarks, temporary smoke occlusion, measurable body
 state changes, and an aftermath hold with the first study's process montage.
+
+The third seeded draft analyzes *The Hitch-Hiker* (1953), 15:00-16:30 on the
+public-domain Wikimedia viewing file. Six contiguous 15-second observations
+combine car and rocky-terrain blocking, weapon and eyeline vectors, sparse
+ambience, speech function, low-level gaps, impact punctuation, and a late score
+change. It stores no dialogue words and remains unavailable to Magic until an
+administrator directly reviews and approves the evidence.
+
+Two guarded research commands support this workflow:
+
+- `npm run research:director-contact-sheet` accepts only a local repository
+  image and produces draft visual evidence with explicit sampling limits.
+- `npm run research:director-audio` uses `gpt-audio-1.5` for non-verbatim
+  perception and `gpt-5.6-terra` for strict synthesis. It creates no transcript,
+  disables response storage, and cross-checks model notes against FFmpeg signal
+  measurements before emitting a complete timeline.
 
 ## Delivery phases
 
@@ -266,6 +282,8 @@ state changes, and an aftermath hold with the first study's process montage.
 - [x] Add source deduplication, access/rights basis, review, and rejection.
 - [x] Distill approved observations into candidate patterns without copying
   expressive content.
+- [x] Add separate visual evidence, audio evidence, sound function, and
+  confidence fields without storing transcripts or dialogue.
 
 ### Phase 3 - retrieval and evaluation
 
@@ -297,7 +315,8 @@ state changes, and an aftermath hold with the first study's process montage.
 - [ ] Monthly provider re-benchmark.
 - [ ] Pattern decay and contradiction review.
 - [x] Initial coverage, confidence, source-diversity, rights, and human
-  comparison dashboard.
+  comparison dashboard, including sound-study runtime and period-region
+  evidence counts.
 - [ ] Exportable decision report for each finished production.
 
 ## Initial primary research register

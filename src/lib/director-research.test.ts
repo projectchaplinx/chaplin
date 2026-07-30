@@ -22,7 +22,7 @@ test("scene-study intake separates timed evidence, craft, transition, function, 
     tags: "vehicle, pursuit, action",
     observationLines: [
       "0-1 | Destination and pursuing vehicle share the wide frame | locked wide geography | engine bridges into closer frame | orient route and threat | the wide earns later compression | high",
-      "5-6 | A blocked lane removes the safe route | driver insert and forward axis | impact sound leads the cut | impose route cost | escalation changes options rather than volume | medium",
+      "5-6 | A blocked lane removes the safe route | driver insert and forward axis | impact leads the cut | impose route cost | escalation changes options rather than volume | medium | engine drops out before one close impact | silence isolates the new route cost",
     ].join("\n"),
     candidatePrinciples: "Establish destination and threat before accelerating.\nEscalate a pursuit by removing a route or tool.",
   });
@@ -30,6 +30,8 @@ test("scene-study intake separates timed evidence, craft, transition, function, 
   assert.equal(normalized.study.observations[1].startSecond, 5);
   assert.equal(normalized.study.candidatePrinciples.length, 2);
   assert.deepEqual(normalized.study.tags, ["vehicle", "pursuit", "action"]);
+  assert.match(normalized.study.observations[1].audioEvidence ?? "", /engine drops out/i);
+  assert.match(normalized.study.observations[1].soundFunction ?? "", /route cost/i);
 });
 
 test("screenplays, transcripts, and long copied dialogue are rejected", () => {
@@ -99,8 +101,8 @@ test("research diagnostics expose coverage gaps and overlapping studies for huma
     workTitle: "Chaplin tests",
     sceneLocator: "test",
     durationSeconds: 15,
-    periodLabel: "",
-    region: "",
+    periodLabel: "United States, 1968",
+    region: "Los Angeles, United States",
     observations: [{
       startSecond: 0,
       endSecond: 2,
@@ -110,6 +112,8 @@ test("research diagnostics expose coverage gaps and overlapping studies for huma
       narrativeJob: "orientation",
       inference: "Geography precedes speed.",
       confidence: "high" as const,
+      audioEvidence: "A distant engine falls below the measured ambient bed.",
+      soundFunction: "The withdrawal makes the visible exit feel less reachable.",
     }],
     candidatePrinciples: ["Show the route before acceleration."],
     limitations: "",
@@ -146,6 +150,10 @@ test("research diagnostics expose coverage gaps and overlapping studies for huma
   assert.equal(diagnostics.confidence.high, 2);
   assert.equal(diagnostics.coverage.find((entry) => entry.domain === "action")?.approvedStudies, 2);
   assert.equal(diagnostics.coverage.find((entry) => entry.domain === "sound")?.approvedStudies, 0);
+  assert.equal(diagnostics.soundEvidenceStudies, 2);
+  assert.equal(diagnostics.soundObservedSeconds, 4);
+  assert.equal(diagnostics.periodEvidenceStudies, 2);
+  assert.equal(diagnostics.periodRegions, 1);
   assert.deepEqual(diagnostics.comparisonQueue[0]?.sharedTags, ["action", "camera"]);
   const readyDraft = {
     ...baseStudy,

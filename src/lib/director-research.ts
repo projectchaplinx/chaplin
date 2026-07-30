@@ -19,6 +19,8 @@ export type DirectorStudyObservation = {
   narrativeJob: string;
   inference: string;
   confidence: "low" | "medium" | "high";
+  audioEvidence?: string;
+  soundFunction?: string;
 };
 
 export type DirectorResearchSourceRecord = {
@@ -102,6 +104,10 @@ export type DirectorResearchDiagnostics = {
   totalObservedSeconds: number;
   sourceCount: number;
   rightsDocumented: number;
+  soundEvidenceStudies: number;
+  soundObservedSeconds: number;
+  periodEvidenceStudies: number;
+  periodRegions: number;
   confidence: Record<DirectorStudyObservation["confidence"], number>;
   coverage: Array<{ domain: typeof DIRECTOR_RESEARCH_DOMAINS[number]; approvedStudies: number }>;
   comparisonQueue: Array<{
@@ -181,6 +187,8 @@ export function parseObservationLines(value: unknown): DirectorStudyObservation[
       narrativeJob: text(parts[4], 400),
       inference,
       confidence,
+      audioEvidence: text(parts[7], 500),
+      soundFunction: text(parts[8], 500),
     }];
   }).slice(0, 500);
 }
@@ -326,6 +334,18 @@ export function buildDirectorResearchDiagnostics(studies: DirectorSceneStudy[]):
     totalObservedSeconds: studies.reduce((total, study) => total + (study.durationSeconds ?? 0), 0),
     sourceCount: new Set(studies.map((study) => study.source.id)).size,
     rightsDocumented: studies.filter((study) => study.source.rightsBasis.trim().length >= 10).length,
+    soundEvidenceStudies: studies.filter((study) => study.observations.some((observation) =>
+      Boolean(observation.audioEvidence?.trim() || observation.soundFunction?.trim()),
+    )).length,
+    soundObservedSeconds: studies.reduce((total, study) => total + study.observations.reduce((studyTotal, observation) =>
+      observation.audioEvidence?.trim()
+        ? studyTotal + Math.max(0, observation.endSecond - observation.startSecond)
+        : studyTotal,
+    0), 0),
+    periodEvidenceStudies: studies.filter((study) => Boolean(study.periodLabel.trim() && study.region.trim())).length,
+    periodRegions: new Set(studies
+      .filter((study) => study.periodLabel.trim() && study.region.trim())
+      .map((study) => study.region.trim().toLowerCase())).size,
     confidence,
     coverage,
     comparisonQueue: comparisonQueue.slice(0, 20),

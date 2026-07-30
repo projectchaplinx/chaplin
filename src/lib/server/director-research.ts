@@ -92,6 +92,8 @@ function validObservations(value: unknown): DirectorStudyObservation[] {
       narrativeJob: typeof row.narrativeJob === "string" ? row.narrativeJob : "",
       inference: typeof row.inference === "string" ? row.inference : "",
       confidence: row.confidence === "low" || row.confidence === "medium" ? row.confidence : "high",
+      audioEvidence: typeof row.audioEvidence === "string" ? row.audioEvidence : "",
+      soundFunction: typeof row.soundFunction === "string" ? row.soundFunction : "",
     }];
   });
 }

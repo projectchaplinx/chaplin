@@ -1,4 +1,5 @@
 type FeedGenerationVisibility = {
+  assetMetadata?: unknown;
   assetKind?: string | null;
   jobMetadata?: unknown;
   mediaKind?: string | null;
@@ -17,7 +18,7 @@ type FeedGenerationVisibility = {
  * stays private until it is chosen; choosing it is what publishes it.
  */
 function isUnchosenComparisonCandidate(input: FeedGenerationVisibility) {
-  if (input.selected) return false;
+  if (input.selected || isCreatorSelectedFeedAsset(input.assetMetadata)) return false;
   const metadata = input.jobMetadata;
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
   return (metadata as Record<string, unknown>).comparisonCandidate === true;
@@ -25,6 +26,12 @@ function isUnchosenComparisonCandidate(input: FeedGenerationVisibility) {
 
 function normalized(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
+}
+
+export function isCreatorSelectedFeedAsset(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const record = metadata as Record<string, unknown>;
+  return record.selectedForProfileCover === true || record.selectedForVideo === true;
 }
 
 export function isPunchGeneration(videoType?: string | null, metadata?: unknown) {

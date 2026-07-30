@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isGenerationVisibleInFeed, isPunchGeneration } from "./feed-visibility";
+import { isCreatorSelectedFeedAsset, isGenerationVisibleInFeed, isPunchGeneration } from "./feed-visibility";
 
 test("recognizes Punch from the job or persisted metadata", () => {
   assert.equal(isPunchGeneration("character_punch"), true);
@@ -34,6 +34,10 @@ test("a comparison candidate stays out of the feed until it is chosen", () => {
   // Both providers' stills used to publish; the discarded one muddied the actor.
   assert.equal(isGenerationVisibleInFeed(candidate), false);
   assert.equal(isGenerationVisibleInFeed({ ...candidate, selected: true }), true);
+  assert.equal(isGenerationVisibleInFeed({
+    ...candidate,
+    assetMetadata: { selectedForProfileCover: true },
+  }), true);
 });
 
 test("an ordinary still is unaffected by the candidate rule", () => {
@@ -43,4 +47,11 @@ test("an ordinary still is unaffected by the candidate rule", () => {
     mediaKind: "image",
     jobMetadata: {},
   }), true);
+});
+
+test("recognizes persisted creator selections on both cover and scene assets", () => {
+  assert.equal(isCreatorSelectedFeedAsset({ selectedForProfileCover: true }), true);
+  assert.equal(isCreatorSelectedFeedAsset({ selectedForVideo: true }), true);
+  assert.equal(isCreatorSelectedFeedAsset({ selectedForProfileCover: false }), false);
+  assert.equal(isCreatorSelectedFeedAsset(null), false);
 });

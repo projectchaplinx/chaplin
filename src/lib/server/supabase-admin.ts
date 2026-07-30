@@ -805,17 +805,27 @@ export async function getCharacterProductionState(characterId: string) {
  *
  * Comparison candidates are withheld from the feed while they are only
  * options, so choosing one is the moment it becomes part of the character's
- * public record. Silent when the asset has no generation job behind it or was
- * already published.
+ * public record. Uploaded looks work without a generation job, and the source
+ * asset constraint makes repeated selections safe.
  */
-async function publishSelectedAssetToFeed(assetId: string) {
+async function publishSelectedAssetToFeed(input: {
+  assetId: string;
+  characterId: string;
+  firstLook?: boolean;
+}) {
   const job = await adminClient()
     .from("generation_jobs")
     .select("id")
-    .eq("output_asset_id", assetId)
+    .eq("output_asset_id", input.assetId)
     .maybeSingle();
-  if (job.error || !job.data?.id) return;
-  await publishGenerationToFeed(job.data.id, assetId, true).catch(() => undefined);
+  assert(job.error, "Load selected asset generation");
+  await publishCharacterAssetToFeed({
+    assetId: input.assetId,
+    characterId: input.characterId,
+    jobId: job.data?.id ?? null,
+    selected: true,
+    bodyOverride: input.firstLook ? "first-look" : null,
+  });
 }
 
 export async function selectCharacterSceneImageAsset(input: { characterId: string; assetId: string }) {
@@ -838,7 +848,10 @@ export async function selectCharacterSceneImageAsset(input: { characterId: strin
       .eq("id", asset.id);
   }));
   for (const update of updates) assert(update.error, "Select scene image");
-  await publishSelectedAssetToFeed(selected.id);
+  await publishSelectedAssetToFeed({
+    assetId: selected.id,
+    characterId: input.characterId,
+  });
   return { assetId: selected.id, url: selected.url };
 }
 
@@ -943,6 +956,18 @@ export async function selectCharacterProfileMedia(input: {
     assert(voiceUpdate.error, "Select main character voice");
   }
 
+  if (input.slot === "cover") {
+    const metadata = asset.data.metadata && typeof asset.data.metadata === "object"
+      ? asset.data.metadata as Record<string, unknown>
+      : {};
+    const assetUpdate = await supabase
+      .from("media_assets")
+      .update({ metadata: { ...metadata, selectedForProfileCover: true } })
+      .eq("id", input.assetId)
+      .eq("character_id", input.characterId);
+    assert(assetUpdate.error, "Lock character first look");
+  }
+
   const update = await supabase
     .from("characters")
     .update({
@@ -951,6 +976,13 @@ export async function selectCharacterProfileMedia(input: {
     })
     .eq("id", input.characterId);
   assert(update.error, "Select profile media");
+  if (input.slot === "cover") {
+    await publishSelectedAssetToFeed({
+      assetId: input.assetId,
+      characterId: input.characterId,
+      firstLook: true,
+    });
+  }
   return { slot: input.slot, assetId: input.assetId, url: asset.data.url };
 }
 
@@ -1173,61 +1205,87 @@ function generationFeedCopy(kind: string, characterName: string, prompt: string 
   return `Something new is taking shape with ${characterName}.`;
 }
 
-async function publishGenerationToFeed(jobId: string, assetId: string, selected = false) {
+async function publishCharacterAssetToFeed(input: {
+  assetId: string;
+  characterId: string;
+  jobId?: string | null;
+  selected?: boolean;
+  bodyOverride?: "first-look" | null;
+}) {
   const supabase = adminClient();
-  const [jobResult, assetResult] = await Promise.all([
-    supabase.from("generation_jobs").select("character_id,kind,pipeline_experiment_id,video_type,metadata").eq("id", jobId).maybeSingle(),
-    supabase.from("media_assets").select("id,kind,url,prompt,created_at").eq("id", assetId).maybeSingle(),
+  const [jobResult, assetResult, characterResult] = await Promise.all([
+    input.jobId
+      ? supabase.from("generation_jobs").select("character_id,kind,pipeline_experiment_id,video_type,metadata").eq("id", input.jobId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    supabase.from("media_assets").select("id,character_id,kind,url,prompt,created_at").eq("id", input.assetId).eq("character_id", input.characterId).maybeSingle(),
+    supabase.from("characters").select("name,maker_id").eq("id", input.characterId).maybeSingle(),
   ]);
   assert(jobResult.error, "Load feed generation");
   assert(assetResult.error, "Load feed asset");
+  assert(characterResult.error, "Load feed actor");
   const job = jobResult.data;
   const asset = assetResult.data;
   if (job?.pipeline_experiment_id) return;
-  if (!job?.character_id || !asset?.url) return;
-
-  const characterResult = await supabase
-    .from("characters")
-    .select("name,maker_id")
-    .eq("id", job.character_id)
-    .maybeSingle();
-  assert(characterResult.error, "Load feed actor");
+  if (job?.character_id && job.character_id !== input.characterId) {
+    throw new Error("Publish generation to feed: actor does not match the selected asset.");
+  }
+  if (!asset?.url) return;
   const character = characterResult.data;
   if (!character?.maker_id) return;
 
   const existing = await supabase
     .from("feed_posts")
     .select("id")
-    .eq("source_asset_id", assetId)
+    .eq("source_asset_id", input.assetId)
     .maybeSingle();
   assert(existing.error, "Check feed generation");
   if (existing.data) return;
 
-  const kind = String(asset.kind ?? job.kind);
+  const kind = String(asset.kind ?? job?.kind);
   const mediaKind = ["dialogue", "sfx", "theme"].includes(kind)
     ? "audio"
     : kind === "video"
       ? "video"
       : "image";
   if (!isGenerationVisibleInFeed({
-    sourceAssetId: assetId,
+    sourceAssetId: input.assetId,
     assetKind: kind,
     mediaKind,
-    videoType: job.video_type,
-    jobMetadata: job.metadata,
-    selected,
+    videoType: job?.video_type,
+    jobMetadata: job?.metadata,
+    selected: input.selected,
   })) return;
   const insert = await supabase.from("feed_posts").insert({
     author_id: character.maker_id,
-    body: generationFeedCopy(kind, character.name, asset.prompt),
+    body: input.bodyOverride === "first-look"
+      ? `Meet ${character.name}. Their first look is now locked.`
+      : generationFeedCopy(kind, character.name, asset.prompt),
     media_kind: mediaKind,
     media_url: asset.url,
-    source_asset_id: assetId,
-    created_at: asset.created_at,
+    source_asset_id: input.assetId,
+    // A creator's explicit lock is the public event, so it belongs at the top
+    // of the feed even when the underlying upload or render is older.
+    created_at: input.selected ? new Date().toISOString() : asset.created_at,
   });
   if (insert.error && insert.error.code !== "23505") {
     throw new Error(`Publish generation to feed: ${insert.error.message}`);
   }
+}
+
+async function publishGenerationToFeed(jobId: string, assetId: string, selected = false) {
+  const job = await adminClient()
+    .from("generation_jobs")
+    .select("character_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  assert(job.error, "Load feed generation actor");
+  if (!job.data?.character_id) return;
+  await publishCharacterAssetToFeed({
+    assetId,
+    characterId: job.data.character_id,
+    jobId,
+    selected,
+  });
 }
 
 export async function completeGeneration(

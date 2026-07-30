@@ -279,3 +279,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.71 | `cbaf909` | 2026-07-30T15:26:47+05:30 | feat(v0.2.71): show live render telemetry |
 | v0.2.72 | `1eaad6e` | 2026-07-30T15:40:20+05:30 | fix(v0.2.72): reject malformed scene anatomy |
 | v0.2.73 | `000a1cc` | 2026-07-30T16:09:00+05:30 | fix(v0.2.73): stream actor identity without fake defaults |
+| v0.2.74 | `b2cace1` | 2026-07-30T16:17:54+05:30 | feat(v0.2.74): center live actor build progress |

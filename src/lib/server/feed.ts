@@ -47,21 +47,23 @@ export async function listFeedPosts(input: { viewerId?: string; postId?: string;
     .filter((id): id is string => Boolean(id)))];
   const [assetsResult, jobsResult] = sourceAssetIds.length
     ? await Promise.all([
-      supabase.from("media_assets").select("id,kind").in("id", sourceAssetIds),
+      supabase.from("media_assets").select("id,kind,metadata").in("id", sourceAssetIds),
       supabase.from("generation_jobs").select("output_asset_id,video_type,metadata").in("output_asset_id", sourceAssetIds),
     ])
     : [{ data: [], error: null }, { data: [], error: null }];
   fail(assetsResult.error, "Load feed asset kinds");
   fail(jobsResult.error, "Load feed generation kinds");
-  const assetKinds = new Map((assetsResult.data ?? []).map((asset) => [asset.id, asset.kind]));
+  const assets = new Map((assetsResult.data ?? []).map((asset) => [asset.id, asset]));
   const generationJobs = new Map((jobsResult.data ?? []).map((job) => [job.output_asset_id, job]));
   const sharedVisibilityRows = new Map((visibilitySharedResult.data ?? []).map((post) => [post.id, post]));
   const visible = (post: FeedVisibilityRow) => {
     const sourceAssetId = post.source_asset_id;
     const job = sourceAssetId ? generationJobs.get(sourceAssetId) : undefined;
+    const asset = sourceAssetId ? assets.get(sourceAssetId) : undefined;
     return isGenerationVisibleInFeed({
       sourceAssetId,
-      assetKind: sourceAssetId ? assetKinds.get(sourceAssetId) : null,
+      assetKind: asset?.kind,
+      assetMetadata: asset?.metadata,
       mediaKind: post.media_kind,
       videoType: job?.video_type,
       jobMetadata: job?.metadata,

@@ -3,6 +3,17 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.75 - 2026-07-30 - Locked first looks in Feed
+
+- Publish the exact canonical character cover to Feed when a creator locks it
+  as the actor's first look.
+- Keep unchosen comparison renders private and publish only the selected image
+  with a clear "Meet [actor]" first-look post.
+- Support both provider-generated looks and creator uploads, even when an
+  uploaded asset has no generation job.
+- Make repeated selections safe through source-asset deduplication, while
+  surfacing publication failures instead of silently discarding them.
+
 ## v0.2.74 - 2026-07-30 - Centered actor build handoff
 
 - Replaced the duplicated inline actor-writing progress cards with one centered

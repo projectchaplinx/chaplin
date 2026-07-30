@@ -178,6 +178,33 @@ function elapsedLabel(seconds: number) {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
+function timerLabel(seconds: number) {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+type RenderActivityPhase = "preparing" | "frames" | "motion" | "assembly" | "single-take" | "finishing";
+
+function renderActivityPhase(progress: string, shots: ShotRenderState[]): RenderActivityPhase {
+  if (/single|native 15-second/i.test(progress)) return "single-take";
+  if (/assembl|master/i.test(progress)) return "assembly";
+  if (/animat/i.test(progress) || shots.some((shot) => shot.status === "animating")) return "motion";
+  if (/parallel|frame|soundtrack/i.test(progress) || shots.some((shot) => ["designing", "frame_ready"].includes(shot.status))) return "frames";
+  if (/prepar|lock/i.test(progress)) return "preparing";
+  return "finishing";
+}
+
+function shotActivityLabel(status: ShotRenderStatus) {
+  if (status === "designing") return "Frame + sound";
+  if (status === "frame_ready") return "Frame ready";
+  if (status === "animating") return "Animating";
+  if (status === "ready") return "Complete";
+  if (status === "failed") return "Failed";
+  return "Waiting";
+}
+
 /**
  * A step is worth another attempt when the failure is transient: a provider
  * timeout, a rate limit, a 5xx, a dropped connection. Configuration and
@@ -235,9 +262,20 @@ export function ProductionWorkspace({
   const [voiceRecoveryCandidates, setVoiceRecoveryCandidates] = useState<VoiceCapacityCandidate[]>([]);
   const [selectedRecoveryVoiceId, setSelectedRecoveryVoiceId] = useState("");
   const [voiceRecoveryMessage, setVoiceRecoveryMessage] = useState("");
-  const [renderProgress, setRenderProgress] = useState("");
+  const [renderProgress, setRenderProgressState] = useState("");
   const [renderFrameUrl, setRenderFrameUrl] = useState<string | null>(null);
   const [renderShots, setRenderShots] = useState<ShotRenderState[]>([]);
+  const [renderStartedAt, setRenderStartedAt] = useState<number | null>(null);
+  const [renderPhaseStartedAt, setRenderPhaseStartedAt] = useState<number | null>(null);
+  const renderPhaseRef = useRef<RenderActivityPhase | null>(null);
+  const setRenderProgress = useCallback((progress: string) => {
+    const nextPhase = renderActivityPhase(progress, []);
+    if (renderPhaseRef.current !== nextPhase) {
+      renderPhaseRef.current = nextPhase;
+      setRenderPhaseStartedAt(Date.now());
+    }
+    setRenderProgressState(progress);
+  }, []);
   const [internalSelectedShotIndex, setInternalSelectedShotIndex] = useState(0);
   const selectedShotIndex = selectedSceneIndex ?? internalSelectedShotIndex;
   const selectShot = useCallback((index: number) => {
@@ -451,6 +489,55 @@ export function ProductionWorkspace({
       live: reviewStep?.key === "creative-review",
     },
   ];
+  const activityPhase = renderActivityPhase(renderProgress, renderShots);
+  const renderElapsedSeconds = busy && renderStartedAt
+    ? Math.max(0, Math.floor((clock - renderStartedAt) / 1000))
+    : 0;
+  const phaseElapsedSeconds = busy && renderPhaseStartedAt
+    ? Math.max(0, Math.floor((clock - renderPhaseStartedAt) / 1000))
+    : 0;
+  const activityFramesReadyCount = renderShots.filter((shot) => Boolean(shot.frameUrl)).length;
+  const activityClipsReadyCount = renderShots.filter((shot) => Boolean(shot.videoUrl) || shot.status === "ready").length;
+  const soundtrackReadyCount = renderShots.filter((shot) => Boolean(shot.sfxUrl)).length;
+  const renderSceneCount = Math.max(1, contract?.shotCount ?? renderShots.length);
+  const estimatePhaseRemaining = (targetSeconds: number, completed: number, total: number) => {
+    const timeBound = Math.max(0, targetSeconds - phaseElapsedSeconds);
+    if (completed <= 0 || total <= 0) return timeBound;
+    const completionBound = targetSeconds * Math.max(0, 1 - completed / total);
+    return Math.max(0, Math.round(Math.min(timeBound, completionBound)));
+  };
+  const estimatedRemainingSeconds = busy
+    ? Math.max(1, activityPhase === "preparing"
+      ? Math.max(0, 20 - phaseElapsedSeconds) + 180 + 180 + 45
+      : activityPhase === "frames"
+        ? estimatePhaseRemaining(180, activityFramesReadyCount + soundtrackReadyCount, renderSceneCount * 2) + 180 + 45
+        : activityPhase === "motion"
+          ? estimatePhaseRemaining(180, activityClipsReadyCount, renderSceneCount) + 45
+          : activityPhase === "assembly"
+            ? Math.max(0, 45 - phaseElapsedSeconds)
+            : activityPhase === "single-take"
+              ? Math.max(0, 210 - phaseElapsedSeconds)
+              : Math.max(0, 25 - phaseElapsedSeconds))
+    : 0;
+  const estimatedProgressPercent = busy
+    ? Math.min(98, Math.max(2, activityPhase === "preparing"
+      ? Math.min(8, 2 + (phaseElapsedSeconds / 20) * 6)
+      : activityPhase === "frames"
+        ? 8 + Math.max(
+          (activityFramesReadyCount + soundtrackReadyCount) / (renderSceneCount * 2),
+          Math.min(0.85, phaseElapsedSeconds / 180) * 0.6,
+        ) * 42
+        : activityPhase === "motion"
+          ? 50 + Math.max(
+            activityClipsReadyCount / renderSceneCount,
+            Math.min(0.85, phaseElapsedSeconds / 180) * 0.6,
+          ) * 38
+          : activityPhase === "assembly"
+            ? 88 + Math.min(1, phaseElapsedSeconds / 45) * 10
+            : activityPhase === "single-take"
+              ? 8 + Math.min(1, phaseElapsedSeconds / 210) * 82
+              : 96))
+    : finalVideoUrl ? 100 : 0;
 
   useEffect(() => {
     if (!contract?.scopeId) return;
@@ -476,10 +563,10 @@ export function ProductionWorkspace({
   }, [contract?.scopeId, contract?.scopeType, story?.id]);
 
   useEffect(() => {
-    if (!liveStep) return;
+    if (!liveStep && !busy) return;
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [liveStep, run?.updatedAt]);
+  }, [busy, liveStep, run?.updatedAt]);
 
   useEffect(() => {
     if (!liveStep || !contract?.scopeId || !story?.id) return;
@@ -934,6 +1021,10 @@ export function ProductionWorkspace({
       return;
     }
 
+    const renderStarted = Date.now();
+    setRenderStartedAt(renderStarted);
+    setRenderPhaseStartedAt(renderStarted);
+    setClock(renderStarted);
     setBusy(true);
     setError("");
     setRenderProgress("Preparing one native 15-second audiovisual take");
@@ -1144,6 +1235,10 @@ export function ProductionWorkspace({
       setError(sequenceValidation.error ?? "The four-scene storyboard is incomplete.");
       return;
     }
+    const renderStarted = Date.now();
+    setRenderStartedAt(renderStarted);
+    setRenderPhaseStartedAt(renderStarted);
+    setClock(renderStarted);
     setBusy(true);
     setError("");
     setRenderProgress("Preparing the locked actor reference");
@@ -1741,7 +1836,7 @@ export function ProductionWorkspace({
             className="rounded-full bg-accent px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
             {busy
-              ? "Working…"
+              ? `Rendering ${timerLabel(renderElapsedSeconds)}`
               : contract.punchGenerationMode === "single-take"
                 ? "Generate one 15-second take"
                 : "Generate four scenes"}
@@ -2017,6 +2112,87 @@ export function ProductionWorkspace({
             className={`relative overflow-hidden bg-black ${canvasOnly ? "min-h-0 flex-1" : "aspect-video"}`}
             data-production-primary-media
           >
+            {busy && (
+              <div
+                className="absolute inset-x-4 top-4 z-30 overflow-hidden rounded-2xl border border-accent/45 bg-[#070a08]/92 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+                data-live-render-monitor
+                aria-live="polite"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-accent">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-65" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_16px_rgba(244,63,105,0.9)]" />
+                      </span>
+                      Live render
+                    </p>
+                    <h3 className="mt-1 truncate text-sm font-semibold text-white">
+                      {renderProgress || "Preparing the production"}
+                    </h3>
+                  </div>
+                  <span className="shrink-0 font-mono text-[10px] text-white/70">
+                    {Math.round(estimatedProgressPercent)}% estimated
+                  </span>
+                </div>
+
+                <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <span
+                    className="block h-full rounded-full bg-gradient-to-r from-accent-secondary via-accent to-[#8b5cf6] transition-[width] duration-700"
+                    style={{ width: `${estimatedProgressPercent}%` }}
+                  />
+                  <span className="absolute inset-y-0 w-1/4 animate-[pipeline-live-sweep_1.6s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/55 to-transparent" />
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2">
+                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">Elapsed</p>
+                    <p className="mt-0.5 font-mono text-sm text-white">{timerLabel(renderElapsedSeconds)}</p>
+                  </div>
+                  <div className="rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2">
+                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">Est. remaining</p>
+                    <p className="mt-0.5 font-mono text-sm text-white">~{timerLabel(estimatedRemainingSeconds)}</p>
+                  </div>
+                  <div className="rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2">
+                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">Scenes complete</p>
+                    <p className="mt-0.5 font-mono text-sm text-white">{activityClipsReadyCount}/{renderSceneCount}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-4 gap-2" aria-label="Live scene render states">
+                  {shotTimeline.map((shot) => (
+                    <div
+                      key={`activity-${shot.index}`}
+                      className={`min-w-0 rounded-lg border px-2.5 py-2 ${
+                        shot.status === "ready"
+                          ? "border-emerald-400/35 bg-emerald-400/[0.08]"
+                          : shot.status === "failed"
+                            ? "border-red-400/35 bg-red-400/[0.08]"
+                            : ["designing", "animating"].includes(shot.status)
+                              ? "border-accent/40 bg-accent/[0.08]"
+                              : "border-white/8 bg-white/[0.025]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/55">Scene {shot.index + 1}</span>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          shot.status === "ready"
+                            ? "bg-emerald-400"
+                            : shot.status === "failed"
+                              ? "bg-red-400"
+                              : ["designing", "animating"].includes(shot.status)
+                                ? "animate-pulse bg-accent"
+                                : shot.status === "frame_ready"
+                                  ? "bg-amber-300"
+                                  : "bg-white/20"
+                        }`} />
+                      </div>
+                      <p className="mt-1 truncate text-[9px] text-white/75">{shotActivityLabel(shot.status)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {canvasVideoUrl ? (
               <video
                 key={canvasVideoUrl}

@@ -3,6 +3,18 @@
 This changelog records user-facing product changes, production-pipeline changes,
 provider integrations, and the validation boundary for each major Chaplin update.
 
+## v0.2.71 - 2026-07-30 - Live render telemetry
+
+- Added a live center-canvas render monitor with the exact active pipeline
+  operation, continuously updating elapsed time, and explicitly estimated
+  remaining time and overall progress.
+- Added four per-scene activity states covering frame and soundtrack creation,
+  frame readiness, animation, completion, and failure.
+- Made the estimate respond to both phase time and actually attached frame,
+  soundtrack, and video assets so a long provider call no longer looks frozen.
+- Replaced the disabled `Working` label with a live render clock while the
+  generation action is in flight.
+
 ## v0.2.70 - 2026-07-30 - Single-canvas scene production
 
 - Removed the duplicated four-scene timeline from the desktop production

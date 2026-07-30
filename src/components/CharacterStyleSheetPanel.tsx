@@ -20,6 +20,53 @@ async function responseError(response: Response) {
   return body?.error ?? `Request failed with status ${response.status}.`;
 }
 
+function StyleSheetSkeleton({
+  characterName,
+  referenceImage,
+  elapsedSeconds,
+}: {
+  characterName: string;
+  referenceImage: string;
+  elapsedSeconds: number;
+}) {
+  return (
+    <section aria-live="polite" aria-label="Style sheet generation progress">
+      <div className="relative isolate aspect-video overflow-hidden rounded-2xl border border-accent-secondary/35 bg-[#101612]">
+        {referenceImage && (
+          // eslint-disable-next-line @next/next/no-img-element -- a temporary preview of stored creator media
+          <img src={referenceImage} alt="" className="absolute inset-0 h-full w-full scale-105 object-cover opacity-20 blur-xl" />
+        )}
+        <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_20%,rgba(255,255,255,.08)_45%,transparent_70%)]" />
+        <div className="relative flex h-full flex-col justify-end bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5">
+          <span className="w-fit rounded-full border border-accent-secondary/35 bg-black/45 px-3 py-1 text-[8px] font-bold uppercase tracking-[0.16em] text-accent-secondary">
+            Rendering review sheet
+          </span>
+          <h3 className="mt-3 font-serif text-xl text-ink">Building {characterName}&apos;s visual continuity</h3>
+          <p className="mt-1 text-[10px] text-grey">Four-view composite · {elapsedSeconds}s elapsed</p>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink">Production references</h3>
+          <span className="text-[9px] text-grey">Preparing 4 views</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {CHARACTER_STYLE_SHEET_VIEWS.map((view, index) => (
+            <article key={view.id} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
+              <div className="relative aspect-[3/4] overflow-hidden bg-white/[0.035]" style={{ animationDelay: `${index * 140}ms` }}>
+                <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_15%,rgba(255,255,255,.08)_45%,transparent_75%)]" />
+                <span className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] uppercase tracking-[0.12em] text-grey">Queued</span>
+              </div>
+              <p className="border-t border-white/8 px-2 py-2 text-center text-[8px] font-bold uppercase tracking-[0.12em] text-grey">{view.label}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function CharacterStyleSheetPanel({
   character,
   open,
@@ -33,11 +80,15 @@ export default function CharacterStyleSheetPanel({
   const [wardrobe, setWardrobe] = useState("");
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generationElapsedSeconds, setGenerationElapsedSeconds] = useState(0);
+  const [generationBaselineAssetId, setGenerationBaselineAssetId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
-  const loadSheet = useCallback(async () => {
-    setLoading(true);
-    setMessage("");
+  const loadSheet = useCallback(async (quiet = false) => {
+    if (!quiet) {
+      setLoading(true);
+      setMessage("");
+    }
     try {
       const response = await fetch(`/api/generate?characterId=${encodeURIComponent(character.id)}`, {
         cache: "no-store",
@@ -46,9 +97,11 @@ export default function CharacterStyleSheetPanel({
       const body = await response.json() as { production?: ProductionState | null };
       setProduction(body.production ?? null);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The style sheet could not be loaded.");
+      if (!quiet) {
+        setMessage(error instanceof Error ? error.message : "The style sheet could not be loaded.");
+      }
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [character.id]);
 
@@ -67,17 +120,36 @@ export default function CharacterStyleSheetPanel({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [onClose, open]);
 
+  useEffect(() => {
+    if (!generating) return;
+    const startedAt = Date.now();
+    const elapsedTimer = window.setInterval(() => {
+      setGenerationElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+    const pollingTimer = window.setInterval(() => void loadSheet(true), 1500);
+    return () => {
+      window.clearInterval(elapsedTimer);
+      window.clearInterval(pollingTimer);
+    };
+  }, [generating, loadSheet]);
+
   const panels = useMemo(
     () => styleSheetPanels(production?.assets ?? [], production?.styleSheet?.assetId),
     [production],
   );
+  const referenceImage = production?.visualReference?.url ?? character.imageUrl ?? character.bannerUrl ?? "";
+  const incomingSheetReady = Boolean(
+    production?.styleSheet
+      && production.styleSheet.assetId !== generationBaselineAssetId,
+  );
 
   async function generateSheet() {
-    const referenceImage = production?.visualReference?.url ?? character.imageUrl ?? character.bannerUrl ?? "";
     if (!referenceImage) {
       setMessage("Choose an identity image before creating the style sheet.");
       return;
     }
+    setGenerationElapsedSeconds(0);
+    setGenerationBaselineAssetId(production?.styleSheet?.assetId ?? null);
     setGenerating(true);
     setMessage("");
     try {
@@ -94,7 +166,7 @@ export default function CharacterStyleSheetPanel({
         }),
       });
       if (!response.ok) throw new Error(await responseError(response));
-      await loadSheet();
+      await loadSheet(true);
       window.dispatchEvent(new CustomEvent("chaplin:media-updated", {
         detail: { characterId: character.id },
       }));
@@ -103,6 +175,7 @@ export default function CharacterStyleSheetPanel({
       setMessage(error instanceof Error ? error.message : "The style sheet could not be created.");
     } finally {
       setGenerating(false);
+      setGenerationBaselineAssetId(null);
     }
   }
 
@@ -149,6 +222,12 @@ export default function CharacterStyleSheetPanel({
             <div className="grid min-h-72 place-items-center rounded-2xl border border-white/10 bg-white/[0.02]">
               <span className="text-[10px] uppercase tracking-[0.16em] text-grey">Loading style sheet…</span>
             </div>
+          ) : generating && !incomingSheetReady ? (
+            <StyleSheetSkeleton
+              characterName={character.name}
+              referenceImage={referenceImage}
+              elapsedSeconds={generationElapsedSeconds}
+            />
           ) : production?.styleSheet ? (
             <>
               <figure className="overflow-hidden rounded-2xl border border-accent-secondary/35 bg-black/25">
@@ -162,14 +241,20 @@ export default function CharacterStyleSheetPanel({
                   <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent-secondary">
                     Current sheet
                   </span>
-                  <span className="text-[9px] text-grey">Human review composite · not sent to video</span>
+                  <span className="text-[9px] text-grey">
+                    {generating
+                      ? `Composite arrived · ${generationElapsedSeconds}s elapsed`
+                      : "Human review composite · not sent to video"}
+                  </span>
                 </figcaption>
               </figure>
 
               <section className="mt-5">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink">Production references</h3>
-                  <span className="text-[9px] text-grey">{panels.size}/4 ready</span>
+                  <span className="text-[9px] text-grey">
+                    {panels.size}/4 {generating ? "arriving" : "ready"}
+                  </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {CHARACTER_STYLE_SHEET_VIEWS.map((view) => {
@@ -180,7 +265,12 @@ export default function CharacterStyleSheetPanel({
                           // eslint-disable-next-line @next/next/no-img-element -- stored creator media uses dynamic public URLs
                           <img src={panel.url} alt={`${character.name} ${view.label}`} className="aspect-[3/4] w-full object-cover" />
                         ) : (
-                          <div className="grid aspect-[3/4] place-items-center text-[9px] text-grey">Preparing view</div>
+                          <div className="relative grid aspect-[3/4] place-items-center overflow-hidden bg-white/[0.035] text-[9px] text-grey">
+                            {generating && (
+                              <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_15%,rgba(255,255,255,.08)_45%,transparent_75%)]" />
+                            )}
+                            <span className="relative">{generating ? "Cropping view…" : "Preparing view"}</span>
+                          </div>
                         )}
                         <p className="border-t border-white/8 px-2 py-2 text-center text-[8px] font-bold uppercase tracking-[0.12em] text-grey">
                           {view.label}
@@ -190,6 +280,11 @@ export default function CharacterStyleSheetPanel({
                   })}
                 </div>
               </section>
+              {generating && panels.size < 4 && (
+                <p className="mt-3 rounded-xl border border-accent-secondary/25 bg-accent-secondary/[0.05] px-4 py-3 text-[10px] text-grey">
+                  Review sheet ready. Preparing {4 - panels.size} production reference{panels.size === 3 ? "" : "s"}…
+                </p>
+              )}
             </>
           ) : (
             <section className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-6 text-center">

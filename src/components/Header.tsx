@@ -14,6 +14,7 @@ import {
   getClientAuthIdentity,
   type ClientAuthIdentity,
 } from "@/lib/client-auth";
+import { CREATOR_ONBOARDING_EVENT } from "@/lib/creator-onboarding";
 
 export default function Header() {
   const pathname = usePathname();
@@ -111,6 +112,16 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {authIdentity?.role === "creator" && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event(CREATOR_ONBOARDING_EVENT))}
+              className="rounded-full border border-accent/35 bg-accent/10 px-2.5 py-1 text-[9px] font-semibold text-accent transition hover:border-accent hover:bg-accent/15 sm:px-3 sm:text-[10px]"
+              data-onboarding-replay
+            >
+              How to create
+            </button>
+          )}
           <Link
             href="/api/build-info"
             title={`Chaplin ${CHAPLIN_VERSION_LABEL}`}

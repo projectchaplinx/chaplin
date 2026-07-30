@@ -7,6 +7,7 @@ export type ClientAuthIdentity = {
   role: "creator" | "admin";
   imageUrl: string;
   creditBalance: number | null;
+  createdAt: string;
 };
 
 let activeRequest: Promise<ClientAuthIdentity | null> | null = null;

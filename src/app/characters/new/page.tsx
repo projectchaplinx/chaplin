@@ -953,6 +953,7 @@ export default function NewCharacterPage() {
               </button>
               <button
                 type="submit"
+                data-create-actor-submit
                 disabled={!canCreateActor || saving || Boolean(suggestingTarget)}
                 title={canCreateActor ? "Create this AI actor" : `Still needed: ${missingCreationFields.join(", ")}`}
                 className="rounded-lg bg-accent px-5 py-2.5 text-xs font-semibold text-white shadow-[0_10px_30px_rgba(242,78,112,0.22)] hover:bg-accent-light disabled:opacity-45"
@@ -1207,7 +1208,7 @@ export default function NewCharacterPage() {
 
               <div className="mt-5">
                 <p className="text-[10px] font-semibold">Role / archetype</p>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-2" data-character-archetypes>
                   {ARCHETYPES.map((item) => (
                     <button
                       key={item}
@@ -1342,6 +1343,7 @@ export default function NewCharacterPage() {
 
               <button
                 type="submit"
+                data-create-actor-submit
                 disabled={!canCreateActor || saving || Boolean(suggestingTarget)}
                 title={canCreateActor ? "Create this AI actor" : `Still needed: ${missingCreationFields.join(", ")}`}
                 className="mt-4 w-full rounded-lg bg-accent px-4 py-3 text-xs font-semibold text-white hover:bg-accent-light disabled:opacity-45"
@@ -1459,7 +1461,7 @@ export default function NewCharacterPage() {
 
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Pick the vibe</span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5" data-character-archetypes>
             {ARCHETYPES.map((a) => (
               <button type="button" key={a} onClick={() => toggleArchetype(a)}>
                 <Chip
@@ -1748,6 +1750,7 @@ export default function NewCharacterPage() {
 
         <button
           type="submit"
+          data-create-actor-submit
           disabled={saving}
           className="bg-accent text-paper font-semibold px-4 py-3 rounded-sm hover:bg-accent-light transition-colors disabled:opacity-50"
         >

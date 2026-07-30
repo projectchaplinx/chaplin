@@ -17,6 +17,7 @@ export type AuthIdentity = {
   role: AccountRole;
   imageUrl: string;
   creditBalance: number | null;
+  createdAt: string;
 };
 
 export const ACCESS_COOKIE = "chaplin-access-token";
@@ -86,7 +87,7 @@ export async function ensureAuthProfile(user: User): Promise<AuthIdentity> {
   if (userResult.error) throw new Error(`Save authenticated creator: ${userResult.error.message}`);
 
   const creditBalance = role === "creator" ? await ensureWelcomeCredits(user.id) : null;
-  return { id: user.id, email: user.email, name, role, imageUrl, creditBalance };
+  return { id: user.id, email: user.email, name, role, imageUrl, creditBalance, createdAt: user.created_at };
 }
 
 export async function identityFromAccessToken(accessToken: string) {

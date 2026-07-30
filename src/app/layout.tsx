@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import SiteFooter from "@/components/SiteFooter";
 import SmoothScroll from "@/components/SmoothScroll";
+import CreatorOnboarding from "@/components/CreatorOnboarding";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -54,6 +55,7 @@ export default function RootLayout({
         <main className="flex-1 flex flex-col min-w-0 relative z-10 pb-24">{children}</main>
         <SiteFooter />
         <BottomNav />
+        <CreatorOnboarding />
       </body>
     </html>
   );

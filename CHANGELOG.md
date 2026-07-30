@@ -1,5 +1,19 @@
 # Chaplin Changelog
 
+## v0.2.81 - 2026-07-30 - Guide first-time creators into Actor Studio
+
+- Start a creator-only onboarding tour automatically for recently created
+  accounts, with progress isolated per signed-in user and stored once.
+- Mask and block the rest of the interface while spotlighting the real Create
+  plus button, actor choice, visual medium, brief, name, archetype, and final
+  actor-creation control in sequence.
+- Carry the tour across navigation into `/characters/new`, recover safely after
+  reloads, and return interrupted actor-form tours to their reachable workspace.
+- Keep a permanent `How to create` launcher in the top bar so creators can reset
+  and replay the full walkthrough at any time.
+- Exclude sign-in, Admin, and Super Admin surfaces; add desktop/mobile selector
+  contracts and six regression tests for eligibility, persistence, and resume.
+
 ## v0.2.80 - 2026-07-30 - Keep malformed voice keys out of request headers
 
 - Validate every configured ElevenLabs credential before it is placed in the

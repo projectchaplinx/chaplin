@@ -23,6 +23,7 @@ try {
       select id
       from public.director_research_sources
       where source_url = ${item.sourceUrl}
+         or (title = ${item.title} and institution = ${item.institution})
       limit 1
     `;
     if (existing) {
@@ -31,6 +32,7 @@ try {
         set
           title = ${item.title},
           institution = ${item.institution},
+          source_url = ${item.sourceUrl},
           source_kind = ${item.sourceKind},
           rights_basis = ${item.rightsBasis},
           access_notes = ${item.accessNotes},
@@ -85,7 +87,7 @@ try {
   const [summary] = await sql<{ source_count: number }[]>`
     select count(*)::int as source_count
     from public.director_research_sources
-    where campaign_id = ${DIRECTOR_RESEARCH_CAMPAIGN_VERSION}
+    where source_url in ${sql(DIRECTOR_RESEARCH_CAMPAIGN.map((item) => item.sourceUrl))}
   `;
   if (summary?.source_count !== DIRECTOR_RESEARCH_CAMPAIGN.length) {
     throw new Error(`Expected ${DIRECTOR_RESEARCH_CAMPAIGN.length} campaign sources, found ${summary?.source_count ?? 0}.`);

@@ -7,6 +7,7 @@ import AdminDirectorEvidenceManifests from "@/components/AdminDirectorEvidenceMa
 import AdminDirectorGraph from "@/components/AdminDirectorGraph";
 import AdminDirectorLearning from "@/components/AdminDirectorLearning";
 import AdminDirectorWorldAtlas from "@/components/AdminDirectorWorldAtlas";
+import AdminDirectorResearchArchive from "@/components/AdminDirectorResearchArchive";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -57,6 +58,8 @@ export default async function AdminDirectorBrainPage() {
       </header>
 
       <AdminSectionNav />
+
+      <AdminDirectorResearchArchive initialBundle={research} />
 
       <AdminDirectorGraph
         decisions={decisionBundle.decisions}

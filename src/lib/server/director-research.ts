@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   directorResearchSourceMode,
+  filterPlaybackSafeDirectorResearch,
   normalizeDirectorStudyInput,
   rankApprovedDirectorResearch,
   type ApprovedDirectorStudyContext,
@@ -347,8 +348,10 @@ export async function retrieveApprovedDirectorResearch(brief: string, limit = 4)
     throw new Error(`Verify timed-film playback: ${timedResult.error.message}`);
   }
   const timedStudyIds = new Set((timedResult.data ?? []).map((analysis) => String(analysis.study_id)));
-  const verifiedTimedStudyIds = new Set((timedResult.data ?? []).filter((analysis) => analysis.playback_status === "verified").map((analysis) => String(analysis.study_id)));
-  const playbackSafeStudies = studies.filter((study) => !timedStudyIds.has(study.id) || verifiedTimedStudyIds.has(study.id));
+  const playbackSafeStudies = filterPlaybackSafeDirectorResearch(studies, (timedResult.data ?? []).map((analysis) => ({
+    studyId: analysis.study_id ? String(analysis.study_id) : null,
+    playbackStatus: analysis.playback_status as "required" | "verified" | "rejected",
+  })));
   const collectionIds = playbackSafeStudies.filter((study) => !timedStudyIds.has(study.id) && ["collection-discovery", "provenance"].includes(directorResearchSourceMode(study.source))).map((study) => study.id);
   if (!collectionIds.length) return rankApprovedDirectorResearch(playbackSafeStudies, brief, limit);
   const links = await supabase.from("director_study_evidence_manifests")

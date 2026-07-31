@@ -295,3 +295,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.87 | `401631c` | 2026-07-31T21:19:06+05:30 | v0.2.87: reconcile approved research jobs |
 | v0.2.88 | `f3b9852` | 2026-07-31T22:06:15+05:30 | v0.2.88: build parallel evidence ingestion |
 | v0.2.89 | `636927b` | 2026-07-31T23:07:39+05:30 | v0.2.89: run safe parallel Atlas research |
+| v0.2.90 | `14b4089` | 2026-08-01T00:24:52+05:30 | v0.2.90: archive Director Brain research assets |

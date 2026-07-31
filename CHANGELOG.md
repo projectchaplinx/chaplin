@@ -1,5 +1,22 @@
 # Chaplin Changelog
 
+## v0.2.91 - 2026-08-01 - Unify the Director Brain research archive
+
+- Add a single archive at the top of Director Brain for live research activity,
+  extracted knowledge, source evidence, and derived timed-film assets.
+- Persist and expose the complete append-only history for every research job,
+  including phase, progress, status, message, review, and asset updates.
+- Keep draft observations and candidate principles visible without allowing
+  them into Magic retrieval until playback and human approval gates pass.
+- Complete 53 Library of Congress timed-film evidence packages with private
+  contact sheets, signal-only waveforms, evidence JSON, and exact provenance.
+- Add focused Academy sound craft, Uruk and third-millennium western Asian
+  material evidence, and Library of Congress mid-century U.S. provenance.
+- Add bounded official-PDF input, Met object-record expansion, source retries,
+  and recoverable timed-audio fallback without retaining source media.
+- Fix campaign verification so dynamically discovered film sources do not
+  invalidate the declared campaign-source count.
+
 ## v0.2.90 - 2026-07-31 - Archive visible Director Brain research assets
 
 - Resolve all 18 rights-cleared Library of Congress registry films into 52

@@ -7,7 +7,8 @@ export const DEFAULT_OPENAI_WRITING_MODEL = "gpt-5.6-terra";
 
 export type OpenAIInputContent =
   | { type: "input_text"; text: string }
-  | { type: "input_image"; image_url: string; detail: "low" | "high" | "auto" };
+  | { type: "input_image"; image_url: string; detail: "low" | "high" | "auto" }
+  | { type: "input_file"; filename: string; file_data: string };
 
 export type OpenAIInputMessage = {
   role: "user" | "assistant";

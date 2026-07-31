@@ -120,6 +120,19 @@ export type DirectorResearchJob = {
   updatedAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  events: DirectorResearchEvent[];
+};
+
+export type DirectorResearchEvent = {
+  id: string;
+  kind: string;
+  phase: string;
+  status: string;
+  progress: number | null;
+  message: string;
+  details: Record<string, unknown>;
+  actor: string | null;
+  createdAt: string;
 };
 
 export function directorResearchSourceMode(source: Pick<DirectorResearchSourceRecord, "sourceKind" | "sourceUrl" | "targetTags" | "title">): DirectorResearchSourceMode {
@@ -392,6 +405,17 @@ export function rankApprovedDirectorResearch(
       principles: study.candidatePrinciples,
       score,
     }));
+}
+
+export function filterPlaybackSafeDirectorResearch(
+  studies: DirectorSceneStudy[],
+  timedAnalyses: Array<{ studyId: string | null; playbackStatus: "required" | "verified" | "rejected" }>,
+) {
+  const linkedStudyIds = new Set(timedAnalyses.flatMap((analysis) => analysis.studyId ? [analysis.studyId] : []));
+  const verifiedStudyIds = new Set(timedAnalyses.flatMap((analysis) => (
+    analysis.studyId && analysis.playbackStatus === "verified" ? [analysis.studyId] : []
+  )));
+  return studies.filter((study) => !linkedStudyIds.has(study.id) || verifiedStudyIds.has(study.id));
 }
 
 export function buildDirectorResearchDiagnostics(studies: DirectorSceneStudy[]): DirectorResearchDiagnostics {

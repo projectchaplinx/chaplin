@@ -285,6 +285,30 @@ Current targets span story, camera, blocking, editing, sound, performance,
 production design, costume, historical worlds, timed public-domain scenes, and
 AI production controls.
 
+### Director Brain research archive
+
+Super Admin now exposes one archive at the top of `/admin/director-brain` for
+all material created during research:
+
+- live and historical job activity, including every persisted phase and
+  progress update;
+- extracted observations and candidate principles with their current review
+  state;
+- item-level collection and provenance evidence with rights and reuse status;
+- private, derived timed-film assets: contact sheets, signal-only waveforms,
+  and complete evidence JSON packages.
+
+The archive is a visibility boundary, not an approval shortcut. A draft can be
+visible in the archive while remaining unavailable to Magic. Timed-film studies
+still require direct playback verification, and every study still requires the
+separate human approval gate before retrieval.
+
+The current source expansion also adds focused Academy sound craft, Uruk and
+third-millennium western Asian urban evidence, and Library of Congress
+mid-century United States photographic provenance. These sources retain their
+own limitations: elite archaeological material cannot stand in for ordinary
+life, and a collection-level pointer cannot clear an individual photograph.
+
 The campaign queue is seeded by:
 
 ```powershell

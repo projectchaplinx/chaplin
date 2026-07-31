@@ -25,6 +25,7 @@ try {
   await sql.file("supabase/migrations/202607310005_director_research_worker_safety.sql");
   await sql.file("supabase/migrations/202607310006_director_evidence_review_repair.sql");
   await sql.file("supabase/migrations/202607310007_director_timed_media_analyses.sql");
+  await sql.file("supabase/migrations/202608010001_director_research_events.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
@@ -34,9 +35,10 @@ try {
       ,to_regclass('public.director_research_jobs')::text as research_jobs,
       to_regclass('public.director_evidence_manifests')::text as evidence_manifests,
       to_regclass('public.director_study_evidence_manifests')::text as evidence_links,
-      to_regclass('public.director_timed_media_analyses')::text as timed_media_analyses
+      to_regclass('public.director_timed_media_analyses')::text as timed_media_analyses,
+      to_regclass('public.director_research_events')::text as research_events
   `;
-  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

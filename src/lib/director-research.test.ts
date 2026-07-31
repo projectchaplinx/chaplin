@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  filterPlaybackSafeDirectorResearch,
   assertResearchTextIsAnalytical,
   buildDirectorResearchDiagnostics,
   normalizeDirectorStudyInput,
@@ -122,6 +123,39 @@ test("retrieval excludes relevant studies until a human approves them", () => {
   } as DirectorSceneStudy;
   assert.equal(rankApprovedDirectorResearch([study], "vehicle pursuit", 4).length, 0);
   assert.equal(rankApprovedDirectorResearch([{ ...study, status: "approved" }], "vehicle pursuit", 4).length, 1);
+});
+
+test("timed-film research stays out of retrieval until direct playback is verified", () => {
+  const timedStudy = {
+    id: "timed-study",
+    status: "approved",
+    studyTitle: "Readable western entrance",
+    workTitle: "Rights-cleared film",
+    region: "United States",
+    periodLabel: "1930s",
+    tags: ["blocking"],
+    candidatePrinciples: ["Orient the social hierarchy before the entrance changes it."],
+  } as DirectorSceneStudy;
+  const unrelatedStudy = { ...timedStudy, id: "owned-study", source: { sourceKind: "chaplin-test" } } as DirectorSceneStudy;
+
+  assert.deepEqual(
+    filterPlaybackSafeDirectorResearch([timedStudy, unrelatedStudy], [
+      { studyId: timedStudy.id, playbackStatus: "required" },
+    ]).map((study) => study.id),
+    [unrelatedStudy.id],
+  );
+  assert.deepEqual(
+    filterPlaybackSafeDirectorResearch([timedStudy, unrelatedStudy], [
+      { studyId: timedStudy.id, playbackStatus: "verified" },
+    ]).map((study) => study.id),
+    [timedStudy.id, unrelatedStudy.id],
+  );
+  assert.deepEqual(
+    filterPlaybackSafeDirectorResearch([timedStudy], [
+      { studyId: timedStudy.id, playbackStatus: "rejected" },
+    ]),
+    [],
+  );
 });
 
 test("research diagnostics expose coverage gaps and overlapping studies for human comparison", () => {

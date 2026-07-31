@@ -9,7 +9,8 @@ import { promisify } from "node:util";
 import ffmpegPath from "ffmpeg-static";
 import { assertResearchTextIsAnalytical } from "@/lib/director-research";
 import { timedMediaLocator } from "@/lib/director-timed-media";
-import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
+import type { DirectorResearchEvent } from "@/lib/director-research";
+import type { DirectorTimedMediaAnalysis, DirectorTimedMediaObservation } from "@/lib/director-timed-media";
 import { createOpenAIResponse, openAIWritingModel } from "@/lib/server/openai-responses";
 import { createDirectorStudy } from "@/lib/server/director-research";
 import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
@@ -241,7 +242,14 @@ async function analyzeAudio(input: TimedMediaJobInput, audio: Buffer | null) {
   const data = await response.json() as Record<string, unknown> & { error?: { message?: string }; id?: string; usage?: Record<string, unknown> };
   if (!response.ok) throw new Error(data.error?.message || `OpenAI audio analysis returned ${response.status}.`);
   const rawNotes = chatOutputText(data);
-  if (!rawNotes) throw new Error("OpenAI returned no abstract audio evidence.");
+  if (!rawNotes) return {
+    available: false,
+    notes: "Audio perception returned no analytical text. Use signal metrics only and make no speech, music, ambience, or silence claims until direct playback.",
+    model,
+    responseId: data.id ?? null,
+    usage: data.usage ?? {},
+    withheld: true,
+  };
   const notes = dialogueSafeAudioNotes(rawNotes);
   const available = !/^Audio perception was withheld/i.test(notes);
   return { available, notes, model, responseId: data.id ?? null, usage: data.usage ?? {}, withheld: !available };
@@ -407,19 +415,36 @@ type TimedMediaRow = {
   id: string; research_job_id: string; study_id: string | null; work_title: string;
   item_url: string; media_url: string; playback_url: string; start_second: number | string; duration_seconds: number | string;
   query_key: string; observations: unknown; candidate_principles: unknown; playback_status: DirectorTimedMediaAnalysis["playbackStatus"];
-  review_notes: string; models: Record<string, unknown> | null; created_at: string; updated_at: string; reviewed_at: string | null;
+  limitations: string; review_notes: string; models: Record<string, unknown> | null; created_at: string; updated_at: string; reviewed_at: string | null;
   artifact_paths: Record<string, unknown> | null;
 };
 
-function analysisFromRow(row: TimedMediaRow, artifactUrls: DirectorTimedMediaAnalysis["artifactUrls"] = {}): DirectorTimedMediaAnalysis {
+function observationsFromRow(value: unknown): DirectorTimedMediaObservation[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is DirectorTimedMediaObservation => Boolean(
+    item && typeof item === "object"
+    && Number.isFinite(Number((item as DirectorTimedMediaObservation).startSecond))
+    && Number.isFinite(Number((item as DirectorTimedMediaObservation).endSecond))
+  ));
+}
+
+function analysisFromRow(
+  row: TimedMediaRow,
+  artifactUrls: DirectorTimedMediaAnalysis["artifactUrls"] = {},
+  events: DirectorResearchEvent[] = [],
+): DirectorTimedMediaAnalysis {
+  const observations = observationsFromRow(row.observations);
+  const candidatePrinciples = Array.isArray(row.candidate_principles)
+    ? row.candidate_principles.filter((item): item is string => typeof item === "string")
+    : [];
   return {
     id: row.id, jobId: row.research_job_id, studyId: row.study_id, workTitle: row.work_title,
     itemUrl: row.item_url, mediaUrl: row.media_url, playbackUrl: row.playback_url || row.media_url, startSecond: Number(row.start_second),
     durationSeconds: Number(row.duration_seconds), queryKey: row.query_key,
-    observationCount: Array.isArray(row.observations) ? row.observations.length : 0,
-    principleCount: Array.isArray(row.candidate_principles) ? row.candidate_principles.length : 0,
+    observations, candidatePrinciples, limitations: row.limitations,
+    observationCount: observations.length, principleCount: candidatePrinciples.length,
     playbackStatus: row.playback_status, reviewNotes: row.review_notes, models: row.models ?? {},
-    artifactUrls,
+    artifactUrls, events,
     createdAt: row.created_at, updatedAt: row.updated_at, reviewedAt: row.reviewed_at,
   };
 }
@@ -439,7 +464,39 @@ export async function listDirectorTimedMediaAnalyses(limit = 200) {
     throw new Error(`Load timed-media analyses: ${result.error.message}`);
   }
   const rows = (result.data ?? []) as TimedMediaRow[];
-  const storage = getSupabaseAdminClient().storage.from("director-research");
+  const supabase = getSupabaseAdminClient();
+  const storage = supabase.storage.from("director-research");
+  const jobIds = rows.map((row) => row.research_job_id);
+  const analysisIds = rows.map((row) => row.id);
+  const [jobEventsResult, analysisEventsResult] = await Promise.all([
+    jobIds.length
+      ? supabase.from("director_research_events").select("*").in("job_id", jobIds).order("created_at", { ascending: true }).limit(5000)
+      : Promise.resolve({ data: [], error: null }),
+    analysisIds.length
+      ? supabase.from("director_research_events").select("*").in("analysis_id", analysisIds).order("created_at", { ascending: true }).limit(1000)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const eventRows = [...(jobEventsResult.data ?? []), ...(analysisEventsResult.data ?? [])] as Array<Record<string, unknown>>;
+  const eventsByJob = new Map<string, DirectorResearchEvent[]>();
+  for (const event of eventRows) {
+    const jobId = typeof event.job_id === "string" ? event.job_id : "";
+    if (!jobId) continue;
+    const id = String(event.id ?? "");
+    const existing = eventsByJob.get(jobId) ?? [];
+    if (existing.some((item) => item.id === id)) continue;
+    existing.push({
+      id,
+      kind: String(event.event_kind ?? "update"),
+      phase: String(event.phase ?? ""),
+      status: String(event.status ?? ""),
+      progress: event.progress == null ? null : Number(event.progress),
+      message: String(event.message ?? ""),
+      details: event.details && typeof event.details === "object" && !Array.isArray(event.details) ? event.details as Record<string, unknown> : {},
+      actor: typeof event.actor === "string" ? event.actor : null,
+      createdAt: String(event.created_at ?? ""),
+    });
+    eventsByJob.set(jobId, existing);
+  }
   return Promise.all(rows.map(async (row) => {
     const entries = artifactPathEntries(row);
     const artifactUrls: DirectorTimedMediaAnalysis["artifactUrls"] = {};
@@ -447,7 +504,8 @@ export async function listDirectorTimedMediaAnalyses(limit = 200) {
       const signed = await storage.createSignedUrl(artifactPath, 60 * 60);
       if (!signed.error && signed.data?.signedUrl) artifactUrls[key] = signed.data.signedUrl;
     }));
-    return analysisFromRow(row, artifactUrls);
+    const events = (eventsByJob.get(row.research_job_id) ?? []).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    return analysisFromRow(row, artifactUrls, events);
   }));
 }
 

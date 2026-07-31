@@ -1,3 +1,5 @@
+import type { DirectorResearchEvent } from "@/lib/director-research";
+
 export const DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION = "2026-07-31.2";
 export const DIRECTOR_TIMED_MEDIA_CLIP_SECONDS = 30;
 export const DIRECTOR_TIMED_MEDIA_PASSAGES = 3;
@@ -25,6 +27,19 @@ export type DirectorTimedMediaPassage = {
   label: string;
 };
 
+export type DirectorTimedMediaObservation = {
+  startSecond: number;
+  endSecond: number;
+  evidence: string;
+  craft: string;
+  transition: string;
+  narrativeJob: string;
+  inference: string;
+  confidence: "low" | "medium" | "high";
+  audioEvidence: string;
+  soundFunction: string;
+};
+
 export type DirectorTimedMediaAnalysis = {
   id: string;
   jobId: string;
@@ -36,12 +51,16 @@ export type DirectorTimedMediaAnalysis = {
   startSecond: number;
   durationSeconds: number;
   queryKey: string;
+  observations: DirectorTimedMediaObservation[];
+  candidatePrinciples: string[];
+  limitations: string;
   observationCount: number;
   principleCount: number;
   playbackStatus: "required" | "verified" | "rejected";
   reviewNotes: string;
   models: Record<string, unknown>;
   artifactUrls: { contactSheet?: string; waveform?: string; evidencePackage?: string };
+  events: DirectorResearchEvent[];
   createdAt: string;
   updatedAt: string;
   reviewedAt: string | null;

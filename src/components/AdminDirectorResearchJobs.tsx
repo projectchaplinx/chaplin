@@ -143,6 +143,24 @@ export default function AdminDirectorResearchJobs() {
               </div>
               <p className="mt-2 text-[10px] leading-4 text-grey">{job.errorMessage || job.message}</p>
               <p className="mt-1 text-[9px] text-grey">{job.evidenceCount} evidence records</p>
+              <details className="mt-3 border-t border-white/10 pt-3">
+                <summary className="cursor-pointer text-[9px] font-semibold uppercase tracking-[0.14em] text-accent-secondary">
+                  Saved history · {job.events.length} updates
+                </summary>
+                <ol className="mt-3 max-h-52 space-y-0 overflow-y-auto border-l border-white/10 pl-4">
+                  {job.events.map((event) => (
+                    <li key={event.id} className="relative pb-3 text-[9px] leading-4 text-grey">
+                      <span className="absolute -left-[19px] top-1 h-2 w-2 rounded-full bg-accent-secondary" />
+                      <div className="flex flex-wrap gap-2">
+                        <span className="font-semibold text-ink">{event.phase || event.kind}</span>
+                        {event.progress != null ? <span className="font-mono text-accent-primary">{event.progress}%</span> : null}
+                        <time dateTime={event.createdAt}>{event.createdAt ? new Date(event.createdAt).toLocaleString() : ""}</time>
+                      </div>
+                      {event.message ? <p>{event.message}</p> : null}
+                    </li>
+                  ))}
+                </ol>
+              </details>
               <p className="mt-2 font-mono text-[8px] text-white/35">attempt {job.attempt}/{job.maxAttempts}{job.model ? ` · ${job.model}` : ""}</p>
             </article>
           ))}

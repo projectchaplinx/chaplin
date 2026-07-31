@@ -125,6 +125,50 @@ export default function AdminDirectorTimedMedia() {
                 </div>
               </section>
             ) : null}
+            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+              <section className="rounded-lg border border-line bg-black/15 p-3">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Machine observations · draft</p>
+                <div className="mt-3 max-h-72 space-y-3 overflow-y-auto pr-1">
+                  {selected.observations.map((observation, index) => (
+                    <article key={`${observation.startSecond}-${observation.endSecond}-${index}`} className="rounded-md border border-white/10 p-3">
+                      <p className="font-mono text-[9px] text-accent-primary">{observation.startSecond.toFixed(1)}–{observation.endSecond.toFixed(1)}s · {observation.confidence}</p>
+                      <p className="mt-1 text-xs leading-5 text-ink">{observation.evidence}</p>
+                      <p className="mt-2 text-[10px] leading-4 text-grey"><span className="text-ink">Craft:</span> {observation.craft}</p>
+                      <p className="mt-1 text-[10px] leading-4 text-grey"><span className="text-ink">Story job:</span> {observation.narrativeJob}</p>
+                      {observation.audioEvidence ? <p className="mt-1 text-[10px] leading-4 text-grey"><span className="text-ink">Sound:</span> {observation.audioEvidence}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+              <section className="rounded-lg border border-line bg-black/15 p-3">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Candidate principles · not injected</p>
+                <ol className="mt-3 space-y-2">
+                  {selected.candidatePrinciples.map((principle, index) => (
+                    <li key={`${principle}-${index}`} className="flex gap-2 text-[10px] leading-4 text-grey">
+                      <span className="font-mono text-accent-primary">{String(index + 1).padStart(2, "0")}</span>
+                      <span>{principle}</span>
+                    </li>
+                  ))}
+                </ol>
+                {selected.limitations ? <p className="mt-4 border-t border-white/10 pt-3 text-[10px] leading-4 text-amber-100"><span className="font-semibold">Limitations:</span> {selected.limitations}</p> : null}
+              </section>
+            </div>
+            <details className="mt-4 rounded-lg border border-line bg-black/15 p-3">
+              <summary className="cursor-pointer text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Research history · {selected.events.length} saved updates</summary>
+              <ol className="mt-3 space-y-0 border-l border-white/10 pl-4">
+                {selected.events.map((event) => (
+                  <li key={event.id} className="relative pb-3 text-[10px] leading-4 text-grey">
+                    <span className="absolute -left-[19px] top-1 h-2 w-2 rounded-full bg-accent-secondary" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-ink">{event.phase || event.kind}</span>
+                      {event.progress != null ? <span className="font-mono text-accent-primary">{event.progress}%</span> : null}
+                      <time dateTime={event.createdAt}>{event.createdAt ? new Date(event.createdAt).toLocaleString() : ""}</time>
+                    </div>
+                    {event.message ? <p>{event.message}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            </details>
             <p className="mt-3 text-[10px] leading-4 text-grey">
               The machine draft contains {selected.observationCount} observations and {selected.principleCount} candidate principles. The derived contact sheet, signal-only waveform, and evidence package are retained; the source clip, soundtrack, transcript, and dialogue are not.
             </p>

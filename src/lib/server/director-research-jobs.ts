@@ -4,6 +4,7 @@ import {
   assertResearchTextIsAnalytical,
   directorResearchSourceMode,
   type DirectorResearchJob,
+  type DirectorResearchEvent,
   type DirectorResearchJobStatus,
   type DirectorResearchSourceMode,
   type DirectorResearchSourceRecord,
@@ -28,6 +29,7 @@ import { processDirectorTimedMedia } from "@/lib/server/director-timed-media";
 import {
   createOpenAIResponse,
   openAIWritingModel,
+  type OpenAIInputContent,
 } from "@/lib/server/openai-responses";
 import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
 
@@ -108,7 +110,7 @@ function joinedSource(row: JobRow) {
   return sourceFromRow(source);
 }
 
-function jobFromRow(row: JobRow): DirectorResearchJob {
+function jobFromRow(row: JobRow, events: DirectorResearchEvent[] = []): DirectorResearchJob {
   return {
     id: row.id,
     sourceId: row.source_id,
@@ -123,12 +125,29 @@ function jobFromRow(row: JobRow): DirectorResearchJob {
     attempt: Number(row.attempt) || 0,
     maxAttempts: Number(row.max_attempts) || 3,
     model: row.model,
-    errorMessage: row.error_message,
+    errorMessage: row.status === "failed" || row.phase === "failed" ? row.error_message : null,
     evidenceCount: Number(row.output?.count) || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     startedAt: row.started_at,
     completedAt: row.completed_at,
+    events,
+  };
+}
+
+function researchEventFromRow(row: Record<string, unknown>): DirectorResearchEvent {
+  return {
+    id: String(row.id ?? ""),
+    kind: String(row.event_kind ?? "update"),
+    phase: String(row.phase ?? ""),
+    status: String(row.status ?? ""),
+    progress: row.progress == null ? null : Number(row.progress),
+    message: String(row.message ?? ""),
+    details: row.details && typeof row.details === "object" && !Array.isArray(row.details)
+      ? row.details as Record<string, unknown>
+      : {},
+    actor: typeof row.actor === "string" ? row.actor : null,
+    createdAt: String(row.created_at ?? ""),
   };
 }
 
@@ -154,10 +173,25 @@ export async function listDirectorResearchJobs(campaignId?: string) {
     if (/director_research_jobs|schema cache|does not exist/i.test(result.error.message)) return [];
     throw new Error(`Load research jobs: ${result.error.message}`);
   }
+  const rows = (result.data ?? []) as JobRow[];
+  const jobIds = rows.map((row) => row.id);
+  const eventsResult = jobIds.length
+    ? await getSupabaseAdminClient().from("director_research_events").select("*").in("job_id", jobIds).order("created_at", { ascending: true }).limit(5000)
+    : { data: [], error: null };
+  const eventsByJob = new Map<string, DirectorResearchEvent[]>();
+  if (!eventsResult.error) {
+    for (const eventRow of (eventsResult.data ?? []) as Array<Record<string, unknown>>) {
+      const jobId = typeof eventRow.job_id === "string" ? eventRow.job_id : "";
+      if (!jobId) continue;
+      const events = eventsByJob.get(jobId) ?? [];
+      events.push(researchEventFromRow(eventRow));
+      eventsByJob.set(jobId, events);
+    }
+  }
   const latestBySource = new Map<string, DirectorResearchJob>();
-  for (const row of (result.data ?? []) as JobRow[]) {
+  for (const row of rows) {
     const key = `${row.source_id}:${row.query_key || "root"}`;
-    if (!latestBySource.has(key)) latestBySource.set(key, jobFromRow(row));
+    if (!latestBySource.has(key)) latestBySource.set(key, jobFromRow(row, eventsByJob.get(row.id) ?? []));
   }
   return [...latestBySource.values()];
 }
@@ -320,6 +354,22 @@ export async function enqueueDirectorTimedMediaCorpus(campaignId: string, userId
     .neq("contract_version", DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION)
     .in("status", ["queued", "running", "failed"]);
   if (superseded.error) throw new Error(`Supersede old timed-film jobs: ${superseded.error.message}`);
+  const retryCurrent = await supabase.from("director_research_jobs").update({
+    status: "queued",
+    phase: "queued",
+    progress: 0,
+    message: "Retrying the current timed-media contract after a recoverable extraction failure",
+    attempt: 0,
+    error_message: null,
+    next_attempt_at: null,
+    lease_owner: null,
+    lease_expires_at: null,
+    completed_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq("campaign_id", campaignId).eq("source_mode", "timed-media")
+    .eq("contract_version", DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION)
+    .eq("status", "failed");
+  if (retryCurrent.error) throw new Error(`Retry current timed-film jobs: ${retryCurrent.error.message}`);
   const registry = parseLocPublicDomainRegistry(await fetchLocJson(DIRECTOR_TIMED_MEDIA_REGISTRY_URL));
   if (!registry.length) throw new Error("The Library of Congress registry returned no film records.");
   const resolved = await mapConcurrent(registry, 6, async (item) => parseLocTimedMediaSource(item, await fetchLocJson(`${item.itemUrl}?fo=json`)));
@@ -396,21 +446,76 @@ function readableHtml(html: string) {
     .slice(0, 160_000);
 }
 
+async function expandMetCollectionSearch(url: URL, payload: unknown) {
+  if (url.hostname !== "collectionapi.metmuseum.org" || url.pathname !== "/public/collection/v1/search") return null;
+  const objectIds = payload && typeof payload === "object" && Array.isArray((payload as { objectIDs?: unknown }).objectIDs)
+    ? (payload as { objectIDs: unknown[] }).objectIDs.filter((value): value is number => Number.isInteger(value)).slice(0, 24)
+    : [];
+  if (!objectIds.length) return null;
+  const records = await mapConcurrent(objectIds, 4, async (objectId) => {
+    const response = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${objectId}`, {
+      headers: { "user-agent": "ChaplinDirectorResearch/1.0 (+https://project-chaplin.vercel.app)", accept: "application/json" },
+      signal: AbortSignal.timeout(20_000), cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const item = await response.json() as Record<string, unknown>;
+    return {
+      objectID: item.objectID, objectURL: item.objectURL, title: item.title, objectName: item.objectName,
+      department: item.department, culture: item.culture, period: item.period, dynasty: item.dynasty,
+      reign: item.reign, objectDate: item.objectDate, objectBeginDate: item.objectBeginDate,
+      objectEndDate: item.objectEndDate, medium: item.medium, dimensions: item.dimensions,
+      classification: item.classification, country: item.country, region: item.region,
+      subregion: item.subregion, locale: item.locale, excavation: item.excavation,
+      isPublicDomain: item.isPublicDomain, rightsAndReproduction: item.rightsAndReproduction,
+    };
+  });
+  return JSON.stringify({
+    query: url.searchParams.get("q"),
+    totalMatches: Number((payload as { total?: unknown }).total ?? objectIds.length),
+    sampledObjectRecords: records.filter(Boolean),
+    sampleLimit: objectIds.length,
+  });
+}
+
 async function fetchAuthoritativeText(source: DirectorResearchSourceRecord) {
   const url = publicHttpUrl(source.sourceUrl);
-  const response = await fetch(url, {
-    headers: { "user-agent": "ChaplinDirectorResearch/1.0" },
-    redirect: "follow",
-    signal: AbortSignal.timeout(20_000),
-    cache: "no-store",
-  });
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(url, {
+      headers: {
+        "user-agent": attempt === 0
+          ? "ChaplinDirectorResearch/1.0 (+https://project-chaplin.vercel.app)"
+          : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36 ChaplinResearch/1.0",
+        accept: "text/html,application/xhtml+xml,application/pdf,application/json,text/plain;q=0.9,*/*;q=0.5",
+        "accept-language": "en-US,en;q=0.9",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(30_000),
+      cache: "no-store",
+    });
+    if (response.ok || ![403, 429].includes(response.status) || attempt === 2) break;
+    await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+  }
+  if (!response) throw new Error("Authoritative source returned no response.");
   if (!response.ok) throw new Error(`Authoritative source returned ${response.status}.`);
   const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/pdf")) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > 12 * 1024 * 1024) throw new Error("Authoritative PDF is empty or exceeds the 12 MB research limit.");
+    return {
+      type: "input_file",
+      filename: `${source.id}.pdf`,
+      file_data: `data:application/pdf;base64,${bytes.toString("base64")}`,
+    } satisfies OpenAIInputContent;
+  }
   if (!contentType.includes("text/html") && !contentType.includes("text/plain") && !contentType.includes("application/json")) {
     throw new Error(`Source requires a ${contentType || "non-text"} evidence adapter.`);
   }
   const body = await response.text();
-  const text = contentType.includes("text/html") ? readableHtml(body) : body.slice(0, 160_000);
+  const expandedMet = contentType.includes("application/json")
+    ? await expandMetCollectionSearch(url, JSON.parse(body) as unknown)
+    : null;
+  const text = expandedMet ?? (contentType.includes("text/html") ? readableHtml(body) : body.slice(0, 160_000));
   if (text.length < 500) throw new Error("Authoritative source did not expose enough attributable text.");
   return text;
 }
@@ -489,7 +594,7 @@ function updateClaimedJob(row: JobRow, values: Record<string, unknown>) {
 
 async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord) {
   await updateClaimedJob(row, { phase: "fetching", progress: 15, message: "Reading the authoritative source" });
-  const sourceText = await fetchAuthoritativeText(source);
+  const sourceEvidence = await fetchAuthoritativeText(source);
   await updateClaimedJob(row, { phase: "extracting", progress: 40, message: "Extracting attributable evidence with OpenAI" });
   const model = openAIWritingModel(process.env.OPENAI_RESEARCH_MODEL);
   const result = await createOpenAIResponse({
@@ -504,14 +609,17 @@ async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord)
     ].join("\n"),
     messages: [{
       role: "user",
-      content: [
+      content: [{
+        type: "input_text",
+        text: [
         `SOURCE: ${source.title}`,
         `INSTITUTION: ${source.institution}`,
         `RIGHTS BOUNDARY: ${source.rightsBasis}`,
         `RESEARCH QUESTIONS:\n${source.researchQuestions.map((question) => `- ${question}`).join("\n")}`,
         `TARGET TAGS: ${source.targetTags.join(", ")}`,
-        `AUTHORITATIVE TEXT:\n${sourceText}`,
+        typeof sourceEvidence === "string" ? `AUTHORITATIVE TEXT:\n${sourceEvidence}` : "AUTHORITATIVE PDF: Read the attached official source and cite its printed page or section labels.",
       ].join("\n\n"),
+      }, ...(typeof sourceEvidence === "string" ? [] : [sourceEvidence])],
     }],
     maxOutputTokens: 5000,
     schema: STUDY_SCHEMA,
@@ -558,6 +666,7 @@ async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord)
     progress: 100,
     message: "Draft evidence study is ready for human review",
     model,
+    error_message: null,
     provider_response_id: result.data.id ?? null,
     usage: result.usage.providerUsage,
     output: { studyId, observationCount: extracted.observations.length, principleCount: extracted.candidatePrinciples.length },

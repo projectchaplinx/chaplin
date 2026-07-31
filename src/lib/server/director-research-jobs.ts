@@ -127,6 +127,8 @@ function jobFromRow(row: JobRow, events: DirectorResearchEvent[] = []): Director
     model: row.model,
     errorMessage: row.status === "failed" || row.phase === "failed" ? row.error_message : null,
     evidenceCount: Number(row.output?.count) || 0,
+    output: row.output ?? {},
+    usage: row.usage ?? {},
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     startedAt: row.started_at,

@@ -116,6 +116,10 @@ export type DirectorResearchJob = {
   model: string | null;
   errorMessage: string | null;
   evidenceCount: number;
+  /** Durable references produced by the worker (manifest IDs, study IDs, or archived asset metadata). */
+  output: Record<string, unknown>;
+  /** Provider usage is retained for audit and cost review, never used as research evidence. */
+  usage: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;

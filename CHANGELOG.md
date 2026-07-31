@@ -1,5 +1,19 @@
 # Chaplin Changelog
 
+## v0.2.95 - 2026-08-01 - Keep every research asset inside Director Brain
+
+- Turn the Director Brain archive into source folders that connect each
+  authoritative source to its jobs, saved status history, evidence records,
+  derived film files, synthesized studies, and final retrieval state.
+- Expose durable worker output references instead of reducing a completed job
+  to a single evidence count.
+- Show the complete append-only research timeline and load the full bounded
+  evidence collection rather than silently stopping at the first 100 records.
+- Keep links to contact sheets, waveforms, evidence packages, and canonical
+  source records beside their knowledge destination.
+- Preserve the existing safety boundary: stored and visible does not mean
+  approved, and only separately reviewed studies can influence production.
+
 ## v0.2.94 - 2026-08-01 - Synthesize reviewed evidence into draft knowledge
 
 - Add the missing eligible-evidence-to-study bridge inside Director Brain.

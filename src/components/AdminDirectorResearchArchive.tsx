@@ -3,19 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
 import type { DirectorResearchBundle, DirectorResearchJob } from "@/lib/director-research";
+import { buildDirectorResearchArchiveFolders, researchJobOutputSummary } from "@/lib/director-research-archive";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
 
-type ArchiveTab = "activity" | "knowledge" | "evidence" | "media";
+type ArchiveTab = "folders" | "activity" | "knowledge" | "evidence" | "media";
 
 const TABS: Array<{ id: ArchiveTab; label: string }> = [
-  { id: "activity", label: "Live activity" },
+  { id: "folders", label: "Source folders" },
+  { id: "activity", label: "Saved timeline" },
   { id: "knowledge", label: "Extracted knowledge" },
   { id: "evidence", label: "Source evidence" },
   { id: "media", label: "Film assets" },
 ];
 
 export default function AdminDirectorResearchArchive({ initialBundle }: { initialBundle: DirectorResearchBundle }) {
-  const [tab, setTab] = useState<ArchiveTab>("activity");
+  const [tab, setTab] = useState<ArchiveTab>("folders");
+  const [sources, setSources] = useState(initialBundle.sources);
   const [jobs, setJobs] = useState<DirectorResearchJob[]>([]);
   const [studies, setStudies] = useState(initialBundle.studies);
   const [evidence, setEvidence] = useState<DirectorEvidenceManifest[]>([]);
@@ -26,7 +29,7 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
     const [jobsResponse, researchResponse, evidenceResponse, mediaResponse] = await Promise.all([
       fetch("/api/admin/director-brain/research-jobs", { cache: "no-store" }),
       fetch("/api/admin/director-brain", { cache: "no-store" }),
-      fetch("/api/admin/director-brain/evidence-manifests?limit=100", { cache: "no-store" }),
+      fetch("/api/admin/director-brain/evidence-manifests?limit=300", { cache: "no-store" }),
       fetch("/api/admin/director-brain/timed-media", { cache: "no-store" }),
     ]);
     const [jobsBody, researchBody, evidenceBody, mediaBody] = await Promise.all([
@@ -37,6 +40,7 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
     ].find(([response]) => !(response as Response).ok);
     if (failure) throw new Error((failure[1] as { error?: string }).error || "Could not load the Director Brain archive.");
     setJobs(jobsBody.jobs ?? []);
+    setSources(researchBody.sources ?? []);
     setStudies(researchBody.studies ?? []);
     setEvidence(evidenceBody.manifests ?? []);
     setMedia(mediaBody.analyses ?? []);
@@ -62,6 +66,9 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
   const assetCount = useMemo(() => media.reduce((count, item) => count + Object.values(item.artifactUrls).filter(Boolean).length, 0), [media]);
   const running = jobs.filter((job) => job.status === "running");
   const recentJobs = [...jobs].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 12);
+  const folders = useMemo(() => buildDirectorResearchArchiveFolders({ sources, jobs, studies, evidence, media }), [sources, jobs, studies, evidence, media]);
+  const timeline = useMemo(() => jobs.flatMap((job) => job.events.map((event) => ({ ...event, job })))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [jobs]);
 
   return (
     <section id="research-archive" className="poster-card mb-8 overflow-hidden rounded-xl border-accent-secondary/25" data-director-research-archive>
@@ -78,7 +85,7 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {[
-            ["Sources", initialBundle.sources.length], ["Research jobs", jobs.length], ["Saved updates", eventCount],
+            ["Sources", sources.length], ["Research jobs", jobs.length], ["Saved updates", eventCount],
             ["Draft studies", studies.length], ["Evidence records", evidence.length], ["Derived assets", assetCount],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-line bg-black/15 p-3">
@@ -101,8 +108,52 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
 
       {error ? <p className="m-4 rounded-lg border border-red-400/30 bg-red-400/[0.06] p-3 text-xs text-red-100">{error}</p> : null}
       <div className="max-h-[520px] overflow-y-auto p-4 sm:p-5">
+        {tab === "folders" ? (
+          <div className="space-y-3">
+            <p className="text-[10px] leading-5 text-grey">Each folder is one authoritative source. Its jobs, saved updates, evidence records, derived media, draft studies, and approved knowledge stay connected here. Unreviewed material remains visible without entering retrieval.</p>
+            {folders.map((folder) => (
+              <details key={folder.source.id} className="rounded-lg border border-line bg-black/15" data-director-source-folder={folder.source.id}>
+                <summary className="cursor-pointer list-none p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0"><h3 className="text-sm font-semibold text-ink">{folder.source.title}</h3><p className="mt-1 text-[9px] text-grey">{folder.source.institution} · {folder.source.sourceKind} · {folder.source.queueStatus}</p></div>
+                    <div className="flex flex-wrap gap-2 text-[8px] uppercase tracking-[0.1em] text-grey"><span>{folder.jobs.length} jobs</span><span>{folder.updateCount} updates</span><span>{folder.assetCount} assets</span><span>{folder.studies.length} studies</span></div>
+                  </div>
+                </summary>
+                <div className="border-t border-line p-4">
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Saved work</p>
+                      <div className="mt-2 space-y-2">{folder.jobs.slice(0, 8).map((job) => <div key={job.id} className="rounded-md border border-line p-2"><p className="text-[10px] font-semibold text-ink">{job.queryLabel}</p><p className="mt-1 text-[9px] text-grey">{job.status} · {job.progress}% · {researchJobOutputSummary(job.output)}</p></div>)}</div>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Research assets</p>
+                      <p className="mt-2 text-[10px] leading-5 text-grey">{folder.evidence.length} source records · {folder.media.length} timed-media packages · {folder.media.reduce((count, item) => count + Object.values(item.artifactUrls).filter(Boolean).length, 0)} derived files</p>
+                      <div className="mt-2 flex flex-wrap gap-2">{folder.evidence.slice(0, 6).map((item) => <a key={item.id} href={item.canonicalUrl} target="_blank" rel="noreferrer" className="rounded-full border border-line px-2 py-1 text-[8px] text-ink">{item.title}</a>)}</div>
+                      <div className="mt-2 flex flex-wrap gap-2">{folder.media.flatMap((item) => Object.entries(item.artifactUrls).map(([kind, url]) => url ? <a key={`${item.id}-${kind}`} href={url} target="_blank" rel="noreferrer" className="rounded-full border border-accent-secondary/25 px-2 py-1 text-[8px] text-accent-secondary">{item.workTitle} · {kind}</a> : null))}</div>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Knowledge destination</p>
+                      <div className="mt-2 space-y-2">{folder.studies.length ? folder.studies.map((study) => <div key={study.id} className="rounded-md border border-line p-2"><p className="text-[10px] font-semibold text-ink">{study.studyTitle}</p><p className="mt-1 text-[9px] text-grey">{study.status === "approved" ? "Available to production retrieval" : `${study.status} · visible, not injected`}</p></div>) : <p className="text-[10px] text-grey">No study has been synthesized from this source yet.</p>}</div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            ))}
+            {!folders.length ? <p className="rounded-lg border border-dashed border-line p-6 text-center text-xs text-grey">Research folders will appear as soon as a source produces a saved job, evidence record, asset, or study.</p> : null}
+          </div>
+        ) : null}
+
         {tab === "activity" ? (
           <div>
+            <div className="mb-4 space-y-2">
+              {timeline.map((event) => (
+                <article key={`${event.job.id}-${event.id}`} className="grid gap-2 rounded-lg border border-line bg-black/15 p-3 sm:grid-cols-[140px_minmax(0,1fr)_auto] sm:items-start">
+                  <div><p className="truncate text-[9px] font-semibold text-accent-secondary">{event.job.sourceTitle}</p><p className="mt-1 text-[8px] text-grey">{new Date(event.createdAt).toLocaleString()}</p></div>
+                  <div><p className="text-[10px] font-semibold text-ink">{event.message || event.kind}</p><p className="mt-1 text-[9px] text-grey">{event.job.queryLabel} · {event.phase || "saved"}</p></div>
+                  <span className="text-[8px] uppercase text-grey">{event.status || event.kind}</span>
+                </article>
+              ))}
+            </div>
             <p className="mb-3 text-[10px] leading-5 text-grey">{running.length ? `${running.length} jobs are working now. Every phase change below is also retained in the append-only history.` : "No job is running at this moment. The completed history remains available."}</p>
             <div className="grid gap-2 lg:grid-cols-2">
               {recentJobs.map((job) => (

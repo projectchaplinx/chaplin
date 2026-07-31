@@ -341,6 +341,15 @@ visible in the archive while remaining unavailable to Magic. Timed-film studies
 still require direct playback verification, and every study still requires the
 separate human approval gate before retrieval.
 
+The default **Source folders** view is the lineage map for this archive. Every
+authoritative source opens into the jobs run against it, the durable output IDs
+returned by those jobs, all item-level evidence records, derived contact sheets,
+waveforms and evidence packages, and every draft/reviewed/approved study made
+from the source. **Saved timeline** renders the append-only phase history rather
+than only the latest job state. This makes work-in-progress and failures visible
+without copying raw provider payloads or allowing an unreviewed asset to become
+production knowledge.
+
 The current source expansion also adds focused Academy sound craft, Uruk and
 third-millennium western Asian urban evidence, and Library of Congress
 mid-century United States photographic provenance. These sources retain their

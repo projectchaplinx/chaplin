@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "product": "Chaplin",
-  "version": "0.2.86",
-  "ordinal": 286,
+  "version": "0.2.87",
+  "ordinal": 287,
   "baselineVersion": "0.0.0",
   "baselineCommit": "064480d8b72e8a3b85ffdacb5894275af2c480e5",
-  "sourceCommit": "b538e8595ef0d6f1cd330a7bce064031ac4e0c18",
-  "generatedAt": "2026-07-31T15:44:26.449Z",
+  "sourceCommit": "47a264e81812af47ee045c63f283d1834024b70b",
+  "generatedAt": "2026-07-31T15:49:06.901Z",
   "rule": "Initial commit is 0.0.0. Every later commit increments the ordinal; patch and minor roll over every 100."
 }

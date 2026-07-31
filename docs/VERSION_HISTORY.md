@@ -291,3 +291,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.83 | `aeb79fa` | 2026-07-31T02:55:32+05:30 | feat(v0.2.83): stream style sheet generation previews |
 | v0.2.84 | `fe484ca` | 2026-07-31T12:10:17+05:30 | fix(v0.2.84): show complete style sheet references |
 | v0.2.85 | `b538e85` | 2026-07-31T12:22:15+05:30 | fix(v0.2.85): compact video seed workspace |
+| v0.2.86 | `47a264e` | 2026-07-31T21:14:26+05:30 | v0.2.86: build parallel Director research pipeline |

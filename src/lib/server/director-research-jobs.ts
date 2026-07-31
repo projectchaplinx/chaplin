@@ -374,6 +374,25 @@ async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord)
 
 async function processClaimedJob(row: JobRow) {
   const source = joinedSource(row);
+  const approved = await getSupabaseAdminClient()
+    .from("director_scene_studies")
+    .select("id")
+    .eq("source_id", source.id)
+    .eq("status", "approved");
+  if (approved.error) throw new Error(`Check existing approved research: ${approved.error.message}`);
+  if (approved.data?.length) {
+    await updateJob(row.id, {
+      status: "succeeded",
+      phase: "evidence-approved",
+      progress: 100,
+      message: "Existing evidence study is approved and available to retrieval",
+      output: { studyIds: approved.data.map((study) => study.id) },
+      lease_owner: null,
+      lease_expires_at: null,
+      completed_at: new Date().toISOString(),
+    });
+    return;
+  }
   if (row.source_mode === "timed-media") {
     await updateJob(row.id, {
       status: "review-required",

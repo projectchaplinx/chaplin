@@ -196,6 +196,30 @@ export async function listDirectorResearchJobs(campaignId?: string) {
   return [...latestBySource.values()];
 }
 
+export async function retryDirectorResearchJobs(jobIds: string[], userId: string) {
+  const ids = [...new Set(jobIds.map((id) => id.trim()).filter(Boolean))].slice(0, 100);
+  if (!ids.length) throw new Error("Choose at least one research job to retry.");
+  const supabase = getSupabaseAdminClient();
+  const candidates = await supabase.from("director_research_jobs")
+    .select("id,status,phase")
+    .in("id", ids)
+    .in("status", ["failed", "review-required"]);
+  if (candidates.error) throw new Error(`Load retryable research jobs: ${candidates.error.message}`);
+  const retryable = (candidates.data ?? [])
+    .filter((job) => job.status === "failed" || job.phase === "no-evidence-found")
+    .map((job) => String(job.id));
+  if (!retryable.length) throw new Error("Only failed or empty-evidence jobs can be retried without changing a human review decision.");
+  const result = await supabase.from("director_research_jobs").update({
+    status: "queued", phase: "queued", progress: 0,
+    message: "Retry requested after a connector or parser correction",
+    attempt: 0, error_message: null, next_attempt_at: null,
+    lease_owner: null, lease_expires_at: null, completed_at: null,
+    updated_at: new Date().toISOString(), created_by: userId,
+  }).in("id", retryable).select("id");
+  if (result.error) throw new Error(`Retry research jobs: ${result.error.message}`);
+  return { retried: (result.data ?? []).map((job) => String(job.id)) };
+}
+
 export async function enqueueDirectorResearch(campaignId: string, userId: string, sourceIds?: string[]) {
   const supabase = getSupabaseAdminClient();
   let query = supabase.from("director_research_sources").select("*").eq("campaign_id", campaignId);
@@ -452,7 +476,10 @@ async function expandMetCollectionSearch(url: URL, payload: unknown) {
     ? (payload as { objectIDs: unknown[] }).objectIDs.filter((value): value is number => Number.isInteger(value)).slice(0, 24)
     : [];
   if (!objectIds.length) return null;
-  const records = await mapConcurrent(objectIds, 4, async (objectId) => {
+  // The global worker cap already provides parallelism across independent jobs.
+  // Keep object expansion serial inside a job so four Met jobs cannot fan out
+  // into sixteen simultaneous requests against the same public collection API.
+  const records = await mapConcurrent(objectIds, 1, async (objectId) => {
     const response = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${objectId}`, {
       headers: { "user-agent": "ChaplinDirectorResearch/1.0 (+https://project-chaplin.vercel.app)", accept: "application/json" },
       signal: AbortSignal.timeout(20_000), cache: "no-store",

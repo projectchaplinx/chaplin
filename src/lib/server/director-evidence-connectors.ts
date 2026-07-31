@@ -33,7 +33,9 @@ function record(value: unknown): Record<string, unknown> {
 
 async function fetchJson(url: URL, headers: Record<string, string> = {}) {
   if (!ALLOWED_HOSTS.has(url.hostname)) throw new Error(`Evidence connector host is not allowed: ${url.hostname}`);
-  const concurrency = url.hostname === "collectionapi.metmuseum.org" ? 2 : 1;
+  // Parallelism lives at the durable job layer. Each provider lane stays
+  // serial inside a process to avoid multiplying the global four-job cap.
+  const concurrency = 1;
   return providerScheduler(`director-evidence:${url.hostname}`, concurrency).submit(url.toString(), async () => {
     const response = await fetch(url, { headers: { accept: "application/json", "user-agent": "ChaplinDirectorResearch/2.0", ...headers }, signal: AbortSignal.timeout(25_000), cache: "no-store" });
     if (!response.ok) throw new Error(`${url.hostname} evidence API returned ${response.status}.`);
@@ -67,7 +69,7 @@ function locItem(data: unknown, source: DirectorResearchSourceRecord, kind: Norm
   const root = record(data);
   const item = { ...root, ...record(root.item) };
   const id = first(item.item_id, record(root.item).id, root.id, root.url);
-  const canonicalUrl = first(root.id, root.url, item.link);
+  const canonicalUrl = first(root.id, root.url, item.id, item.url, item.link);
   if (!id || !canonicalUrl || !canonicalUrl.startsWith("http")) return null;
   const rights = first(item.rights, item.rights_advisory, item.rights_information, item.restriction, item.access_advisory, item.use_and_reproduction_control);
   const subjects = strings(item.subject).concat(strings(item.subjects));

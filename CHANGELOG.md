@@ -1,5 +1,23 @@
 # Chaplin Changelog
 
+## v0.2.93 - 2026-08-01 - Review every research asset safely
+
+- Bring item-level museum and archive records into the Director Brain Human
+  Review Desk beside playback and knowledge decisions.
+- Add search and focused shortcuts for 1950s, 1960s, 3000 BCE, sound, and
+  action coverage, with rights, cultural-sensitivity, provenance, facets, and
+  authoritative source links visible before a decision.
+- Require substantive review notes and keep restricted, metadata-only, or
+  culturally sensitive records ineligible for promotion.
+- Keep public-provider calls serial inside each job while retaining four-way
+  parallelism across durable, globally leased research jobs.
+- Repair nested Library of Congress canonical item URLs, duplicate evidence
+  upserts, and mixed bulk-upsert creation timestamps.
+- Add a bounded retry path that can reopen only failed or empty-evidence jobs,
+  never a completed human review decision.
+- Drain the live queue to zero active and zero failed jobs, recovering the
+  affected Library of Congress records into attributable manifests.
+
 ## v0.2.92 - 2026-08-01 - Add the Director Brain human review desk
 
 - Add one prioritized review desk inside Director Brain for every pending film

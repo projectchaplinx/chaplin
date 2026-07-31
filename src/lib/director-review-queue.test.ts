@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildDirectorReviewQueue } from "@/lib/director-review-queue";
 import type { DirectorSceneStudy } from "@/lib/director-research";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
+import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
 
 function study(id: string, status: DirectorSceneStudy["status"], tags: string[]): DirectorSceneStudy {
   return {
@@ -18,6 +19,10 @@ function analysis(id: string, studyId: string, playbackStatus: DirectorTimedMedi
     id, studyId, playbackStatus, jobId: `job-${id}`, workTitle: id, itemUrl: "https://www.loc.gov/item/example/", mediaUrl: "https://tile.loc.gov/example.mp4", playbackUrl: "https://tile.loc.gov/example.mp4",
     startSecond: 0, durationSeconds: 30, queryKey: "camera", observations: [], candidatePrinciples: [], limitations: "", observationCount: 4, principleCount: 2, reviewNotes: "", models: {}, artifactUrls: {}, events: [], createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z", reviewedAt: null,
   };
+}
+
+function manifest(id: string, reuseStatus: DirectorEvidenceManifest["reuseStatus"] = "reusable"): DirectorEvidenceManifest {
+  return { id, sourceId: "source", researchJobId: "job", kind: "collection-item", provider: "met", externalId: id, canonicalUrl: "https://example.com/item", recordLocator: id, title: id, institution: "Museum", dateLabel: "ca. 3000 BCE", region: "Mesopotamia", tags: ["3000-bce", "materials"], facets: {}, rightsUri: null, rightsLabel: "Public domain", reuseStatus, culturallySensitive: false, status: "discovered", reviewNotes: "", updatedAt: "2026-08-01T00:00:00.000Z" };
 }
 
 test("playback gates always precede study approval", () => {
@@ -46,4 +51,12 @@ test("approved and rejected studies are never review actions and ties are stable
     study("done", "approved", ["sound"]), study("no", "rejected", ["action"]),
   ], []);
   assert.deepEqual(queue.map((item) => item.id), ["study:alpha", "study:zeta"]);
+});
+
+test("item-level evidence is visible before study synthesis and unsafe rights cannot be promoted", () => {
+  const queue = buildDirectorReviewQueue([], [], [manifest("safe"), manifest("restricted", "restricted")]);
+  assert.deepEqual(queue.map((item) => item.kind), ["evidence", "evidence"]);
+  assert.match(queue.find((item) => item.manifest?.id === "safe")?.reason ?? "", /human confirmation/i);
+  assert.match(queue.find((item) => item.manifest?.id === "restricted")?.reason ?? "", /cannot be promoted/i);
+  assert.equal(queue.find((item) => item.manifest?.id === "safe")?.coverageGaps.includes("3000-bce"), true);
 });

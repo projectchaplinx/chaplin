@@ -75,11 +75,24 @@ backlog without collapsing its safety boundaries. Playback-required passages
 always rank above study approvals. A linked study remains hidden from the
 knowledge gate until playback is verified. Rejected playback never advances.
 
+Item-level museum and archive records are part of the same desk. Reviewers can
+search by era, place, provider, craft, or title and use focused 1950s, 1960s,
+3000 BCE, sound, and action views. Each record exposes its canonical source,
+rights label, reuse state, cultural-sensitivity flag, locator, and normalized
+metadata asset. Restricted, metadata-only, and culturally sensitive records
+cannot be marked eligible.
+
 Within each gate, items that cover tags absent from the approved corpus rank
 ahead of already-covered work. The reviewer sees the exact evidence,
 candidate principles, limitations, missing coverage, and up to three related
 approved studies. This makes redundancy and contradiction visible while still
 requiring a substantive written reason for approval or rejection.
+
+Research execution keeps a global maximum of four leased jobs across all
+workers. Requests within each public provider lane are serial, preventing one
+job from multiplying the global cap. Updates require the current lease owner;
+retries can reopen only failed or empty-evidence jobs and cannot overwrite a
+human-reviewed evidence state.
 
 ## Knowledge layers
 

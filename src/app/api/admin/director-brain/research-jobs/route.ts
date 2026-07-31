@@ -7,6 +7,7 @@ import {
   enqueueDirectorTimedMediaCorpus,
   listDirectorResearchJobs,
   runDirectorResearchBatch,
+  retryDirectorResearchJobs,
 } from "@/lib/server/director-research-jobs";
 
 export const runtime = "nodejs";
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const identity = await requireAdminIdentity(request);
-    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; limit?: number };
+    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; jobIds?: string[]; limit?: number };
     if (body.action === "enqueue") {
       const jobs = await enqueueDirectorResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id, body.sourceIds);
       return Response.json({ jobs });
@@ -49,7 +50,10 @@ export async function POST(request: NextRequest) {
     if (body.action === "run") {
       return Response.json(await runDirectorResearchBatch(body.limit));
     }
-    throw new Error("Choose enqueue, enqueue-gaps, enqueue-timed-media, enqueue-all, or run.");
+    if (body.action === "retry") {
+      return Response.json(await retryDirectorResearchJobs(body.jobIds ?? [], identity.id));
+    }
+    throw new Error("Choose enqueue, enqueue-gaps, enqueue-timed-media, enqueue-all, retry, or run.");
   } catch (error) {
     return failure(error);
   }

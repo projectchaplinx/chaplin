@@ -50,6 +50,15 @@ export function compactEvidenceTags(values: unknown[]) {
   return [...new Set(values.flatMap((value) => typeof value === "string" ? value.split(/[,;|]/) : []).map((value) => value.trim().toLowerCase()).filter(Boolean))].slice(0, 30);
 }
 
+export function dedupeEvidenceInputs(inputs: NormalizedEvidenceInput[]) {
+  const unique = new Map<string, NormalizedEvidenceInput>();
+  for (const input of inputs) {
+    const key = `${input.kind}:${input.provider.trim()}:${input.externalId.trim()}`;
+    if (!unique.has(key)) unique.set(key, input);
+  }
+  return [...unique.values()];
+}
+
 export function stableEvidenceContent(input: NormalizedEvidenceInput) {
   return {
     kind: input.kind,

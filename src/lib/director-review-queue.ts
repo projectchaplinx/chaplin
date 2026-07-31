@@ -1,14 +1,16 @@
 import type { DirectorSceneStudy } from "@/lib/director-research";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
+import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
 
 export type DirectorReviewQueueItem = {
   id: string;
-  kind: "playback" | "study";
+  kind: "playback" | "evidence" | "study";
   priorityScore: number;
   reason: string;
   coverageGaps: string[];
   study: DirectorSceneStudy | null;
   analysis: DirectorTimedMediaAnalysis | null;
+  manifest: DirectorEvidenceManifest | null;
   relatedApproved: DirectorSceneStudy[];
 };
 
@@ -29,6 +31,7 @@ function itemTags(study: DirectorSceneStudy | null, analysis: DirectorTimedMedia
 export function buildDirectorReviewQueue(
   studies: DirectorSceneStudy[],
   analyses: DirectorTimedMediaAnalysis[],
+  manifests: DirectorEvidenceManifest[] = [],
 ): DirectorReviewQueueItem[] {
   const approved = studies.filter((study) => study.status === "approved");
   const approvedCoverage = new Map<string, number>();
@@ -65,6 +68,34 @@ export function buildDirectorReviewQueue(
         coverageGaps,
         study,
         analysis,
+        manifest: null,
+        relatedApproved,
+      };
+    });
+
+  const evidenceItems = manifests
+    .filter((manifest) => manifest.status === "discovered" || manifest.status === "needs-review")
+    .map((manifest) => {
+      const tags = normalized([...manifest.tags, manifest.dateLabel, manifest.region].flatMap((value) => value.split(/[^a-z0-9-]+/i)));
+      const coverageGaps = tags.filter((tag) => !approvedCoverage.has(tag)).slice(0, 6);
+      const relatedApproved = approved
+        .map((candidate) => ({ candidate, overlap: normalized(candidate.tags).filter((tag) => tags.includes(tag)).length }))
+        .filter((entry) => entry.overlap > 0)
+        .sort((left, right) => right.overlap - left.overlap || left.candidate.studyTitle.localeCompare(right.candidate.studyTitle))
+        .slice(0, 3)
+        .map((entry) => entry.candidate);
+      const eligible = manifest.reuseStatus === "reusable" && !manifest.culturallySensitive;
+      return {
+        id: `evidence:${manifest.id}`,
+        kind: "evidence" as const,
+        priorityScore: 8_000 + (coverageGaps.length * 100) + (eligible ? 50 : 0),
+        reason: eligible
+          ? "Rights and context need human confirmation before this source record can support a study."
+          : "This record needs an explicit rejection or contextual review; it cannot be promoted as reusable evidence.",
+        coverageGaps,
+        study: null,
+        analysis: null,
+        manifest,
         relatedApproved,
       };
     });
@@ -89,10 +120,11 @@ export function buildDirectorReviewQueue(
         coverageGaps,
         study,
         analysis,
+        manifest: null,
         relatedApproved,
       };
     });
 
-  return [...playbackItems, ...studyItems].sort((left, right) =>
+  return [...playbackItems, ...evidenceItems, ...studyItems].sort((left, right) =>
     right.priorityScore - left.priorityScore || left.id.localeCompare(right.id));
 }

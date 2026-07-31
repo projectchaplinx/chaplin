@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import {
   canMarkEvidenceEligible,
+  dedupeEvidenceInputs,
   evidenceNeedsReview,
   stableEvidenceContent,
   type DirectorEvidenceManifest,
@@ -39,19 +40,20 @@ function safeHttps(value: string) {
 }
 
 export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: string, inputs: NormalizedEvidenceInput[]) {
-  if (!inputs.length) return [];
-  if (inputs.length > 100) throw new Error("A research worker may persist at most 100 evidence records at once.");
+  const uniqueInputs = dedupeEvidenceInputs(inputs);
+  if (!uniqueInputs.length) return [];
+  if (uniqueInputs.length > 100) throw new Error("A research worker may persist at most 100 evidence records at once.");
   const now = new Date().toISOString();
   const existingResult = await getSupabaseAdminClient().from("director_evidence_manifests")
     .select("kind,provider,external_id,status,review_notes,reviewed_by,reviewed_at,created_at")
     .eq("source_id", sourceId)
-    .in("external_id", inputs.map((input) => input.externalId.trim()));
+    .in("external_id", uniqueInputs.map((input) => input.externalId.trim()));
   if (existingResult.error) throw new Error(`Load existing evidence manifests: ${existingResult.error.message}`);
   const existingByKey = new Map((existingResult.data ?? []).map((row) => [
     `${row.kind}:${row.provider}:${row.external_id}`,
     row,
   ]));
-  const rows = inputs.map((input) => {
+  const rows = uniqueInputs.map((input) => {
     const existing = existingByKey.get(`${input.kind}:${input.provider.trim()}:${input.externalId.trim()}`);
     const preserveReview = existing && ["eligible", "rejected", "archived"].includes(existing.status);
     const normalized = {
@@ -68,7 +70,11 @@ export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: s
       review_notes: preserveReview ? existing.review_notes : "",
       reviewed_by: preserveReview ? existing.reviewed_by : null,
       reviewed_at: preserveReview ? existing.reviewed_at : null,
-      ...(existing?.created_at ? { created_at: existing.created_at } : {}),
+      // Every row in a bulk PostgREST upsert must carry the same non-null
+      // column set. Preserve the original timestamp for known rows and give
+      // new rows the batch timestamp instead of allowing mixed rows to send
+      // an implicit null for created_at.
+      created_at: existing?.created_at ?? now,
       accessed_at: now, updated_at: now,
     };
     return { ...normalized, content_hash: createHash("sha256").update(JSON.stringify(stableEvidenceContent(input))).digest("hex") };
@@ -93,13 +99,15 @@ export async function listDirectorEvidenceManifests(options: { sourceId?: string
 }
 
 export async function reviewDirectorEvidenceManifest(id: string, status: Extract<DirectorEvidenceStatus, "eligible" | "rejected" | "archived">, notes: string, reviewerId: string) {
+  const reviewNotes = notes.trim().slice(0, 2000);
+  if (reviewNotes.length < 20) throw new Error("Record a substantive item-level evidence decision.");
   const current = await getSupabaseAdminClient().from("director_evidence_manifests").select("reuse_status,culturally_sensitive").eq("id", id).maybeSingle();
   if (current.error || !current.data) throw new Error(current.error?.message ?? "Evidence manifest not found.");
   if (status === "eligible" && !canMarkEvidenceEligible(current.data.reuse_status, current.data.culturally_sensitive)) {
     throw new Error("Only explicitly reusable, non-sensitive evidence can be marked eligible.");
   }
   const result = await getSupabaseAdminClient().from("director_evidence_manifests").update({
-    status, review_notes: notes.slice(0, 2000), reviewed_by: reviewerId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    status, review_notes: reviewNotes, reviewed_by: reviewerId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).eq("id", id).select("*").single();
   if (result.error) throw new Error(`Review evidence manifest: ${result.error.message}`);
   return fromRow(result.data as ManifestRow);

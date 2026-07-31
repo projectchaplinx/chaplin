@@ -9,6 +9,8 @@ import {
   type DirectorResearchSourceRecord,
 } from "@/lib/director-research";
 import { providerScheduler } from "@/lib/provider-scheduler";
+import { EvidenceConnectorConfigurationError, discoverDirectorEvidence } from "@/lib/server/director-evidence-connectors";
+import { upsertDirectorEvidenceManifests } from "@/lib/server/director-evidence-manifests";
 import { createDirectorStudy } from "@/lib/server/director-research";
 import {
   createOpenAIResponse,
@@ -16,7 +18,7 @@ import {
 } from "@/lib/server/openai-responses";
 import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
 
-export const DIRECTOR_RESEARCH_CONTRACT_VERSION = "2026-07-31.2";
+export const DIRECTOR_RESEARCH_CONTRACT_VERSION = "2026-07-31.7";
 export const DIRECTOR_RESEARCH_CONCURRENCY = 4;
 
 type JobRow = {
@@ -138,7 +140,7 @@ export async function enqueueDirectorResearch(campaignId: string, userId: string
   if (sources.error) throw new Error(`Load research sources for queue: ${sources.error.message}`);
   const sourceRows = (sources.data ?? []) as SourceRow[];
   const terminal = sourceRows.length
-    ? await supabase.from("director_research_jobs").select("source_id,status").in("source_id", sourceRows.map((row) => row.id)).in("status", ["succeeded", "review-required"])
+    ? await supabase.from("director_research_jobs").select("source_id,status").in("source_id", sourceRows.map((row) => row.id)).eq("campaign_id", campaignId).eq("contract_version", DIRECTOR_RESEARCH_CONTRACT_VERSION).in("status", ["succeeded", "review-required"])
     : { data: [], error: null };
   if (terminal.error) throw new Error(`Check completed research jobs: ${terminal.error.message}`);
   const completedSourceIds = new Set((terminal.data ?? []).map((job) => String(job.source_id)));
@@ -407,12 +409,32 @@ async function processClaimedJob(row: JobRow) {
     return;
   }
   if (row.source_mode === "collection-discovery" || row.source_mode === "provenance") {
+    await updateJob(row.id, { phase: "querying-collection", progress: 15, message: "Querying the authoritative item-level evidence source" });
+    let discovered;
+    try {
+      discovered = await discoverDirectorEvidence(source);
+    } catch (error) {
+      if (error instanceof EvidenceConnectorConfigurationError) {
+        await updateJob(row.id, {
+          status: "review-required", phase: "configuration-required", progress: 10,
+          message: error.message, output: { blocker: "credential-or-connector", sourceUrl: source.sourceUrl },
+          error_message: null,
+          lease_owner: null, lease_expires_at: null, completed_at: new Date().toISOString(),
+        });
+        return;
+      }
+      throw error;
+    }
+    await updateJob(row.id, { phase: "normalizing-evidence", progress: 55, message: `Normalizing ${discovered.length} item-level evidence records` });
+    const manifests = await upsertDirectorEvidenceManifests(source.id, row.id, discovered);
+    const reusable = manifests.filter((manifest) => manifest.reuseStatus === "reusable" && !manifest.culturallySensitive).length;
     await updateJob(row.id, {
       status: "review-required",
-      phase: "item-selection-required",
-      progress: 25,
-      message: "Connector or provenance source needs item selection and item-level rights review",
-      output: { requiredAdapters: ["collection-query", "item-rights-review", "item-evidence"] },
+      phase: manifests.length ? "manifest-review-required" : "no-evidence-found",
+      progress: manifests.length ? 75 : 25,
+      message: manifests.length ? `${manifests.length} evidence records are ready for item-level review` : "The connector returned no attributable item records",
+      output: { manifestIds: manifests.map((manifest) => manifest.id), count: manifests.length, reusableCandidates: reusable, requiredReview: "item-rights-and-context" },
+      error_message: null,
       lease_owner: null,
       lease_expires_at: null,
       completed_at: new Date().toISOString(),

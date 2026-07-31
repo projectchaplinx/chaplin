@@ -324,6 +324,9 @@ Two guarded research commands support this workflow:
   expressive content.
 - [x] Add separate visual evidence, audio evidence, sound function, and
   confidence fields without storing transcripts or dialogue.
+- [x] Add bounded four-worker collection/provenance discovery with durable
+  item manifests, item-level rights, cultural-sensitivity gates, and explicit
+  study lineage. A discovered item never enters retrieval by itself.
 
 ### Phase 3 - retrieval and evaluation
 
@@ -350,6 +353,30 @@ Two guarded research commands support this workflow:
   scenes.
 - [x] Establish the first versioned, rights-aware research campaign and
   production backlog across all four research tracks.
+- [x] Run the first LOC, Met, and Europeana item manifests; approve and retrieve
+  a five-object Edo garment study with explicit class, region, season, and
+  occasion limitations.
+
+## Collection evidence contract
+
+The collection workers query authoritative APIs in parallel with a four-worker
+ceiling. They normalize only allowlisted item metadata into
+`director_evidence_manifests`: canonical identity, date/place/material facets,
+institution, rights label, reuse class, cultural-sensitivity flag, and content
+hash. Raw catalog pages and protected descriptions are not copied into the
+brain.
+
+The states are intentionally separate:
+
+1. `discovered` or `needs-review`: the connector found an attributable record.
+2. `eligible`: an administrator reviewed item rights and context.
+3. `approved study`: analytical observations and bounded principles are linked
+   to the reviewed manifests. Only this third state enters Magic retrieval.
+
+`SMITHSONIAN_API_KEY`, `EUROPEANA_API_KEY`, and `DPLA_API_KEY` are supported.
+Small Smithsonian/Europeana discovery can use their public demo credentials,
+but demo quota exhaustion becomes an explicit configuration blocker. DPLA has
+no fallback and remains blocked until `DPLA_API_KEY` is configured.
 
 ### Phase 5 - ongoing operation
 

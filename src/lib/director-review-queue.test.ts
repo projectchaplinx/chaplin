@@ -22,7 +22,7 @@ function analysis(id: string, studyId: string, playbackStatus: DirectorTimedMedi
 }
 
 function manifest(id: string, reuseStatus: DirectorEvidenceManifest["reuseStatus"] = "reusable"): DirectorEvidenceManifest {
-  return { id, sourceId: "source", researchJobId: "job", kind: "collection-item", provider: "met", externalId: id, canonicalUrl: "https://example.com/item", recordLocator: id, title: id, institution: "Museum", dateLabel: "ca. 3000 BCE", region: "Mesopotamia", tags: ["3000-bce", "materials"], facets: {}, rightsUri: null, rightsLabel: "Public domain", reuseStatus, culturallySensitive: false, status: "discovered", reviewNotes: "", updatedAt: "2026-08-01T00:00:00.000Z" };
+  return { id, sourceId: "source", researchJobId: "job", kind: "collection-item", provider: "met", externalId: id, canonicalUrl: "https://example.com/item", recordLocator: id, title: id, institution: "Museum", dateLabel: "ca. 3000 BCE", region: "Mesopotamia", tags: ["3000-bce", "materials"], facets: {}, rightsUri: null, rightsLabel: "Public domain", reuseStatus, culturallySensitive: false, status: "discovered", reviewNotes: "", linkedStudyIds: [], updatedAt: "2026-08-01T00:00:00.000Z" };
 }
 
 test("playback gates always precede study approval", () => {

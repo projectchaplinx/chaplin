@@ -27,10 +27,11 @@ export type DirectorEvidenceManifest = {
   culturallySensitive: boolean;
   status: DirectorEvidenceStatus;
   reviewNotes: string;
+  linkedStudyIds: string[];
   updatedAt: string;
 };
 
-export type NormalizedEvidenceInput = Omit<DirectorEvidenceManifest, "id" | "sourceId" | "researchJobId" | "status" | "reviewNotes" | "updatedAt"> & {
+export type NormalizedEvidenceInput = Omit<DirectorEvidenceManifest, "id" | "sourceId" | "researchJobId" | "status" | "reviewNotes" | "linkedStudyIds" | "updatedAt"> & {
   provenance?: Record<string, unknown>;
   rightsNotes?: string;
   periodStart?: number | null;
@@ -57,6 +58,16 @@ export function dedupeEvidenceInputs(inputs: NormalizedEvidenceInput[]) {
     if (!unique.has(key)) unique.set(key, input);
   }
   return [...unique.values()];
+}
+
+export function validateEvidenceSynthesisGroup(records: Array<Pick<DirectorEvidenceManifest, "sourceId" | "status" | "reuseStatus" | "culturallySensitive">>) {
+  if (!records.length) throw new Error("Choose at least one eligible evidence record.");
+  if (records.some((record) => record.status !== "eligible" || record.reuseStatus !== "reusable" || record.culturallySensitive)) {
+    throw new Error("Only human-reviewed, reusable, non-sensitive evidence can enter study synthesis.");
+  }
+  if (new Set(records.map((record) => record.sourceId)).size !== 1) {
+    throw new Error("Synthesize one authoritative source group at a time.");
+  }
 }
 
 export function stableEvidenceContent(input: NormalizedEvidenceInput) {

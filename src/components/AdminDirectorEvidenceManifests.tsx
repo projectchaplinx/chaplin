@@ -8,6 +8,9 @@ export default function AdminDirectorEvidenceManifests() {
   const [storageReady, setStorageReady] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [message, setMessage] = useState("");
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/director-brain/evidence-manifests?limit=100", { cache: "no-store" });
     const body = await response.json();
@@ -35,6 +38,20 @@ export default function AdminDirectorEvidenceManifests() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Evidence review failed."); }
     finally { setBusy(""); }
   }
+  async function synthesize() {
+    setSynthesizing(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/admin/director-brain/evidence-manifests", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ manifestIds: selectedIds }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error || "Study synthesis failed.");
+      setSelectedIds([]);
+      setMessage(`Draft study created from ${body.evidenceCount} reviewed evidence records. It is waiting in the Human Review Desk and is not yet in retrieval.`);
+      await load();
+      window.dispatchEvent(new Event("director-research-changed"));
+      window.dispatchEvent(new Event("director-research-jobs-finished"));
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Study synthesis failed."); }
+    finally { setSynthesizing(false); }
+  }
+  const selectedSourceId = manifests.find((item) => selectedIds.includes(item.id))?.sourceId ?? null;
   return (
     <section className="poster-card mb-8 rounded-md p-5" data-evidence-manifests>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -50,8 +67,14 @@ export default function AdminDirectorEvidenceManifests() {
       </div>
       {!storageReady && <p className="mt-4 rounded-md border border-amber-500/30 p-3 text-xs text-amber-200">Evidence storage is not installed yet.</p>}
       {error && <p className="mt-4 rounded-md border border-red-500/30 p-3 text-xs text-red-300">{error}</p>}
+      {message && <p className="mt-4 rounded-md border border-emerald-500/30 p-3 text-xs text-emerald-200">{message}</p>}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-black/15 p-3">
+        <p className="text-[10px] leading-5 text-grey"><span className="font-semibold text-ink">{selectedIds.length} eligible records selected.</span> Select records from one authoritative source. OpenAI creates a source-linked draft only; human study review remains mandatory.</p>
+        <button type="button" disabled={!selectedIds.length || synthesizing} onClick={() => void synthesize()} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-35">{synthesizing ? "Synthesizing draft…" : "Create draft study"}</button>
+      </div>
       <div className="mt-4 grid gap-2 lg:grid-cols-2">
         {manifests.slice(0, 24).map((item) => <article key={item.id} className="rounded-md border border-line bg-black/10 p-4">
+          {item.status === "eligible" && !item.linkedStudyIds.length ? <label className="mb-2 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-accent-secondary"><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={Boolean(selectedSourceId && selectedSourceId !== item.sourceId)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} className="accent-pink-500" />Use in one source-linked draft</label> : null}
           <div className="flex flex-wrap justify-between gap-2"><p className="text-sm font-semibold text-ink">{item.title}</p><span className="text-[9px] uppercase tracking-[0.14em] text-accent-secondary">{item.provider} · {item.reuseStatus}</span></div>
           <p className="mt-1 text-xs text-grey">{item.dateLabel || "Date unresolved"}{item.region ? ` · ${item.region}` : ""}</p>
           <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-grey">Rights: {item.rightsLabel || "unknown — must be resolved before use"}</p>
@@ -59,6 +82,7 @@ export default function AdminDirectorEvidenceManifests() {
             <a href={item.canonicalUrl} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-accent-secondary">Open record ↗</a>
             {item.status !== "eligible" && item.reuseStatus === "reusable" && !item.culturallySensitive && <button disabled={busy === item.id} onClick={() => review(item.id, "eligible")} className="rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] text-emerald-300">Mark evidence eligible</button>}
             {item.status !== "rejected" && <button disabled={busy === item.id} onClick={() => review(item.id, "rejected")} className="rounded-full border border-red-500/40 px-3 py-1 text-[10px] text-red-300">Reject</button>}
+            {item.linkedStudyIds.length ? <span className="rounded-full border border-emerald-500/25 px-3 py-1 text-[9px] text-emerald-200">Linked to study</span> : null}
           </div>
         </article>)}
       </div>

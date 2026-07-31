@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canMarkEvidenceEligible, compactEvidenceTags, dedupeEvidenceInputs, evidenceNeedsReview, stableEvidenceContent, type NormalizedEvidenceInput } from "./director-evidence-manifest";
+import { canMarkEvidenceEligible, compactEvidenceTags, dedupeEvidenceInputs, evidenceNeedsReview, stableEvidenceContent, validateEvidenceSynthesisGroup, type NormalizedEvidenceInput } from "./director-evidence-manifest";
 
 test("evidence remains separate and review gated", () => {
   assert.equal(evidenceNeedsReview({ reuseStatus: "reusable", culturallySensitive: false }), "discovered");
@@ -33,4 +33,12 @@ test("duplicate provider records collapse before one database upsert", () => {
     tags: ["film"], facets: {}, rightsUri: null, rightsLabel: "public domain", reuseStatus: "reusable", culturallySensitive: false,
   };
   assert.deepEqual(dedupeEvidenceInputs([input, { ...input, title: "Duplicate title" }]), [input]);
+});
+
+test("study synthesis accepts only one human-eligible authoritative source group", () => {
+  const eligible = { sourceId: "source-a", status: "eligible" as const, reuseStatus: "reusable" as const, culturallySensitive: false };
+  assert.doesNotThrow(() => validateEvidenceSynthesisGroup([eligible, eligible]));
+  assert.throws(() => validateEvidenceSynthesisGroup([{ ...eligible, status: "discovered" }]), /human-reviewed/i);
+  assert.throws(() => validateEvidenceSynthesisGroup([{ ...eligible, culturallySensitive: true }]), /non-sensitive/i);
+  assert.throws(() => validateEvidenceSynthesisGroup([eligible, { ...eligible, sourceId: "source-b" }]), /one authoritative source/i);
 });

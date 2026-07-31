@@ -1,5 +1,19 @@
 # Chaplin Changelog
 
+## v0.2.94 - 2026-08-01 - Synthesize reviewed evidence into draft knowledge
+
+- Add the missing eligible-evidence-to-study bridge inside Director Brain.
+- Let Super Admin select reviewed records from one authoritative source and
+  ask OpenAI to synthesize a source-linked draft study.
+- Require every generated observation to cite one selected manifest ID and
+  reject mixed-source, unreviewed, restricted, sensitive, or already-linked
+  evidence groups.
+- Preserve the separate human study review and approval transitions; synthesis
+  never places candidate principles directly into Magic retrieval.
+- Show evidence-to-study links in the item-level evidence UI so source assets
+  remain visibly attached after synthesis.
+- Remove a partially created study if its evidence-link transaction fails.
+
 ## v0.2.93 - 2026-08-01 - Review every research asset safely
 
 - Bring item-level museum and archive records into the Director Brain Human

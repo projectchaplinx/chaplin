@@ -2,9 +2,11 @@ import type { NextRequest } from "next/server";
 import { DIRECTOR_EVIDENCE_STATUSES, type DirectorEvidenceStatus } from "@/lib/director-evidence-manifest";
 import { requireAdminIdentity } from "@/lib/server/auth";
 import { listDirectorEvidenceManifests, reviewDirectorEvidenceManifest } from "@/lib/server/director-evidence-manifests";
+import { synthesizeDirectorEvidenceStudy } from "@/lib/server/director-evidence-synthesis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 function failure(error: unknown) {
   const message = error instanceof Error ? error.message : "Evidence request failed.";
@@ -30,5 +32,13 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json() as { id?: string; status?: "eligible" | "rejected" | "archived"; notes?: string };
     if (!body.id || !body.status || !["eligible", "rejected", "archived"].includes(body.status)) throw new Error("Choose an evidence record and review decision.");
     return Response.json({ manifest: await reviewDirectorEvidenceManifest(body.id, body.status, body.notes ?? "", identity.id) });
+  } catch (error) { return failure(error); }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const identity = await requireAdminIdentity(request);
+    const body = await request.json() as { manifestIds?: string[] };
+    return Response.json(await synthesizeDirectorEvidenceStudy(body.manifestIds ?? [], identity.id));
   } catch (error) { return failure(error); }
 }

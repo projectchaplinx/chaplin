@@ -94,6 +94,14 @@ job from multiplying the global cap. Updates require the current lease owner;
 retries can reopen only failed or empty-evidence jobs and cannot overwrite a
 human-reviewed evidence state.
 
+After item-level review, Super Admin may select up to twelve eligible records
+from one authoritative source and create a draft study. OpenAI may synthesize
+only the supplied metadata and must attach each observation to a selected
+manifest ID. Mixed-source, restricted, culturally sensitive, unreviewed, or
+already-linked groups are rejected. The resulting study remains a draft and
+returns to the Human Review Desk; it still needs an explicit reviewed state
+and a separate approval before retrieval.
+
 ## Knowledge layers
 
 ### 1. Source register

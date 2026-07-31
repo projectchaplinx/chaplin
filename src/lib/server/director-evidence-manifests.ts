@@ -29,6 +29,7 @@ function fromRow(row: ManifestRow): DirectorEvidenceManifest {
     dateLabel: row.date_label, region: row.region, tags: row.tags ?? [], facets: row.facets ?? {},
     rightsUri: row.rights_uri, rightsLabel: row.rights_label, reuseStatus: row.reuse_status,
     culturallySensitive: row.culturally_sensitive, status: row.status, reviewNotes: row.review_notes,
+    linkedStudyIds: [],
     updatedAt: row.updated_at,
   };
 }
@@ -95,7 +96,20 @@ export async function listDirectorEvidenceManifests(options: { sourceId?: string
     if (/director_evidence_manifests|schema cache|does not exist/i.test(result.error.message)) return { storageReady: false, manifests: [] };
     throw new Error(`Load evidence manifests: ${result.error.message}`);
   }
-  return { storageReady: true, manifests: ((result.data ?? []) as ManifestRow[]).map(fromRow) };
+  const manifests = ((result.data ?? []) as ManifestRow[]).map(fromRow);
+  if (!manifests.length) return { storageReady: true, manifests };
+  const links = await getSupabaseAdminClient().from("director_study_evidence_manifests")
+    .select("study_id,manifest_id").in("manifest_id", manifests.map((manifest) => manifest.id));
+  if (links.error && !/director_study_evidence_manifests|schema cache|does not exist/i.test(links.error.message)) {
+    throw new Error(`Load evidence study links: ${links.error.message}`);
+  }
+  const studyIdsByManifest = new Map<string, string[]>();
+  for (const link of links.data ?? []) {
+    const ids = studyIdsByManifest.get(String(link.manifest_id)) ?? [];
+    ids.push(String(link.study_id));
+    studyIdsByManifest.set(String(link.manifest_id), ids);
+  }
+  return { storageReady: true, manifests: manifests.map((manifest) => ({ ...manifest, linkedStudyIds: studyIdsByManifest.get(manifest.id) ?? [] })) };
 }
 
 export async function reviewDirectorEvidenceManifest(id: string, status: Extract<DirectorEvidenceStatus, "eligible" | "rejected" | "archived">, notes: string, reviewerId: string) {

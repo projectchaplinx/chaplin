@@ -3,6 +3,7 @@ import { DIRECTOR_RESEARCH_CAMPAIGN_VERSION } from "@/lib/director-research-camp
 import {
   enqueueDirectorResearch,
   enqueueDirectorGapResearch,
+  enqueueDirectorTimedMediaCorpus,
   listDirectorResearchJobs,
   runDirectorResearchBatch,
 } from "@/lib/server/director-research-jobs";
@@ -22,7 +23,7 @@ function authorize(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     authorize(request);
-    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; actor?: string; studyId?: string; reviewNotes?: string };
+    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; actor?: string; studyId?: string; reviewNotes?: string; limit?: number };
     if (body.action === "enqueue") {
       const jobs = await enqueueDirectorResearch(
         DIRECTOR_RESEARCH_CAMPAIGN_VERSION,
@@ -31,13 +32,19 @@ export async function POST(request: NextRequest) {
       );
       return Response.json({ jobs });
     }
-    if (body.action === "run") return Response.json(await runDirectorResearchBatch());
+    if (body.action === "run") return Response.json(await runDirectorResearchBatch(body.limit));
+    if (body.action === "enqueue-timed-media") {
+      return Response.json(await enqueueDirectorTimedMediaCorpus(
+        DIRECTOR_RESEARCH_CAMPAIGN_VERSION,
+        body.actor?.trim().slice(0, 120) || "director-research-worker",
+      ));
+    }
     if (body.action === "status") return Response.json({ jobs: await listDirectorResearchJobs(DIRECTOR_RESEARCH_CAMPAIGN_VERSION) });
     if (body.action === "approve-study") {
       await reviewDirectorStudy({ id: body.studyId, status: "approved", reviewNotes: body.reviewNotes }, body.actor?.trim().slice(0, 120) || "director-research-worker");
       return Response.json({ ok: true, studyId: body.studyId, status: "approved" });
     }
-    throw new Error("Choose enqueue, run, status, or approve-study.");
+    throw new Error("Choose enqueue, enqueue-timed-media, run, status, or approve-study.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Director research worker failed.";
     return Response.json({ error: message }, { status: /authorization/i.test(message) ? 401 : 400 });

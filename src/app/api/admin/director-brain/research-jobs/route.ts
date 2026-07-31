@@ -4,6 +4,7 @@ import { requireAdminIdentity } from "@/lib/server/auth";
 import {
   enqueueDirectorResearch,
   enqueueDirectorGapResearch,
+  enqueueDirectorTimedMediaCorpus,
   listDirectorResearchJobs,
   runDirectorResearchBatch,
 } from "@/lib/server/director-research-jobs";
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const identity = await requireAdminIdentity(request);
-    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[] };
+    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; limit?: number };
     if (body.action === "enqueue") {
       const jobs = await enqueueDirectorResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id, body.sourceIds);
       return Response.json({ jobs });
@@ -37,14 +38,18 @@ export async function POST(request: NextRequest) {
     if (body.action === "enqueue-gaps") {
       return Response.json({ jobs: await enqueueDirectorGapResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id) });
     }
+    if (body.action === "enqueue-timed-media") {
+      return Response.json(await enqueueDirectorTimedMediaCorpus(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id));
+    }
     if (body.action === "enqueue-all") {
       await enqueueDirectorResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id, body.sourceIds);
+      await enqueueDirectorTimedMediaCorpus(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id);
       return Response.json({ jobs: await enqueueDirectorGapResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id) });
     }
     if (body.action === "run") {
-      return Response.json(await runDirectorResearchBatch());
+      return Response.json(await runDirectorResearchBatch(body.limit));
     }
-    throw new Error("Choose enqueue, enqueue-gaps, enqueue-all, or run.");
+    throw new Error("Choose enqueue, enqueue-gaps, enqueue-timed-media, enqueue-all, or run.");
   } catch (error) {
     return failure(error);
   }

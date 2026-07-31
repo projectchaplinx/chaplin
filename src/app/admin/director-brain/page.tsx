@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import AdminDirectorCampaign from "@/components/AdminDirectorCampaign";
 import AdminDirectorResearch from "@/components/AdminDirectorResearch";
 import AdminDirectorResearchJobs from "@/components/AdminDirectorResearchJobs";
+import AdminDirectorTimedMedia from "@/components/AdminDirectorTimedMedia";
 import AdminDirectorEvidenceManifests from "@/components/AdminDirectorEvidenceManifests";
 import AdminDirectorGraph from "@/components/AdminDirectorGraph";
 import AdminDirectorLearning from "@/components/AdminDirectorLearning";
@@ -134,6 +135,8 @@ export default async function AdminDirectorBrainPage() {
       <AdminDirectorCampaign initialBundle={research} />
 
       <AdminDirectorResearchJobs />
+
+      <AdminDirectorTimedMedia />
 
       <AdminDirectorEvidenceManifests />
 

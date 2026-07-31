@@ -40,6 +40,30 @@ expression. It learns relationships such as:
     that explains the input brief, story job, frame, camera, performance, sound,
     historical evidence, continuity handoff, and exact generator instruction.
 
+## Research asset archive
+
+Timed-film research is visible inside Director Brain as a durable evidence
+package, not merely as a completed job counter. The rights-cleared Library of
+Congress corpus currently resolves 18 National Film Registry works into 52
+independent 30-second or complete-work passages. Up to four jobs may execute in
+parallel, while passage order is interleaved across films to avoid repeatedly
+loading one source at the same time.
+
+Each completed passage stores these private, reviewable assets:
+
+- a 12-cell contact sheet for visual change over the exact time range;
+- a signal-only waveform and volume summary when usable audio exists;
+- abstract picture-and-sound observations and candidate principles;
+- model names, provider response IDs, usage, limitations, and content hash;
+- the official source record, playable media URL, rights basis, and timecode;
+- playback status, reviewer notes, reviewer identity, and review time.
+
+The temporary source clip and extracted soundtrack are deleted immediately.
+No transcript, dialogue, lyrics, subtitles, screenplay text, or full source film
+is archived. A saved evidence package remains excluded from production
+retrieval until a person plays the exact source passage, verifies or rejects
+the machine reading, and separately approves the resulting study.
+
 ## Knowledge layers
 
 ### 1. Source register

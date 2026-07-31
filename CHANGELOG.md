@@ -1,5 +1,23 @@
 # Chaplin Changelog
 
+## v0.2.90 - 2026-07-31 - Archive visible Director Brain research assets
+
+- Resolve all 18 rights-cleared Library of Congress registry films into 52
+  bounded timed passages and supersede the stalled 60-second extraction jobs.
+- Extract each 30-second passage once, then derive its contact sheet, abstract
+  sound reading, signal metrics, and waveform while deleting raw clips and
+  soundtracks immediately.
+- Archive the derived contact sheet, signal-only waveform, and complete JSON
+  evidence package in a private Director Brain bucket with exact provenance,
+  timecode, models, usage, limitations, and review state.
+- Show saved research assets beside exact source playback in Super Admin, while
+  retaining the human playback and separate study-approval gates before any
+  candidate principle can reach production retrieval.
+- Interleave films across the four-worker queue to preserve parallel execution
+  without repeatedly loading three passages from one source at the same time.
+- Verify the first new contract passage end to end: six draft observations and
+  all three research assets were persisted for *Under Western Stars* 0-30s.
+
 ## v0.2.81 - 2026-07-30 - Guide first-time creators into Actor Studio
 
 - Start a creator-only onboarding tour automatically for recently created

@@ -13,9 +13,18 @@ import {
   plansForResearchSource,
   type DirectorResearchQueryPlan,
 } from "@/lib/director-research-query-plan";
+import {
+  DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION,
+  parseLocPublicDomainRegistry,
+  parseLocTimedMediaSource,
+  planTimedMediaPassages,
+  timedMediaQueryKey,
+  type DirectorTimedMediaSource,
+} from "@/lib/director-timed-media";
 import { EvidenceConnectorConfigurationError, discoverDirectorEvidence } from "@/lib/server/director-evidence-connectors";
 import { upsertDirectorEvidenceManifests } from "@/lib/server/director-evidence-manifests";
 import { createDirectorStudy } from "@/lib/server/director-research";
+import { processDirectorTimedMedia } from "@/lib/server/director-timed-media";
 import {
   createOpenAIResponse,
   openAIWritingModel,
@@ -24,6 +33,7 @@ import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
 
 export const DIRECTOR_RESEARCH_CONTRACT_VERSION = "2026-07-31.7";
 export const DIRECTOR_RESEARCH_CONCURRENCY = 4;
+export const DIRECTOR_TIMED_MEDIA_REGISTRY_URL = "https://www.loc.gov/free-to-use/public-domain-films-from-the-national-film-registry/?fo=json";
 
 type JobRow = {
   id: string;
@@ -241,6 +251,126 @@ export async function enqueueDirectorGapResearch(campaignId: string, userId: str
   return listDirectorResearchJobs(campaignId);
 }
 
+async function fetchLocJson(url: string) {
+  const response = await fetch(url, {
+    headers: { "user-agent": "ChaplinDirectorResearch/1.0", accept: "application/json" },
+    redirect: "follow", signal: AbortSignal.timeout(30_000), cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Library of Congress returned ${response.status} for ${url}.`);
+  return response.json() as Promise<unknown>;
+}
+
+async function mapConcurrent<T, R>(values: T[], limit: number, mapper: (value: T) => Promise<R>) {
+  const results: R[] = [];
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, async () => {
+    while (cursor < values.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(values[index]);
+    }
+  }));
+  return results;
+}
+
+async function upsertTimedMediaSource(campaignId: string, userId: string, source: DirectorTimedMediaSource) {
+  const supabase = getSupabaseAdminClient();
+  const existing = await supabase.from("director_research_sources").select("id").eq("source_url", source.itemUrl).maybeSingle();
+  if (existing.error) throw new Error(`Check film research source: ${existing.error.message}`);
+  const values = {
+    title: source.title,
+    institution: "Library of Congress",
+    source_url: source.itemUrl,
+    source_kind: "public-domain" as const,
+    rights_basis: source.rightsBasis,
+    access_notes: `Automated analysis uses ${source.mediaUrl}; ${source.durationSeconds}s; raw clips, frames, audio, dialogue, and transcripts are not retained.`,
+    campaign_id: campaignId,
+    target_tags: ["public-domain-scene", "camera", "blocking", "editing", "sound", "performance", "period"],
+    research_questions: [
+      "Which seconds change information, tactic, geography, rhythm, or attention?",
+      "How do framing, blocking, edits, sound, silence, and performance jointly complete the scene's narrative work?",
+    ],
+    priority: "now" as const,
+    queue_status: "in-progress" as const,
+    updated_by: userId,
+    updated_at: new Date().toISOString(),
+  };
+  if (existing.data?.id) {
+    const updated = await supabase.from("director_research_sources").update(values).eq("id", existing.data.id);
+    if (updated.error) throw new Error(`Update film research source: ${updated.error.message}`);
+    return String(existing.data.id);
+  }
+  const inserted = await supabase.from("director_research_sources").insert({ ...values, created_by: userId }).select("id").single();
+  if (inserted.error || !inserted.data) throw new Error(`Create film research source: ${inserted.error?.message ?? "No record returned."}`);
+  return String(inserted.data.id);
+}
+
+export async function enqueueDirectorTimedMediaCorpus(campaignId: string, userId: string) {
+  const supabase = getSupabaseAdminClient();
+  const superseded = await supabase.from("director_research_jobs").update({
+    status: "cancelled",
+    phase: "superseded-contract",
+    progress: 0,
+    message: `Superseded by timed-media contract ${DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION}`,
+    lease_owner: null,
+    lease_expires_at: null,
+    completed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("campaign_id", campaignId).eq("source_mode", "timed-media")
+    .neq("contract_version", DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION)
+    .in("status", ["queued", "running", "failed"]);
+  if (superseded.error) throw new Error(`Supersede old timed-film jobs: ${superseded.error.message}`);
+  const registry = parseLocPublicDomainRegistry(await fetchLocJson(DIRECTOR_TIMED_MEDIA_REGISTRY_URL));
+  if (!registry.length) throw new Error("The Library of Congress registry returned no film records.");
+  const resolved = await mapConcurrent(registry, 6, async (item) => parseLocTimedMediaSource(item, await fetchLocJson(`${item.itemUrl}?fo=json`)));
+  const prepared = await mapConcurrent(resolved, 6, async (source) => ({
+    source,
+    sourceId: await upsertTimedMediaSource(campaignId, userId, source),
+    passages: planTimedMediaPassages(source.durationSeconds),
+  }));
+  const rows: Array<Record<string, unknown>> = [];
+  const passageCount = Math.max(...prepared.map((entry) => entry.passages.length));
+  for (let passageIndex = 0; passageIndex < passageCount; passageIndex += 1) {
+    for (const { source, sourceId, passages } of prepared) {
+      const passage = passages[passageIndex];
+      if (!passage) continue;
+      rows.push({
+        source_id: sourceId,
+        campaign_id: campaignId,
+        contract_version: DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION,
+        source_mode: "timed-media",
+        query_key: timedMediaQueryKey(source.itemId, passage),
+        status: "queued",
+        phase: "queued",
+        progress: 0,
+        message: `Waiting to analyze ${passage.label.toLowerCase()}`,
+        attempt: 0,
+        max_attempts: 3,
+        input: {
+          queryLabel: `${passage.label} · ${passage.startSecond.toFixed(1)}-${(passage.startSecond + passage.durationSeconds).toFixed(1)}s`,
+          timedMedia: {
+            itemId: source.itemId, itemUrl: source.itemUrl, mediaUrl: source.mediaUrl,
+            playbackUrl: source.playbackUrl,
+            mediaObjectId: source.mediaObjectId, workTitle: source.title, dateLabel: source.dateLabel,
+            region: source.region, passageLabel: passage.label, startSecond: passage.startSecond,
+            durationSeconds: passage.durationSeconds,
+          },
+        },
+        output: {}, usage: {}, error_message: null, lease_owner: null, lease_expires_at: null,
+        next_attempt_at: null, started_at: null, completed_at: null, created_by: userId,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+  if (rows.length) {
+    const queued = await supabase.from("director_research_jobs").upsert(rows, {
+      onConflict: "source_id,campaign_id,contract_version,query_key", ignoreDuplicates: true,
+    });
+    if (queued.error) throw new Error(`Queue timed-film corpus: ${queued.error.message}`);
+  }
+  return { catalogItems: registry.length, resolvedItems: resolved.length, queuedPassages: rows.length, jobs: await listDirectorResearchJobs(campaignId) };
+}
+
 function publicHttpUrl(value: string | null) {
   if (!value) throw new Error("This source has no authoritative URL.");
   const url = new URL(value);
@@ -445,7 +575,7 @@ async function processClaimedJob(row: JobRow) {
     .eq("source_id", source.id)
     .eq("status", "approved");
   if (approved.error) throw new Error(`Check existing approved research: ${approved.error.message}`);
-  if (approved.data?.length && row.source_mode !== "collection-discovery") {
+  if (approved.data?.length && row.source_mode !== "collection-discovery" && row.query_key === "root") {
     await updateClaimedJob(row, {
       status: "succeeded",
       phase: "evidence-approved",
@@ -459,12 +589,33 @@ async function processClaimedJob(row: JobRow) {
     return;
   }
   if (row.source_mode === "timed-media") {
+    const timedResult = await processDirectorTimedMedia(row.input?.timedMedia, {
+      jobId: row.id,
+      queryKey: row.query_key,
+      sourceId: source.id,
+      sourceTitle: source.title,
+      sourceKind: "public-domain",
+      institution: source.institution,
+      rightsBasis: source.rightsBasis,
+      accessNotes: source.accessNotes,
+      createdBy: row.created_by,
+      progress: async (phase, progress, message) => updateClaimedJob(row, { phase, progress, message }),
+    });
     await updateClaimedJob(row, {
       status: "review-required",
-      phase: "media-evidence-required",
-      progress: 25,
-      message: "Timed film study needs contact-sheet, audio, and human playback evidence before extraction",
-      output: { requiredAdapters: ["contact-sheet", "audio-analysis", "human-playback"] },
+      phase: "playback-review-required",
+      progress: 90,
+      message: "Picture and sound evidence are ready; direct human playback is required before this study can be reviewed",
+      model: timedResult.model,
+      provider_response_id: timedResult.providerResponseIds.visualSynthesis,
+      usage: timedResult.usage,
+      output: {
+        analysisId: timedResult.analysisId,
+        studyId: timedResult.studyId,
+        count: timedResult.observationCount,
+        principleCount: timedResult.principleCount,
+        requiredReview: "direct-human-playback",
+      },
       lease_owner: null,
       lease_expires_at: null,
       completed_at: new Date().toISOString(),

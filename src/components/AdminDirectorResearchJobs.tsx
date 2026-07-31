@@ -102,14 +102,14 @@ export default function AdminDirectorResearchJobs() {
           <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-accent-secondary">Parallel evidence extraction</p>
           <h2 className="reel-title mt-1 text-2xl">Run the corpus with bounded workers</h2>
           <p className="mt-2 max-w-3xl text-xs leading-5 text-grey">
-            The corpus runs through a global four-job ceiling with separate provider lanes. Text sources become draft studies; collection evidence stops at rights and context review. Only a linked, reviewed, explicitly approved study can enter Magic.
+            The corpus runs through a global four-job ceiling with separate provider lanes. “Complete corpus” also resolves all 18 Library of Congress public-domain films into roughly fifty independent opening, middle, and closing passage jobs. Timed evidence stops at direct playback; only a reviewed and explicitly approved study can enter Magic.
           </p>
         </div>
         <button type="button" disabled={busy} onClick={() => void researchCoverageGaps()} className="magic-action rounded-full px-5 py-2.5 text-xs font-semibold disabled:opacity-45">
           {busy ? "Research running…" : "Research Atlas gaps"}
         </button>
         <button type="button" disabled={busy} onClick={() => void runAll()} className="rounded-full border border-line px-5 py-2.5 text-xs font-semibold text-ink disabled:opacity-45">
-          {busy ? "Research running…" : "Run complete corpus"}
+          {busy ? "Research running…" : "Run complete corpus · text + 18 films"}
         </button>
       </div>
 

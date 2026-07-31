@@ -1,5 +1,21 @@
 # Chaplin Changelog
 
+## v0.2.97 - 2026-08-01 - Make the research backlog reviewable
+
+- Rework the Director Brain Human Review Desk into coverage-ranked lanes for
+  source playback, directly approvable document studies, evidence records, and
+  the separate post-playback knowledge decision.
+- Put each exact source passage beside its derived contact sheet, signal-only
+  waveform, machine observations, candidate principles, limitations, and up to
+  three related approved studies.
+- Require a substantive written reason for every decision and add keyboard
+  navigation plus explicit approve/reject shortcuts without introducing bulk
+  or automatic approval.
+- Auto-quarantine restricted, metadata-only, culturally sensitive, duplicate,
+  and explicitly contradictory items while preserving them for human review.
+- Keep reviewed evidence immutable when future provider discovery encounters
+  the same record again.
+
 ## v0.2.96 - 2026-08-01 - Enforce the Director Brain preservation contract
 
 - Store an immutable baseline and every later before/after mutation for all

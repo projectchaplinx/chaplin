@@ -18,7 +18,7 @@ type ManifestRow = {
   institution: string; date_label: string; region: string; tags: string[]; facets: Record<string, unknown>;
   rights_uri: string | null; rights_label: string; reuse_status: DirectorEvidenceManifest["reuseStatus"];
   culturally_sensitive: boolean; status: DirectorEvidenceStatus; review_notes: string; reviewed_by?: string | null;
-  reviewed_at?: string | null; created_at?: string; updated_at: string;
+  reviewed_at?: string | null; content_hash: string; created_at?: string; updated_at: string;
 };
 
 function fromRow(row: ManifestRow): DirectorEvidenceManifest {
@@ -29,6 +29,7 @@ function fromRow(row: ManifestRow): DirectorEvidenceManifest {
     dateLabel: row.date_label, region: row.region, tags: row.tags ?? [], facets: row.facets ?? {},
     rightsUri: row.rights_uri, rightsLabel: row.rights_label, reuseStatus: row.reuse_status,
     culturallySensitive: row.culturally_sensitive, status: row.status, reviewNotes: row.review_notes,
+    contentHash: row.content_hash,
     linkedStudyIds: [],
     updatedAt: row.updated_at,
   };
@@ -54,9 +55,12 @@ export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: s
     `${row.kind}:${row.provider}:${row.external_id}`,
     row,
   ]));
-  const rows = uniqueInputs.map((input) => {
+  const writableInputs = uniqueInputs.filter((input) => {
     const existing = existingByKey.get(`${input.kind}:${input.provider.trim()}:${input.externalId.trim()}`);
-    const preserveReview = existing && ["eligible", "rejected", "archived"].includes(existing.status);
+    return !existing || !["eligible", "rejected", "archived"].includes(existing.status);
+  });
+  const rows = writableInputs.map((input) => {
+    const existing = existingByKey.get(`${input.kind}:${input.provider.trim()}:${input.externalId.trim()}`);
     const normalized = {
       source_id: sourceId, research_job_id: jobId, kind: input.kind, provider: input.provider.trim(),
       external_id: input.externalId.trim(), canonical_url: safeHttps(input.canonicalUrl),
@@ -67,10 +71,8 @@ export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: s
       provenance: input.provenance ?? {}, rights_uri: input.rightsUri ? safeHttps(input.rightsUri) : null,
       rights_label: input.rightsLabel.trim().slice(0, 1000), reuse_status: input.reuseStatus,
       rights_notes: (input.rightsNotes ?? "").trim().slice(0, 2000), culturally_sensitive: input.culturallySensitive,
-      status: preserveReview ? existing.status : evidenceNeedsReview(input), source_updated_at: input.sourceUpdatedAt ?? null,
-      review_notes: preserveReview ? existing.review_notes : "",
-      reviewed_by: preserveReview ? existing.reviewed_by : null,
-      reviewed_at: preserveReview ? existing.reviewed_at : null,
+      status: evidenceNeedsReview(input), source_updated_at: input.sourceUpdatedAt ?? null,
+      review_notes: "", reviewed_by: null, reviewed_at: null,
       // Every row in a bulk PostgREST upsert must carry the same non-null
       // column set. Preserve the original timestamp for known rows and give
       // new rows the batch timestamp instead of allowing mixed rows to send
@@ -80,6 +82,7 @@ export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: s
     };
     return { ...normalized, content_hash: createHash("sha256").update(JSON.stringify(stableEvidenceContent(input))).digest("hex") };
   });
+  if (!rows.length) return [];
   const result = await getSupabaseAdminClient().from("director_evidence_manifests").upsert(rows, {
     onConflict: "source_id,kind,provider,external_id",
   }).select("*");

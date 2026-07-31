@@ -301,3 +301,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.93 | `0ebd781` | 2026-08-01T01:55:10+05:30 | v0.2.93: review every Director Brain research asset |
 | v0.2.94 | `9f4b8be` | 2026-08-01T02:04:51+05:30 | v0.2.94: synthesize reviewed evidence into draft knowledge |
 | v0.2.95 | `1660aea` | 2026-08-01T02:16:55+05:30 | v0.2.95: keep research assets in Director Brain |
+| v0.2.96 | `979528e` | 2026-08-01T02:51:27+05:30 | v0.2.96: enforce Director Brain preservation |

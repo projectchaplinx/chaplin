@@ -27,11 +27,12 @@ export type DirectorEvidenceManifest = {
   culturallySensitive: boolean;
   status: DirectorEvidenceStatus;
   reviewNotes: string;
+  contentHash: string;
   linkedStudyIds: string[];
   updatedAt: string;
 };
 
-export type NormalizedEvidenceInput = Omit<DirectorEvidenceManifest, "id" | "sourceId" | "researchJobId" | "status" | "reviewNotes" | "linkedStudyIds" | "updatedAt"> & {
+export type NormalizedEvidenceInput = Omit<DirectorEvidenceManifest, "id" | "sourceId" | "researchJobId" | "status" | "reviewNotes" | "contentHash" | "linkedStudyIds" | "updatedAt"> & {
   provenance?: Record<string, unknown>;
   rightsNotes?: string;
   periodStart?: number | null;

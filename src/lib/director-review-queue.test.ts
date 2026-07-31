@@ -22,7 +22,7 @@ function analysis(id: string, studyId: string, playbackStatus: DirectorTimedMedi
 }
 
 function manifest(id: string, reuseStatus: DirectorEvidenceManifest["reuseStatus"] = "reusable"): DirectorEvidenceManifest {
-  return { id, sourceId: "source", researchJobId: "job", kind: "collection-item", provider: "met", externalId: id, canonicalUrl: "https://example.com/item", recordLocator: id, title: id, institution: "Museum", dateLabel: "ca. 3000 BCE", region: "Mesopotamia", tags: ["3000-bce", "materials"], facets: {}, rightsUri: null, rightsLabel: "Public domain", reuseStatus, culturallySensitive: false, status: "discovered", reviewNotes: "", linkedStudyIds: [], updatedAt: "2026-08-01T00:00:00.000Z" };
+  return { id, sourceId: "source", researchJobId: "job", kind: "collection-item", provider: "met", externalId: id, canonicalUrl: "https://example.com/item", recordLocator: id, title: id, institution: "Museum", dateLabel: "ca. 3000 BCE", region: "Mesopotamia", tags: ["3000-bce", "materials"], facets: {}, rightsUri: null, rightsLabel: "Public domain", reuseStatus, culturallySensitive: false, status: "discovered", reviewNotes: "", contentHash: id, linkedStudyIds: [], updatedAt: "2026-08-01T00:00:00.000Z" };
 }
 
 test("playback gates always precede study approval", () => {
@@ -59,4 +59,27 @@ test("item-level evidence is visible before study synthesis and unsafe rights ca
   assert.match(queue.find((item) => item.manifest?.id === "safe")?.reason ?? "", /human confirmation/i);
   assert.match(queue.find((item) => item.manifest?.id === "restricted")?.reason ?? "", /cannot be promoted/i);
   assert.equal(queue.find((item) => item.manifest?.id === "safe")?.coverageGaps.includes("3000-bce"), true);
+  assert.match(queue.find((item) => item.manifest?.id === "restricted")?.quarantineReasons.join(" ") ?? "", /restricted/i);
+});
+
+test("studies without a playback package receive the approvable-now lane", () => {
+  const queue = buildDirectorReviewQueue([study("document-study", "draft", ["blocking"])], []);
+  assert.equal(queue[0]?.lane, "approvable-now");
+});
+
+test("duplicate content hashes remain visible but are quarantined", () => {
+  const first = manifest("first");
+  const second = { ...manifest("second"), contentHash: first.contentHash };
+  const queue = buildDirectorReviewQueue([], [], [first, second]);
+  assert.equal(queue.length, 2);
+  assert.equal(queue.every((item) => item.quarantineReasons.some((reason) => /duplicate content hash/i.test(reason))), true);
+});
+
+test("coverage-gap count dominates lane priority", () => {
+  const approved = study("known", "approved", ["camera", "1960s", "united", "states"]);
+  const coveredPlayback = analysis("covered-clip", "covered-study", "required");
+  const coveredStudy = study("covered-study", "draft", ["camera"]);
+  const gapStudy = study("gap-study", "draft", ["sound", "silence", "rhythm", "acoustics"]);
+  const queue = buildDirectorReviewQueue([approved, coveredStudy, gapStudy], [coveredPlayback]);
+  assert.equal(queue[0]?.id, "study:gap-study");
 });

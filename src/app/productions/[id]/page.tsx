@@ -1821,7 +1821,12 @@ export function ProductionWorkspace({
       {embedded && run && contract.format === "punch" && !finalVideoUrl && (
         <section className="studio-embedded-production__actionbar" data-studio-render-action>
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Generate here</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Generate here</p>
+              <span className="rounded-full border border-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                {contract.punchGenerationMode === "single-take" ? "One complete prompt" : "Four scene clips"}
+              </span>
+            </div>
             <p className="mt-1 text-xs text-grey">
               {busy
                 ? renderProgress || "The Studio is preparing the production."
@@ -2552,6 +2557,11 @@ export function ProductionWorkspace({
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <p className="text-[9px] uppercase tracking-[0.16em] text-emerald-300">
                     {contract.duration}s · {contract.shotCount} shots · locked voice · scene effects · character theme
+                  </p>
+                  <p className="basis-full text-[9px] leading-4 text-white/50">
+                    {contract.punchGenerationMode === "single-take"
+                      ? "One complete prompt: judge lip sync, identity stability, cut timing, and whether the story lands by 15 seconds."
+                      : "Four scene clips: judge shot continuity, edit rhythm, dialogue joins, and whether any single scene needs replacing."}
                   </p>
                   <a
                     href={finalVideoUrl}

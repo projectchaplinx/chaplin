@@ -300,6 +300,77 @@ function emptyScene(): DraftScene {
   return { setting: "", objective: "", action: "", durationSeconds: 4, lines: [] };
 }
 
+function PunchGenerationModeChooser({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: PunchGenerationMode;
+  onChange: (mode: PunchGenerationMode) => void;
+  compact?: boolean;
+}) {
+  const options: Array<{
+    mode: PunchGenerationMode;
+    title: string;
+    source: string;
+    description: string;
+    bestFor: string;
+    compare: string;
+  }> = [
+    {
+      mode: "single-take",
+      title: "One complete 15-second prompt",
+      source: "1 × 15s take",
+      description: "One prompt asks for picture, cuts, dialogue, ambience, effects, and score as a finished audiovisual take.",
+      bestFor: "Best chance of natural audio flow and continuity across the whole performance.",
+      compare: "Watch lip sync, identity stability, cut timing, and whether the story lands by 15s.",
+    },
+    {
+      mode: "scene-clips",
+      title: "Four separately generated scenes",
+      source: "4 × 4s clips",
+      description: "Generate every beat independently, then trim and assemble the strongest four clips into the 15-second master.",
+      bestFor: "Best control when one weak scene needs to be replaced without remaking everything.",
+      compare: "Watch shot-to-shot continuity, edit rhythm, dialogue joins, and visual consistency.",
+    },
+  ];
+
+  return (
+    <div className={`grid gap-2.5 ${compact ? "" : "sm:grid-cols-2"}`} data-punch-generation-options>
+      {options.map((option) => {
+        const selected = value === option.mode;
+        return (
+          <button
+            key={option.mode}
+            type="button"
+            onClick={() => onChange(option.mode)}
+            aria-pressed={selected}
+            className={`rounded-xl border p-4 text-left transition ${
+              selected
+                ? "border-accent bg-accent/[0.08] shadow-[0_0_0_1px_rgba(244,63,105,0.18)]"
+                : "border-white/10 bg-white/[0.025] hover:border-white/25"
+            }`}
+            data-generation-mode={option.mode}
+          >
+            <span className="flex items-start justify-between gap-3">
+              <strong className="text-sm leading-5">{option.title}</strong>
+              <span className="shrink-0 font-mono text-[10px] text-accent">{option.source}</span>
+            </span>
+            <span className="mt-2 block text-[10px] leading-4 text-grey">{option.description}</span>
+            <span className="mt-3 block text-[9px] font-semibold leading-4 text-accent-secondary">{option.bestFor}</span>
+            {selected && (
+              <span className="mt-3 block border-t border-white/10 pt-3 text-[9px] leading-4 text-white/65">
+                <span className="font-semibold uppercase tracking-[0.14em] text-white/45">Judge this output</span><br />
+                {option.compare}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function StoryBuilderForm() {
   const searchParams = useSearchParams();
   const world = useChaplinStore((s) => s);
@@ -1425,13 +1496,23 @@ export default function StoryBuilderForm() {
     }, 0);
   }
 
-  function chooseOutput(option: ProductionFormat) {
+  function confirmOutput(option: ProductionFormat) {
     setFormat(option);
     setDurationSeconds(productionDuration(option));
     setOutputChooserOpen(false);
     setWritingStart(null);
     setStep(1);
     setStartChoiceOpen(true);
+  }
+
+  function chooseOutput(option: ProductionFormat) {
+    setFormat(option);
+    setDurationSeconds(productionDuration(option));
+    // A 15-second Punch has two materially different render paths. Keep the
+    // entry gate open until the creator chooses one instead of hiding that
+    // decision at the bottom of the script editor.
+    if (option === "punch") return;
+    confirmOutput(option);
   }
 
   return (
@@ -1698,6 +1779,30 @@ export default function StoryBuilderForm() {
                 );
               })}
             </div>
+            {format === "punch" && (
+              <div className="mt-5 rounded-2xl border border-white/12 bg-black/20 p-4" data-punch-entry-choice>
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent">15-second generation method</p>
+                    <h3 className="mt-1 text-base font-semibold">One complete prompt or four scene clips?</h3>
+                    <p className="mt-1 text-[10px] leading-4 text-grey">
+                      Both use the same concept and cast. Choose the render method you want to judge first.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-[9px] text-white/55">Editable until production starts</span>
+                </div>
+                <PunchGenerationModeChooser value={punchGenerationMode} onChange={setPunchGenerationMode} />
+                <button
+                  type="button"
+                  onClick={() => confirmOutput("punch")}
+                  className="magic-action mt-3 flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold"
+                  data-confirm-punch-mode
+                >
+                  <span>Continue with {punchGenerationMode === "single-take" ? "one complete prompt" : "four scene clips"}</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <div className="hidden" aria-hidden="true">

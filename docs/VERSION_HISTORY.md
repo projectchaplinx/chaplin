@@ -303,3 +303,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.95 | `1660aea` | 2026-08-01T02:16:55+05:30 | v0.2.95: keep research assets in Director Brain |
 | v0.2.96 | `979528e` | 2026-08-01T02:51:27+05:30 | v0.2.96: enforce Director Brain preservation |
 | v0.2.97 | `1b5232e` | 2026-08-01T03:07:10+05:30 | v0.2.97: make Director review backlog actionable |
+| v0.2.98 | `c9d8719` | 2026-08-01T03:17:33+05:30 | v0.2.98: preserve Director quarantine ledger |

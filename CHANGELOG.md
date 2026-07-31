@@ -1,5 +1,15 @@
 # Chaplin Changelog
 
+## v0.2.99 - 2026-08-01 - Compare 15-second Punch generation methods
+
+- Put the 15-second generation choice at the Studio runtime gate so creators
+  choose one complete audiovisual prompt or four separately assembled clips
+  before writing begins.
+- Keep the method editable through the Punch script step and explain the
+  continuity, audio, replaceability, and edit-control tradeoffs in place.
+- Label the active method during rendering and show method-specific review
+  criteria beside the playable finished output.
+
 ## v0.2.98 - 2026-08-01 - Preserve the Director quarantine ledger
 
 - Persist every automatic quarantine reason in an immutable Director Brain

@@ -2836,20 +2836,14 @@ export default function CharacterProductionStudio({
           <div data-production-stage="video" className={`border border-line rounded-md p-4 flex flex-col gap-3 ${activeStep === 6 ? "" : "hidden"}`}>
             <div className="flex items-center justify-between gap-2">
               <h3 className="font-semibold text-sm">6. Animate a five-second scene</h3>
-              <QuickWriteButton
-                field="video"
-                busy={Boolean(busy) || Boolean(quickWriting)}
-                writing={quickWriting === "video"}
-                onClick={() => void quickWrite("video", scenePrompt, setScenePrompt)}
-                label={generatedVideo || character.videoUrl ? "Regenerate prompt" : "Quick Write"}
-              />
+              <span className="text-[9px] uppercase tracking-[0.12em] text-grey">Seed + motion</span>
             </div>
             {videoSeedOptions.length > 0 && (
               <section className="rounded-md border border-line bg-black/15 p-3" data-video-seed-picker>
                 <div className="mb-3 flex items-end justify-between gap-3">
                   <span>
                     <span className="block text-xs font-semibold">Choose the seed image</span>
-                    <span className="mt-0.5 block text-[10px] text-grey">Seedance will animate this exact first frame.</span>
+                    <span className="mt-0.5 block text-[10px] text-grey">Small references on the left. The selected exact first frame stays visible on the right.</span>
                   </span>
                   <button
                     type="button"
@@ -2859,47 +2853,75 @@ export default function CharacterProductionStudio({
                     Create another still →
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-                  {videoSeedOptions.map((seed) => {
-                    const selected = selectedVideoSeedId
-                      ? selectedVideoSeedId === seed.id
-                      : videoReferenceImage === seed.url;
-                    return (
-                      <button
-                        key={seed.id}
-                        type="button"
-                        onClick={() => void selectVideoSeed(seed)}
-                        disabled={Boolean(selectingAsset) || Boolean(busy)}
-                        className={`group relative overflow-hidden rounded-sm border text-left transition-colors disabled:opacity-45 ${
-                          selected
-                            ? "border-accent shadow-[0_0_0_1px_rgba(242,78,112,.4)]"
-                            : "border-line hover:border-accent/55"
-                        }`}
-                        aria-pressed={selected}
-                        data-video-seed={seed.id}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element -- generated CDN URLs are dynamic */}
-                        <img src={seed.url} alt={seed.label} className="aspect-video w-full object-cover" />
-                        <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-1.5 pt-5">
-                          <span className="truncate text-[9px] font-semibold text-white">{seed.label}</span>
-                          <span className={`shrink-0 text-[8px] font-semibold uppercase tracking-[0.1em] ${selected ? "text-accent" : "text-white/55"}`}>
-                            {selectingAsset === seed.id ? "Selecting" : selected ? "Selected" : "Use"}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="grid gap-3 lg:grid-cols-[minmax(15rem,0.7fr)_minmax(0,1.3fr)] lg:items-start">
+                  <div className="max-h-[min(48dvh,32rem)] overflow-y-auto pr-1" data-lenis-prevent>
+                    <div className="grid grid-cols-2 gap-2">
+                      {videoSeedOptions.map((seed) => {
+                        const selected = selectedVideoSeedId
+                          ? selectedVideoSeedId === seed.id
+                          : videoReferenceImage === seed.url;
+                        return (
+                          <button
+                            key={seed.id}
+                            type="button"
+                            onClick={() => void selectVideoSeed(seed)}
+                            disabled={Boolean(selectingAsset) || Boolean(busy)}
+                            className={`group relative overflow-hidden rounded-sm border text-left transition-colors disabled:opacity-45 ${
+                              selected
+                                ? "border-accent shadow-[0_0_0_1px_rgba(242,78,112,.4)]"
+                                : "border-line hover:border-accent/55"
+                            }`}
+                            aria-pressed={selected}
+                            data-video-seed={seed.id}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element -- generated CDN URLs are dynamic */}
+                            <img src={seed.url} alt={seed.label} className="aspect-video w-full object-cover" />
+                            <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-1.5 pt-5">
+                              <span className="truncate text-[9px] font-semibold text-white">{seed.label}</span>
+                              <span className={`shrink-0 text-[8px] font-semibold uppercase tracking-[0.1em] ${selected ? "text-accent" : "text-white/55"}`}>
+                                {selectingAsset === seed.id ? "Selecting" : selected ? "Selected" : "Use"}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 lg:sticky lg:top-0">
+                    {videoReferenceImage ? (
+                      <div className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-sm border border-line bg-black/30" data-video-reference>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- generated and uploaded provider URLs are dynamic */}
+                        <img src={videoReferenceImage} alt="Selected exact first frame" className="aspect-video max-h-[min(48dvh,30rem)] w-full object-contain" />
+                        <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[9px] uppercase tracking-wide text-white">Exact first frame</span>
+                      </div>
+                    ) : (
+                      <div className="grid aspect-video max-h-[min(48dvh,30rem)] w-full place-items-center rounded-sm border border-dashed border-line bg-black/20 px-4 text-center text-[10px] text-grey">
+                        Choose a thumbnail to preview the exact first frame.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </section>
             )}
-            {videoReferenceImage && (
-              <div className="relative overflow-hidden rounded-sm border border-line" data-video-reference>
+            {videoSeedOptions.length === 0 && videoReferenceImage && (
+              <div className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-sm border border-line bg-black/30" data-video-reference>
                 {/* eslint-disable-next-line @next/next/no-img-element -- generated and uploaded provider URLs are dynamic */}
-                <img src={videoReferenceImage} alt="Selected exact first frame" className="aspect-video w-full object-cover" />
+                <img src={videoReferenceImage} alt="Selected exact first frame" className="aspect-video max-h-[min(48dvh,30rem)] w-full object-contain" />
                 <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[9px] uppercase tracking-wide text-white">Exact first frame</span>
               </div>
             )}
-            <textarea data-scene-field="video" value={scenePrompt} onChange={(event) => setScenePrompt(event.target.value)} rows={7} className="bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-grey">Motion prompt</span>
+              <QuickWriteButton
+                field="video"
+                busy={Boolean(busy) || Boolean(quickWriting)}
+                writing={quickWriting === "video"}
+                onClick={() => void quickWrite("video", scenePrompt, setScenePrompt)}
+                label={generatedVideo || character.videoUrl ? "Regenerate prompt" : "Quick Write"}
+              />
+            </div>
+            <textarea data-scene-field="video" value={scenePrompt} onChange={(event) => setScenePrompt(event.target.value)} rows={4} className="bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
             <button onClick={generateVideo} disabled={!seedModelsReady || !videoReferenceImage || Boolean(busy)} className="magic-action rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-40" data-intelligence-action aria-busy={busy === "video"}>
               {seedanceAccountPaused ? "Seedance paused by BytePlus" : busy === "video" ? "Seedance is rendering..." : "Generate 5-second video"}
             </button>

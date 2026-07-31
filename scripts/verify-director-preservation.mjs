@@ -32,6 +32,7 @@ try {
       (select count(*)::integer from director_research_jobs where cost_usd is null) as jobs_without_cost,
       (select count(*)::integer from director_research_cost_entries) as cost_entries,
       (select count(*)::integer from director_entity_revisions) as revisions,
+      (select count(*)::integer from director_quarantine_assessments) as quarantine_assessments,
       (select count(*)::integer from information_schema.triggers
         where trigger_schema = 'public' and trigger_name = 'director_prevent_delete') as delete_guards,
       (select count(*)::integer from information_schema.triggers
@@ -39,7 +40,7 @@ try {
   `;
   if (state.jobs_without_cost !== 0) throw new Error(`${state.jobs_without_cost} research jobs still have no cost classification.`);
   if (state.cost_entries < state.jobs) throw new Error("The append-only cost ledger does not cover every research job.");
-  if (state.delete_guards < 10 || state.projection_guards < 8) throw new Error("Director database preservation triggers are incomplete.");
+  if (state.delete_guards < 11 || state.projection_guards < 8) throw new Error("Director database preservation triggers are incomplete.");
 
   let deletionBlocked = false;
   try {

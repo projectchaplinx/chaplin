@@ -1,6 +1,7 @@
 import type { DirectorSceneStudy } from "@/lib/director-research";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
 import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
+import { evidenceQuarantineReasons, explicitPrincipleContradictions, type DirectorQuarantineAssessment } from "@/lib/director-quarantine";
 
 export type DirectorReviewQueueItem = {
   id: string;
@@ -30,29 +31,11 @@ function itemTags(study: DirectorSceneStudy | null, analysis: DirectorTimedMedia
   ].flatMap((value) => value.split(/[^a-z0-9-]+/i)));
 }
 
-function principlePolarity(value: string) {
-  const normalized = value.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
-  const negative = /\b(?:never|not|avoid|without|forbid|reject)\b/.test(normalized);
-  const positive = /\b(?:always|must|require|use|keep|show)\b/.test(normalized);
-  const subject = normalized.replace(/\b(?:never|not|avoid|without|forbid|reject|always|must|require|use|keep|show)\b/g, " ").replace(/\s+/g, " ").trim();
-  return { negative, positive, subject };
-}
-
-function explicitContradictions(candidatePrinciples: string[], approved: DirectorSceneStudy[]) {
-  const approvedPrinciples = approved.flatMap((study) => study.candidatePrinciples.map((principle) => ({ study, ...principlePolarity(principle) })));
-  return candidatePrinciples.flatMap((principle) => {
-    const candidate = principlePolarity(principle);
-    if (!candidate.subject || (!candidate.negative && !candidate.positive)) return [];
-    const match = approvedPrinciples.find((known) => known.subject === candidate.subject
-      && ((candidate.negative && known.positive) || (candidate.positive && known.negative)));
-    return match ? [`Explicit principle conflict with approved study “${match.study.studyTitle}”.`] : [];
-  });
-}
-
 export function buildDirectorReviewQueue(
   studies: DirectorSceneStudy[],
   analyses: DirectorTimedMediaAnalysis[],
   manifests: DirectorEvidenceManifest[] = [],
+  assessments: DirectorQuarantineAssessment[] = [],
 ): DirectorReviewQueueItem[] {
   const approved = studies.filter((study) => study.status === "approved");
   const approvedCoverage = new Map<string, number>();
@@ -63,6 +46,13 @@ export function buildDirectorReviewQueue(
   const manifestHashCounts = new Map<string, number>();
   for (const manifest of manifests) {
     if (manifest.contentHash) manifestHashCounts.set(manifest.contentHash, (manifestHashCounts.get(manifest.contentHash) ?? 0) + 1);
+  }
+  const persistedReasons = new Map<string, string[]>();
+  for (const assessment of assessments) {
+    const key = `${assessment.entityKind}:${assessment.entityId}`;
+    const reasons = persistedReasons.get(key) ?? [];
+    reasons.push(assessment.reason);
+    persistedReasons.set(key, reasons);
   }
 
   function details(study: DirectorSceneStudy | null, analysis: DirectorTimedMediaAnalysis | null) {
@@ -112,12 +102,10 @@ export function buildDirectorReviewQueue(
         .slice(0, 3)
         .map((entry) => entry.candidate);
       const eligible = manifest.reuseStatus === "reusable" && !manifest.culturallySensitive;
-      const quarantineReasons = [
-        ...(manifest.reuseStatus === "restricted" ? ["Restricted rights basis."] : []),
-        ...(manifest.reuseStatus === "metadata-only" ? ["Metadata-only record; no reusable source asset."] : []),
-        ...(manifest.culturallySensitive ? ["Culturally sensitive material requires contextual human review."] : []),
-        ...(manifest.contentHash && (manifestHashCounts.get(manifest.contentHash) ?? 0) > 1 ? ["Duplicate content hash is already present in the evidence corpus."] : []),
-      ];
+      const quarantineReasons = [...new Set([
+        ...evidenceQuarantineReasons(manifest, manifestHashCounts.get(manifest.contentHash) ?? 1).map((reason) => reason.reason),
+        ...(persistedReasons.get(`evidence:${manifest.id}`) ?? []),
+      ])];
       return {
         id: `evidence:${manifest.id}`,
         kind: "evidence" as const,
@@ -146,7 +134,10 @@ export function buildDirectorReviewQueue(
     .map((study) => {
       const analysis = analysisByStudy.get(study.id) ?? null;
       const { coverageGaps, relatedApproved } = details(study, analysis);
-      const quarantineReasons = explicitContradictions(study.candidatePrinciples, approved);
+      const quarantineReasons = [...new Set([
+        ...explicitPrincipleContradictions(study.candidatePrinciples, approved).map((conflict) => conflict.reason),
+        ...(persistedReasons.get(`study:${study.id}`) ?? []),
+      ])];
       const evidenceStrength = Math.min(study.observations.length, 8) * 5 + Math.min(study.candidatePrinciples.length, 8) * 3;
       return {
         id: `study:${study.id}`,

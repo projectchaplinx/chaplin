@@ -6,11 +6,13 @@ import { buildDirectorReviewQueue } from "@/lib/director-review-queue";
 import type { DirectorResearchBundle, DirectorStudyStatus } from "@/lib/director-research";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
 import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
+import type { DirectorQuarantineAssessment } from "@/lib/director-quarantine";
 
 export default function AdminDirectorReviewQueue({ initialBundle }: { initialBundle: DirectorResearchBundle }) {
   const [studies, setStudies] = useState(initialBundle.studies);
   const [analyses, setAnalyses] = useState<DirectorTimedMediaAnalysis[]>([]);
   const [manifests, setManifests] = useState<DirectorEvidenceManifest[]>([]);
+  const [assessments, setAssessments] = useState<DirectorQuarantineAssessment[]>([]);
   const [filter, setFilter] = useState("");
   const [lane, setLane] = useState<"all" | "playback" | "approvable-now" | "evidence" | "study">("all");
   const [selectedId, setSelectedId] = useState("");
@@ -18,7 +20,7 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const queue = useMemo(() => buildDirectorReviewQueue(studies, analyses, manifests), [studies, analyses, manifests]);
+  const queue = useMemo(() => buildDirectorReviewQueue(studies, analyses, manifests, assessments), [studies, analyses, manifests, assessments]);
   const visibleQueue = useMemo(() => {
     const query = filter.trim().toLowerCase();
     return queue.filter((item) => (lane === "all" || item.lane === lane) && (!query || [
@@ -35,18 +37,21 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
   }, {}), [queue]);
 
   const refresh = useCallback(async () => {
-    const [researchResponse, timedResponse, evidenceResponse] = await Promise.all([
+    const [researchResponse, timedResponse, evidenceResponse, quarantineResponse] = await Promise.all([
       fetch("/api/admin/director-brain", { cache: "no-store" }),
       fetch("/api/admin/director-brain/timed-media", { cache: "no-store" }),
       fetch("/api/admin/director-brain/evidence-manifests?limit=300", { cache: "no-store" }),
+      fetch("/api/admin/director-brain/quarantine", { cache: "no-store" }),
     ]);
-    const [research, timed, evidence] = await Promise.all([researchResponse.json(), timedResponse.json(), evidenceResponse.json()]);
+    const [research, timed, evidence, quarantine] = await Promise.all([researchResponse.json(), timedResponse.json(), evidenceResponse.json(), quarantineResponse.json()]);
     if (!researchResponse.ok) throw new Error(research.error || "Could not load research studies.");
     if (!timedResponse.ok) throw new Error(timed.error || "Could not load timed-film evidence.");
     if (!evidenceResponse.ok) throw new Error(evidence.error || "Could not load item-level evidence.");
+    if (!quarantineResponse.ok) throw new Error(quarantine.error || "Could not load the quarantine ledger.");
     setStudies(research.studies ?? []);
     setAnalyses(timed.analyses ?? []);
     setManifests(evidence.manifests ?? []);
+    setAssessments(quarantine.assessments ?? []);
   }, []);
 
   useEffect(() => {
@@ -160,7 +165,7 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
         <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent">Human review desk</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <div><h2 className="reel-title text-3xl">Teach the brain, one decision at a time</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-grey">The queue puts direct film playback first, then the separate knowledge decision. Missing coverage rises to the top. No bulk approval and no automatic injection.</p></div>
-          <span className="rounded-full border border-line px-3 py-1.5 text-[10px] font-semibold text-ink">{queue.length} decisions waiting</span>
+          <div className="flex flex-wrap gap-2"><span className="rounded-full border border-line px-3 py-1.5 text-[10px] font-semibold text-ink">{queue.length} decisions waiting</span><span className="rounded-full border border-red-400/25 px-3 py-1.5 text-[10px] font-semibold text-red-100">{assessments.length} durable quarantine records</span></div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <input value={filter} onChange={(event) => { setFilter(event.target.value); setSelectedId(""); }} placeholder="Find an era, place, provider, craft, or title…" className="min-w-[260px] flex-1 rounded-lg border border-line bg-black/20 px-4 py-2.5 text-xs text-ink outline-none focus:border-accent" />

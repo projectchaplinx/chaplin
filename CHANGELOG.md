@@ -1,5 +1,18 @@
 # Chaplin Changelog
 
+## v0.2.98 - 2026-08-01 - Preserve the Director quarantine ledger
+
+- Persist every automatic quarantine reason in an immutable Director Brain
+  ledger while leaving the evidence, playback, and study review states intact.
+- Backfill restricted-rights, metadata-only, and culturally sensitive evidence
+  assessments and retain each reason even after later human resolution.
+- Detect duplicate content hashes and explicit opposite-polarity conflicts with
+  approved principles without treating approximate semantic overlap as proof.
+- Synchronize new assessments when Super Admin opens the review desk and merge
+  durable reasons into the same visible coverage-ranked queue.
+- Extend the preservation verifier to prove that quarantine rows cannot be
+  updated or deleted and remain part of the same append-only safety boundary.
+
 ## v0.2.97 - 2026-08-01 - Make the research backlog reviewable
 
 - Rework the Director Brain Human Review Desk into coverage-ranked lanes for

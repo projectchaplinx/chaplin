@@ -14,6 +14,7 @@ const sql = postgres(process.env.SUPABASE_DB_URL, {
 });
 
 try {
+  await sql`set client_min_messages = warning`;
   const [existing] = await sql`
     select to_regclass('public.director_research_jobs') is not null
       and to_regclass('public.director_scene_studies') is not null
@@ -34,6 +35,7 @@ try {
     await sql.file("supabase/migrations/202608010001_director_research_events.sql");
   }
   await sql.file("supabase/migrations/202608010002_director_preservation_contract.sql");
+  await sql.file("supabase/migrations/202608010003_director_quarantine_ledger.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
@@ -47,8 +49,9 @@ try {
       to_regclass('public.director_research_events')::text as research_events,
       to_regclass('public.director_entity_revisions')::text as entity_revisions,
       to_regclass('public.director_research_cost_entries')::text as research_costs
+      ,to_regclass('public.director_quarantine_assessments')::text as quarantine_assessments
   `;
-  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs || !tables?.quarantine_assessments) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

@@ -54,7 +54,7 @@ function StyleSheetSkeleton({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {CHARACTER_STYLE_SHEET_VIEWS.map((view, index) => (
             <article key={view.id} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
-              <div className="relative aspect-[3/4] overflow-hidden bg-white/[0.035]" style={{ animationDelay: `${index * 140}ms` }}>
+              <div className="relative aspect-[4/9] overflow-hidden bg-white/[0.035]" style={{ animationDelay: `${index * 140}ms` }}>
                 <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_15%,rgba(255,255,255,.08)_45%,transparent_75%)]" />
                 <span className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] uppercase tracking-[0.12em] text-grey">Queued</span>
               </div>
@@ -263,9 +263,9 @@ export default function CharacterStyleSheetPanel({
                       <article key={view.id} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
                         {panel ? (
                           // eslint-disable-next-line @next/next/no-img-element -- stored creator media uses dynamic public URLs
-                          <img src={panel.url} alt={`${character.name} ${view.label}`} className="aspect-[3/4] w-full object-cover" />
+                          <img src={panel.url} alt={`${character.name} ${view.label}`} className="aspect-[4/9] w-full bg-black/35 object-contain" />
                         ) : (
-                          <div className="relative grid aspect-[3/4] place-items-center overflow-hidden bg-white/[0.035] text-[9px] text-grey">
+                          <div className="relative grid aspect-[4/9] place-items-center overflow-hidden bg-white/[0.035] text-[9px] text-grey">
                             {generating && (
                               <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_15%,rgba(255,255,255,.08)_45%,transparent_75%)]" />
                             )}

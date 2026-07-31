@@ -288,3 +288,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.80 | `2c06638` | 2026-07-30T19:25:53+05:30 | fix(v0.2.80): reject malformed ElevenLabs header values |
 | v0.2.81 | `4c70b0e` | 2026-07-30T22:26:38+05:30 | feat(v0.2.81): guide first-time creator onboarding |
 | v0.2.82 | `1311164` | 2026-07-31T00:53:38+05:30 | feat(v0.2.82): resolve evidence-backed historical worlds |
+| v0.2.83 | `aeb79fa` | 2026-07-31T02:55:32+05:30 | feat(v0.2.83): stream style sheet generation previews |

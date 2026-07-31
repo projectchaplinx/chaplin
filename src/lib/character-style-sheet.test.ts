@@ -63,4 +63,7 @@ test("style sheet prompt rejects source-scene action and locks four neutral view
   assert.match(prompt, /exactly four equal vertical panels/i);
   assert.match(prompt, /Ignore and remove the reference image's pose, action, location/i);
   assert.match(prompt, /full body/i);
+  assert.match(prompt, /complete head, hair, hairline/i);
+  assert.match(prompt, /never crop a face or head/i);
+  assert.match(prompt, /never a rear or back view/i);
 });

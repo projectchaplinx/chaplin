@@ -58,7 +58,8 @@ export function characterSheetPrompt(input: { identity: string; ageState: string
   return withStandingInjections([
     "STRICT CHARACTER TURNAROUND. One 16:9 human-review character sheet split into exactly four equal vertical panels from left to right.",
     `Identity: ${input.identity}. Age state: ${input.ageState}. Final wardrobe: ${input.wardrobeState}.`,
-    "Panel one: neutral straight-on head-and-shoulders. Panel two: neutral three-quarter head-and-shoulders. Panel three: neutral exact side profile head-and-shoulders. Panel four: neutral straight-on full body in final wardrobe, arms relaxed, hands and feet visible.",
+    "Panel one: neutral straight-on head-and-shoulders. Panel two: neutral three-quarter head-and-shoulders. Panel three: neutral exact side profile head-and-shoulders. Panel four: neutral front-facing head-to-toe full body in final wardrobe, arms relaxed, both hands and both feet visible; never a rear or back view.",
+    "Framing lock: in every panel, keep the complete head, hair, hairline, ears, chin, neck, and shoulders inside the frame with clear space above the hair. Never crop a face or head at any edge. In the full-body panel, keep the entire silhouette from the top of the hair through the soles of both feet inside the frame with clear margin on all sides.",
     "Ignore and remove the reference image's pose, action, location, background, props, weapons, vehicles, and story context. This is identity documentation, not a scene, storyboard, montage, contact sheet, or action sequence.",
     "Repeat the exact same fictional actor in every panel. Use one seamless neutral studio background, one soft even reference-lighting setup, one camera height, and matching color across all four views.",
     "No acting, environment, props, additional people, labels, text, logos, decorative borders, or watermark.",

@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  directorResearchSourceMode,
   normalizeDirectorStudyInput,
   rankApprovedDirectorResearch,
   type ApprovedDirectorStudyContext,
@@ -246,10 +247,34 @@ export async function reviewDirectorStudy(input: Record<string, unknown>, userId
   const reviewNotes = typeof input.reviewNotes === "string"
     ? input.reviewNotes.trim().slice(0, 2000)
     : "";
-  if ((status === "approved" || status === "rejected") && reviewNotes.length < 5) {
-    throw new Error("Record the reason for approval or rejection.");
+  if ((status === "approved" || status === "rejected") && reviewNotes.length < 20) {
+    throw new Error("Record a substantive reason for approval or rejection.");
   }
-  const result = await getSupabaseAdminClient()
+  const supabase = getSupabaseAdminClient();
+  const current = await supabase.from("director_scene_studies")
+    .select("id,status,source_id,director_research_sources(*)")
+    .eq("id", id).maybeSingle();
+  if (current.error || !current.data) throw new Error(current.error?.message ?? "Director Brain study was not found.");
+  if (status === "approved") {
+    if (current.data.status !== "reviewed") throw new Error("Move the study to reviewed before approving it.");
+    const joined = Array.isArray(current.data.director_research_sources)
+      ? current.data.director_research_sources[0]
+      : current.data.director_research_sources;
+    const source = joined ? sourceFromRow(joined as SourceRow) : null;
+    if (source && ["collection-discovery", "provenance"].includes(directorResearchSourceMode(source))) {
+      const links = await supabase.from("director_study_evidence_manifests").select("manifest_id").eq("study_id", id);
+      if (links.error) throw new Error(`Check study evidence links: ${links.error.message}`);
+      const manifestIds = (links.data ?? []).map((row) => String(row.manifest_id));
+      if (!manifestIds.length) throw new Error("Collection studies need at least one reviewed evidence manifest before approval.");
+      const manifests = await supabase.from("director_evidence_manifests")
+        .select("id,status,reuse_status,culturally_sensitive").in("id", manifestIds);
+      if (manifests.error) throw new Error(`Check linked evidence: ${manifests.error.message}`);
+      if ((manifests.data ?? []).length !== manifestIds.length || (manifests.data ?? []).some((manifest) => manifest.status !== "eligible" || manifest.reuse_status !== "reusable" || manifest.culturally_sensitive)) {
+        throw new Error("Every linked collection manifest must be eligible, reusable, and non-sensitive before approval.");
+      }
+    }
+  }
+  const result = await supabase
     .from("director_scene_studies")
     .update({
       status,
@@ -294,7 +319,29 @@ export async function updateDirectorResearchSource(input: Record<string, unknown
 }
 
 export async function retrieveApprovedDirectorResearch(brief: string, limit = 4): Promise<ApprovedDirectorStudyContext[]> {
-  const bundle = await listDirectorResearch(300);
-  if (!bundle.storageReady) return [];
-  return rankApprovedDirectorResearch(bundle.studies, brief, limit);
+  const supabase = getSupabaseAdminClient();
+  const result = await supabase.from("director_scene_studies")
+    .select("*,director_research_sources(*)")
+    .eq("status", "approved")
+    .order("updated_at", { ascending: false })
+    .limit(500);
+  if (result.error) {
+    if (missingResearchTable(result.error.message)) return [];
+    throw new Error(`Load approved Director Brain research: ${result.error.message}`);
+  }
+  const studies = ((result.data ?? []) as StudyRow[]).map(studyFromRow).filter((study): study is DirectorSceneStudy => Boolean(study));
+  const collectionIds = studies.filter((study) => ["collection-discovery", "provenance"].includes(directorResearchSourceMode(study.source))).map((study) => study.id);
+  if (!collectionIds.length) return rankApprovedDirectorResearch(studies, brief, limit);
+  const links = await supabase.from("director_study_evidence_manifests")
+    .select("study_id,manifest_id,director_evidence_manifests(status,reuse_status,culturally_sensitive)")
+    .in("study_id", collectionIds);
+  if (links.error) throw new Error(`Verify approved research provenance: ${links.error.message}`);
+  const eligibleStudyIds = new Set<string>();
+  for (const link of links.data ?? []) {
+    const manifest = Array.isArray(link.director_evidence_manifests)
+      ? link.director_evidence_manifests[0]
+      : link.director_evidence_manifests;
+    if (manifest?.status === "eligible" && manifest.reuse_status === "reusable" && !manifest.culturally_sensitive) eligibleStudyIds.add(String(link.study_id));
+  }
+  return rankApprovedDirectorResearch(studies.filter((study) => !collectionIds.includes(study.id) || eligibleStudyIds.has(study.id)), brief, limit);
 }

@@ -2,9 +2,11 @@ import type { NextRequest } from "next/server";
 import { DIRECTOR_RESEARCH_CAMPAIGN_VERSION } from "@/lib/director-research-campaign";
 import {
   enqueueDirectorResearch,
+  enqueueDirectorGapResearch,
   listDirectorResearchJobs,
   runDirectorResearchBatch,
 } from "@/lib/server/director-research-jobs";
+import { reviewDirectorStudy } from "@/lib/server/director-research";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +22,7 @@ function authorize(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     authorize(request);
-    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; actor?: string };
+    const body = await request.json().catch(() => ({})) as { action?: string; sourceIds?: string[]; actor?: string; studyId?: string; reviewNotes?: string };
     if (body.action === "enqueue") {
       const jobs = await enqueueDirectorResearch(
         DIRECTOR_RESEARCH_CAMPAIGN_VERSION,
@@ -31,9 +33,32 @@ export async function POST(request: NextRequest) {
     }
     if (body.action === "run") return Response.json(await runDirectorResearchBatch());
     if (body.action === "status") return Response.json({ jobs: await listDirectorResearchJobs(DIRECTOR_RESEARCH_CAMPAIGN_VERSION) });
-    throw new Error("Choose enqueue, run, or status.");
+    if (body.action === "approve-study") {
+      await reviewDirectorStudy({ id: body.studyId, status: "approved", reviewNotes: body.reviewNotes }, body.actor?.trim().slice(0, 120) || "director-research-worker");
+      return Response.json({ ok: true, studyId: body.studyId, status: "approved" });
+    }
+    throw new Error("Choose enqueue, run, status, or approve-study.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Director research worker failed.";
+    return Response.json({ error: message }, { status: /authorization/i.test(message) ? 401 : 400 });
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    authorize(request);
+    await enqueueDirectorGapResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, "vercel-director-research-cron");
+    let claimed = 0;
+    const waves = [];
+    for (let wave = 0; wave < 7; wave += 1) {
+      const result = await runDirectorResearchBatch();
+      claimed += result.claimed;
+      waves.push(result.claimed);
+      if (!result.claimed) break;
+    }
+    return Response.json({ ok: true, claimed, waves });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Director research cron failed.";
     return Response.json({ error: message }, { status: /authorization/i.test(message) ? 401 : 400 });
   }
 }

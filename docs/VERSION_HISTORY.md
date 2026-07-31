@@ -293,3 +293,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.85 | `b538e85` | 2026-07-31T12:22:15+05:30 | fix(v0.2.85): compact video seed workspace |
 | v0.2.86 | `47a264e` | 2026-07-31T21:14:26+05:30 | v0.2.86: build parallel Director research pipeline |
 | v0.2.87 | `401631c` | 2026-07-31T21:19:06+05:30 | v0.2.87: reconcile approved research jobs |
+| v0.2.88 | `f3b9852` | 2026-07-31T22:06:15+05:30 | v0.2.88: build parallel evidence ingestion |

@@ -70,9 +70,12 @@ export async function POST(request: Request) {
         identityId: identity.id,
       });
     }
-    const spec = body.spec && typeof body.spec === "object" && !Array.isArray(body.spec)
+    const rawSpec = body.spec && typeof body.spec === "object" && !Array.isArray(body.spec)
       ? body.spec as Record<string, unknown>
       : {};
+    const spec = { ...rawSpec };
+    delete spec.directorTrace;
+    delete spec.approvedStudies;
     if (spec.adBoard !== undefined) {
       spec.adBoard = adBoardSchema.parse(spec.adBoard);
     }
@@ -84,9 +87,7 @@ export async function POST(request: Request) {
       createdBy: identity.id,
       idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined,
     });
-    const tracedFormat = typeof spec.directorTrace === "object" && spec.directorTrace && "query" in spec.directorTrace
-      ? (spec.directorTrace as { query?: { format?: unknown } }).query?.format
-      : outputType;
+    const tracedFormat = typeof spec.format === "string" ? spec.format : outputType;
     const format = normalizeProductionFormat(
       typeof tracedFormat === "string" ? tracedFormat : outputType,
       outputType === "episode" ? "episode" : outputType === "spot" ? "spot" : outputType === "punch" ? "punch" : "spark",

@@ -3,6 +3,7 @@ import { DIRECTOR_RESEARCH_CAMPAIGN_VERSION } from "@/lib/director-research-camp
 import { requireAdminIdentity } from "@/lib/server/auth";
 import {
   enqueueDirectorResearch,
+  enqueueDirectorGapResearch,
   listDirectorResearchJobs,
   runDirectorResearchBatch,
 } from "@/lib/server/director-research-jobs";
@@ -33,10 +34,17 @@ export async function POST(request: NextRequest) {
       const jobs = await enqueueDirectorResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id, body.sourceIds);
       return Response.json({ jobs });
     }
+    if (body.action === "enqueue-gaps") {
+      return Response.json({ jobs: await enqueueDirectorGapResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id) });
+    }
+    if (body.action === "enqueue-all") {
+      await enqueueDirectorResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id, body.sourceIds);
+      return Response.json({ jobs: await enqueueDirectorGapResearch(DIRECTOR_RESEARCH_CAMPAIGN_VERSION, identity.id) });
+    }
     if (body.action === "run") {
       return Response.json(await runDirectorResearchBatch());
     }
-    throw new Error("Choose enqueue or run.");
+    throw new Error("Choose enqueue, enqueue-gaps, enqueue-all, or run.");
   } catch (error) {
     return failure(error);
   }

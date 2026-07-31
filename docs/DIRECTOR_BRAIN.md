@@ -356,6 +356,12 @@ Two guarded research commands support this workflow:
 - [x] Run the first LOC, Met, and Europeana item manifests; approve and retrieve
   a five-object Edo garment study with explicit class, region, season, and
   occasion limitations.
+- [x] Add a versioned Atlas gap plan, resumable per-query jobs, an authenticated
+  production cron, and a global database-backed four-job concurrency ceiling.
+- [x] Run the corrected gap-5 corpus across LOC, Met, Europeana, Smithsonian,
+  and DPLA routes; retain missing credentials as visible configuration blockers.
+- [x] Approve and retrieve a seven-object early-modern Indian textile material
+  study while rejecting cross-region, weak, restricted, and sensitive results.
 
 ## Collection evidence contract
 
@@ -373,6 +379,19 @@ The states are intentionally separate:
 3. `approved study`: analytical observations and bounded principles are linked
    to the reviewed manifests. Only this third state enters Magic retrieval.
 
+Approval is a two-step transition (`reviewed` then `approved`). Collection and
+provenance studies cannot be approved unless every linked manifest is eligible,
+reusable, and non-sensitive. Runtime retrieval repeats that provenance check,
+so revoking a manifest immediately removes the affected study from production
+context. Discovery reruns preserve prior review decisions and hash only stable
+evidence fields.
+
+Parallel operation is bounded at two layers: the database permits at most four
+active research leases globally, and provider-specific queues serialize LOC,
+Europeana, Smithsonian, and DPLA while allowing at most two Met requests. The
+OpenAI model is used for strict-schema extraction from attributable text; it
+never has approval authority over evidence or studies.
+
 `SMITHSONIAN_API_KEY`, `EUROPEANA_API_KEY`, and `DPLA_API_KEY` are supported.
 Small Smithsonian/Europeana discovery can use their public demo credentials,
 but demo quota exhaustion becomes an explicit configuration blocker. DPLA has
@@ -380,7 +399,8 @@ no fallback and remains blocked until `DPLA_API_KEY` is configured.
 
 ### Phase 5 - ongoing operation
 
-- [ ] Weekly research queue and review.
+- [x] Daily gap-driven research queue with resumable, versioned jobs.
+- [ ] Weekly human evidence and contradiction review.
 - [ ] Monthly provider re-benchmark.
 - [ ] Pattern decay and contradiction review.
 - [x] Initial coverage, confidence, source-diversity, rights, and human

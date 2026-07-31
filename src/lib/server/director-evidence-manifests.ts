@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import {
   canMarkEvidenceEligible,
   evidenceNeedsReview,
+  stableEvidenceContent,
   type DirectorEvidenceManifest,
   type DirectorEvidenceStatus,
   type NormalizedEvidenceInput,
@@ -15,7 +16,8 @@ type ManifestRow = {
   provider: string; external_id: string; canonical_url: string; record_locator: string; title: string;
   institution: string; date_label: string; region: string; tags: string[]; facets: Record<string, unknown>;
   rights_uri: string | null; rights_label: string; reuse_status: DirectorEvidenceManifest["reuseStatus"];
-  culturally_sensitive: boolean; status: DirectorEvidenceStatus; review_notes: string; updated_at: string;
+  culturally_sensitive: boolean; status: DirectorEvidenceStatus; review_notes: string; reviewed_by?: string | null;
+  reviewed_at?: string | null; created_at?: string; updated_at: string;
 };
 
 function fromRow(row: ManifestRow): DirectorEvidenceManifest {
@@ -40,7 +42,18 @@ export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: s
   if (!inputs.length) return [];
   if (inputs.length > 100) throw new Error("A research worker may persist at most 100 evidence records at once.");
   const now = new Date().toISOString();
+  const existingResult = await getSupabaseAdminClient().from("director_evidence_manifests")
+    .select("kind,provider,external_id,status,review_notes,reviewed_by,reviewed_at,created_at")
+    .eq("source_id", sourceId)
+    .in("external_id", inputs.map((input) => input.externalId.trim()));
+  if (existingResult.error) throw new Error(`Load existing evidence manifests: ${existingResult.error.message}`);
+  const existingByKey = new Map((existingResult.data ?? []).map((row) => [
+    `${row.kind}:${row.provider}:${row.external_id}`,
+    row,
+  ]));
   const rows = inputs.map((input) => {
+    const existing = existingByKey.get(`${input.kind}:${input.provider.trim()}:${input.externalId.trim()}`);
+    const preserveReview = existing && ["eligible", "rejected", "archived"].includes(existing.status);
     const normalized = {
       source_id: sourceId, research_job_id: jobId, kind: input.kind, provider: input.provider.trim(),
       external_id: input.externalId.trim(), canonical_url: safeHttps(input.canonicalUrl),
@@ -51,10 +64,14 @@ export async function upsertDirectorEvidenceManifests(sourceId: string, jobId: s
       provenance: input.provenance ?? {}, rights_uri: input.rightsUri ? safeHttps(input.rightsUri) : null,
       rights_label: input.rightsLabel.trim().slice(0, 1000), reuse_status: input.reuseStatus,
       rights_notes: (input.rightsNotes ?? "").trim().slice(0, 2000), culturally_sensitive: input.culturallySensitive,
-      status: evidenceNeedsReview(input), source_updated_at: input.sourceUpdatedAt ?? null,
+      status: preserveReview ? existing.status : evidenceNeedsReview(input), source_updated_at: input.sourceUpdatedAt ?? null,
+      review_notes: preserveReview ? existing.review_notes : "",
+      reviewed_by: preserveReview ? existing.reviewed_by : null,
+      reviewed_at: preserveReview ? existing.reviewed_at : null,
+      ...(existing?.created_at ? { created_at: existing.created_at } : {}),
       accessed_at: now, updated_at: now,
     };
-    return { ...normalized, content_hash: createHash("sha256").update(JSON.stringify(normalized)).digest("hex") };
+    return { ...normalized, content_hash: createHash("sha256").update(JSON.stringify(stableEvidenceContent(input))).digest("hex") };
   });
   const result = await getSupabaseAdminClient().from("director_evidence_manifests").upsert(rows, {
     onConflict: "source_id,kind,provider,external_id",

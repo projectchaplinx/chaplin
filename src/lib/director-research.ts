@@ -105,6 +105,8 @@ export type DirectorResearchJob = {
   sourceId: string;
   sourceTitle: string;
   sourceMode: DirectorResearchSourceMode;
+  queryKey: string;
+  queryLabel: string;
   status: DirectorResearchJobStatus;
   phase: string;
   progress: number;
@@ -113,6 +115,7 @@ export type DirectorResearchJob = {
   maxAttempts: number;
   model: string | null;
   errorMessage: string | null;
+  evidenceCount: number;
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;
@@ -332,6 +335,22 @@ export function normalizeDirectorStudyInput(input: Record<string, unknown>) {
 }
 
 export function scoreDirectorStudyForBrief(study: DirectorSceneStudy, brief: string) {
+  const geographyGroups = [
+    ["india", "mughal", "south asia"],
+    ["japan", "edo", "tokyo", "kyoto", "east asia"],
+    ["mesopotamia", "uruk", "iraq", "west asia"],
+    ["egypt", "north africa"],
+    ["rome", "roman", "italy"],
+    ["united states", "north america", "los angeles", "california"],
+    ["europe", "france", "britain", "germany", "netherlands"],
+    ["indonesia", "southeast asia"],
+    ["nigeria", "congo", "sub-saharan africa"],
+  ];
+  const normalizedBrief = brief.toLowerCase();
+  const normalizedStudyPlace = `${study.region} ${study.periodLabel} ${study.tags.join(" ")}`.toLowerCase();
+  const briefPlaces = geographyGroups.map((aliases, index) => aliases.some((alias) => normalizedBrief.includes(alias)) ? index : -1).filter((index) => index >= 0);
+  const studyPlaces = geographyGroups.map((aliases, index) => aliases.some((alias) => normalizedStudyPlace.includes(alias)) ? index : -1).filter((index) => index >= 0);
+  if (briefPlaces.length && studyPlaces.length && !briefPlaces.some((place) => studyPlaces.includes(place))) return 0;
   const stopwords = new Set(["and", "the", "for", "with", "from", "into", "that", "this", "then", "than", "when", "where", "which", "while", "through", "scene", "shot", "seconds", "second"]);
   const tokens = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
     .filter((word) => word.length > 2 && !stopwords.has(word));

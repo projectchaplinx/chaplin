@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canMarkEvidenceEligible, compactEvidenceTags, evidenceNeedsReview } from "./director-evidence-manifest";
+import { canMarkEvidenceEligible, compactEvidenceTags, evidenceNeedsReview, stableEvidenceContent, type NormalizedEvidenceInput } from "./director-evidence-manifest";
 
 test("evidence remains separate and review gated", () => {
   assert.equal(evidenceNeedsReview({ reuseStatus: "reusable", culturallySensitive: false }), "discovered");
@@ -12,4 +12,16 @@ test("evidence remains separate and review gated", () => {
 
 test("evidence tags are bounded and normalized", () => {
   assert.deepEqual(compactEvidenceTags(["Costume, Work", "costume", null]), ["costume", "work"]);
+});
+
+test("stable evidence content excludes access and review timestamps", () => {
+  const input: NormalizedEvidenceInput = {
+    kind: "collection-item", provider: "met", externalId: "1", canonicalUrl: "https://example.com/1",
+    recordLocator: "object 1", title: "Coat", institution: "Museum", dateLabel: "1900", region: "Europe",
+    tags: ["costume"], facets: { medium: "wool" }, rightsUri: null, rightsLabel: "public domain",
+    reuseStatus: "reusable", culturallySensitive: false,
+  };
+  assert.deepEqual(stableEvidenceContent(input), stableEvidenceContent({ ...input }));
+  assert.equal("accessedAt" in stableEvidenceContent(input), false);
+  assert.equal("reviewNotes" in stableEvidenceContent(input), false);
 });

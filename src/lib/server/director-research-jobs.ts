@@ -8,7 +8,11 @@ import {
   type DirectorResearchSourceMode,
   type DirectorResearchSourceRecord,
 } from "@/lib/director-research";
-import { providerScheduler } from "@/lib/provider-scheduler";
+import {
+  DIRECTOR_RESEARCH_QUERY_PLAN_VERSION,
+  plansForResearchSource,
+  type DirectorResearchQueryPlan,
+} from "@/lib/director-research-query-plan";
 import { EvidenceConnectorConfigurationError, discoverDirectorEvidence } from "@/lib/server/director-evidence-connectors";
 import { upsertDirectorEvidenceManifests } from "@/lib/server/director-evidence-manifests";
 import { createDirectorStudy } from "@/lib/server/director-research";
@@ -27,6 +31,7 @@ type JobRow = {
   campaign_id: string;
   contract_version: string;
   source_mode: DirectorResearchSourceMode;
+  query_key: string;
   status: DirectorResearchJobStatus;
   phase: string;
   progress: number;
@@ -38,6 +43,7 @@ type JobRow = {
   input: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   usage: Record<string, unknown> | null;
+  lease_owner: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -98,6 +104,8 @@ function jobFromRow(row: JobRow): DirectorResearchJob {
     sourceId: row.source_id,
     sourceTitle: joinedSource(row).title,
     sourceMode: row.source_mode,
+    queryKey: row.query_key || "root",
+    queryLabel: typeof row.input?.queryLabel === "string" ? row.input.queryLabel : "Full source",
     status: row.status,
     phase: row.phase,
     progress: Number(row.progress) || 0,
@@ -106,11 +114,22 @@ function jobFromRow(row: JobRow): DirectorResearchJob {
     maxAttempts: Number(row.max_attempts) || 3,
     model: row.model,
     errorMessage: row.error_message,
+    evidenceCount: Number(row.output?.count) || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     startedAt: row.started_at,
     completedAt: row.completed_at,
   };
+}
+
+function queryPlanFromJob(row: JobRow): DirectorResearchQueryPlan | undefined {
+  const value = row.input?.queryPlan;
+  if (!value || typeof value !== "object") return undefined;
+  const plan = value as Partial<DirectorResearchQueryPlan>;
+  if (typeof plan.id !== "string" || typeof plan.label !== "string" || typeof plan.query !== "string"
+    || typeof plan.startYear !== "number" || typeof plan.endYear !== "number" || typeof plan.region !== "string"
+    || !Array.isArray(plan.layers) || !Array.isArray(plan.preferredProviders)) return undefined;
+  return plan as DirectorResearchQueryPlan;
 }
 
 export async function listDirectorResearchJobs(campaignId?: string) {
@@ -127,7 +146,8 @@ export async function listDirectorResearchJobs(campaignId?: string) {
   }
   const latestBySource = new Map<string, DirectorResearchJob>();
   for (const row of (result.data ?? []) as JobRow[]) {
-    if (!latestBySource.has(row.source_id)) latestBySource.set(row.source_id, jobFromRow(row));
+    const key = `${row.source_id}:${row.query_key || "root"}`;
+    if (!latestBySource.has(key)) latestBySource.set(key, jobFromRow(row));
   }
   return [...latestBySource.values()];
 }
@@ -151,6 +171,7 @@ export async function enqueueDirectorResearch(campaignId: string, userId: string
       campaign_id: campaignId,
       contract_version: DIRECTOR_RESEARCH_CONTRACT_VERSION,
       source_mode: directorResearchSourceMode(source),
+      query_key: "root",
       status: "queued",
       phase: "queued",
       progress: 0,
@@ -171,7 +192,7 @@ export async function enqueueDirectorResearch(campaignId: string, userId: string
   });
   if (rows.length) {
     const queued = await supabase.from("director_research_jobs").upsert(rows, {
-      onConflict: "source_id,campaign_id,contract_version",
+      onConflict: "source_id,campaign_id,contract_version,query_key",
       ignoreDuplicates: true,
     });
     if (queued.error) throw new Error(`Queue Director Brain research: ${queued.error.message}`);
@@ -181,6 +202,41 @@ export async function enqueueDirectorResearch(campaignId: string, userId: string
       updated_at: new Date().toISOString(),
     }).in("id", rows.map((row) => row.source_id)).neq("queue_status", "analyzed");
     if (sourceProgress.error) throw new Error(`Start Director Brain sources: ${sourceProgress.error.message}`);
+  }
+  return listDirectorResearchJobs(campaignId);
+}
+
+export async function enqueueDirectorGapResearch(campaignId: string, userId: string) {
+  const supabase = getSupabaseAdminClient();
+  const sources = await supabase.from("director_research_sources").select("*").eq("campaign_id", campaignId);
+  if (sources.error) throw new Error(`Load research sources for gap queue: ${sources.error.message}`);
+  const rows = (sources.data ?? []).flatMap((raw) => {
+    const source = sourceFromRow(raw as SourceRow);
+    if (directorResearchSourceMode(source) !== "collection-discovery") return [];
+    return plansForResearchSource(source.title).map((plan) => ({
+      source_id: source.id,
+      campaign_id: campaignId,
+      contract_version: DIRECTOR_RESEARCH_QUERY_PLAN_VERSION,
+      source_mode: "collection-discovery" as const,
+      query_key: plan.id,
+      status: "queued",
+      phase: "queued",
+      progress: 0,
+      message: `Waiting to research ${plan.label}`,
+      attempt: 0,
+      max_attempts: 3,
+      input: { queryPlan: plan, queryLabel: plan.label, page: 1 },
+      output: {}, usage: {}, error_message: null, lease_owner: null, lease_expires_at: null,
+      next_attempt_at: null, started_at: null, completed_at: null,
+      created_by: userId, updated_at: new Date().toISOString(),
+    }));
+  });
+  if (rows.length) {
+    const queued = await supabase.from("director_research_jobs").upsert(rows, {
+      onConflict: "source_id,campaign_id,contract_version,query_key",
+      ignoreDuplicates: true,
+    });
+    if (queued.error) throw new Error(`Queue world-gap research: ${queued.error.message}`);
   }
   return listDirectorResearchJobs(campaignId);
 }
@@ -286,18 +342,25 @@ type ExtractedStudy = {
   limitations: string;
 };
 
-async function updateJob(id: string, values: Record<string, unknown>) {
-  const result = await getSupabaseAdminClient().from("director_research_jobs").update({
+async function updateJob(id: string, values: Record<string, unknown>, leaseOwner?: string | null) {
+  let query = getSupabaseAdminClient().from("director_research_jobs").update({
     ...values,
     updated_at: new Date().toISOString(),
   }).eq("id", id);
+  if (leaseOwner) query = query.eq("lease_owner", leaseOwner).eq("status", "running");
+  const result = await query.select("id");
   if (result.error) throw new Error(`Update research job: ${result.error.message}`);
+  if (leaseOwner && !result.data?.length) throw new Error("Research job lease was lost before the worker update completed.");
+}
+
+function updateClaimedJob(row: JobRow, values: Record<string, unknown>) {
+  return updateJob(row.id, values, row.lease_owner);
 }
 
 async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord) {
-  await updateJob(row.id, { phase: "fetching", progress: 15, message: "Reading the authoritative source" });
+  await updateClaimedJob(row, { phase: "fetching", progress: 15, message: "Reading the authoritative source" });
   const sourceText = await fetchAuthoritativeText(source);
-  await updateJob(row.id, { phase: "extracting", progress: 40, message: "Extracting attributable evidence with OpenAI" });
+  await updateClaimedJob(row, { phase: "extracting", progress: 40, message: "Extracting attributable evidence with OpenAI" });
   const model = openAIWritingModel(process.env.OPENAI_RESEARCH_MODEL);
   const result = await createOpenAIResponse({
     model,
@@ -335,7 +398,7 @@ async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord)
     observation.confidence,
   ].join(" | ")).join("\n");
   assertResearchTextIsAnalytical(`${observationLines}\n${extracted.candidatePrinciples.join("\n")}`);
-  await updateJob(row.id, { phase: "validating", progress: 75, message: "Validating evidence and rights boundaries", model });
+  await updateClaimedJob(row, { phase: "validating", progress: 75, message: "Validating evidence and rights boundaries", model });
   const studyId = await createDirectorStudy({
     sourceTitle: source.title,
     institution: source.institution,
@@ -359,7 +422,7 @@ async function processTextJob(row: JobRow, source: DirectorResearchSourceRecord)
     updated_at: new Date().toISOString(),
   }).eq("id", source.id);
   if (sourceComplete.error) throw new Error(`Complete Director Brain source: ${sourceComplete.error.message}`);
-  await updateJob(row.id, {
+  await updateClaimedJob(row, {
     status: "succeeded",
     phase: "draft-ready",
     progress: 100,
@@ -382,8 +445,8 @@ async function processClaimedJob(row: JobRow) {
     .eq("source_id", source.id)
     .eq("status", "approved");
   if (approved.error) throw new Error(`Check existing approved research: ${approved.error.message}`);
-  if (approved.data?.length) {
-    await updateJob(row.id, {
+  if (approved.data?.length && row.source_mode !== "collection-discovery") {
+    await updateClaimedJob(row, {
       status: "succeeded",
       phase: "evidence-approved",
       progress: 100,
@@ -396,7 +459,7 @@ async function processClaimedJob(row: JobRow) {
     return;
   }
   if (row.source_mode === "timed-media") {
-    await updateJob(row.id, {
+    await updateClaimedJob(row, {
       status: "review-required",
       phase: "media-evidence-required",
       progress: 25,
@@ -409,13 +472,13 @@ async function processClaimedJob(row: JobRow) {
     return;
   }
   if (row.source_mode === "collection-discovery" || row.source_mode === "provenance") {
-    await updateJob(row.id, { phase: "querying-collection", progress: 15, message: "Querying the authoritative item-level evidence source" });
+    await updateClaimedJob(row, { phase: "querying-collection", progress: 15, message: "Querying the authoritative item-level evidence source" });
     let discovered;
     try {
-      discovered = await discoverDirectorEvidence(source);
+      discovered = await discoverDirectorEvidence(source, queryPlanFromJob(row));
     } catch (error) {
       if (error instanceof EvidenceConnectorConfigurationError) {
-        await updateJob(row.id, {
+        await updateClaimedJob(row, {
           status: "review-required", phase: "configuration-required", progress: 10,
           message: error.message, output: { blocker: "credential-or-connector", sourceUrl: source.sourceUrl },
           error_message: null,
@@ -425,10 +488,10 @@ async function processClaimedJob(row: JobRow) {
       }
       throw error;
     }
-    await updateJob(row.id, { phase: "normalizing-evidence", progress: 55, message: `Normalizing ${discovered.length} item-level evidence records` });
+    await updateClaimedJob(row, { phase: "normalizing-evidence", progress: 55, message: `Normalizing ${discovered.length} item-level evidence records` });
     const manifests = await upsertDirectorEvidenceManifests(source.id, row.id, discovered);
     const reusable = manifests.filter((manifest) => manifest.reuseStatus === "reusable" && !manifest.culturallySensitive).length;
-    await updateJob(row.id, {
+    await updateClaimedJob(row, {
       status: "review-required",
       phase: manifests.length ? "manifest-review-required" : "no-evidence-found",
       progress: manifests.length ? 75 : 25,
@@ -463,23 +526,23 @@ export async function runDirectorResearchBatch(limit = DIRECTOR_RESEARCH_CONCURR
     ...row,
     director_research_sources: sourceById.get(row.source_id) ?? null,
   }));
-  const scheduler = providerScheduler("openai-research", DIRECTOR_RESEARCH_CONCURRENCY);
-  await Promise.allSettled(rows.map((row) => scheduler.submit(row.id, async () => {
+  await Promise.allSettled(rows.map(async (row) => {
     try {
       await processClaimedJob(row);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Research extraction failed.";
-      await updateJob(row.id, {
+      await updateClaimedJob(row, {
         status: row.attempt >= row.max_attempts ? "failed" : "queued",
         phase: "failed",
         message: row.attempt >= row.max_attempts ? "Research failed after all attempts" : "Retry scheduled",
         error_message: message.slice(0, 2000),
+        next_attempt_at: row.attempt >= row.max_attempts ? null : new Date(Date.now() + [30_000, 120_000, 600_000][Math.min(2, Math.max(0, row.attempt - 1))] + Math.floor(Math.random() * 5_000)).toISOString(),
         lease_owner: null,
         lease_expires_at: null,
         ...(row.attempt >= row.max_attempts ? { completed_at: new Date().toISOString() } : {}),
       });
       throw error;
     }
-  })));
+  }));
   return { claimed: rows.length, jobs: await listDirectorResearchJobs() };
 }

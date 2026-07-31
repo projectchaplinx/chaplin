@@ -33,7 +33,25 @@ async function main() {
   const promoted = ranked.find((study) => study.studyTitle === "Edo garment and kimono material evidence");
   assert.ok(promoted, "The approved item-level Edo study must be retrieved for an Edo kimono production brief.");
   assert.ok(promoted.principles.some((principle) => /season|role|class/i.test(principle)), "Retrieved principles must retain the social-context gate.");
-  console.log(JSON.stringify({ brief, retrieved: ranked.map((study) => ({ studyTitle: study.studyTitle, sourceTitle: study.sourceTitle, score: study.score })), promoted: promoted.studyTitle }, null, 2));
+  const indiaBrief = "India in 1680, an artisan handles dyed cotton and silk fragments in a textile workshop; preserve fiber, weave, dye, place, occupation, and material continuity without inventing a complete garment.";
+  const indiaRanked = rankApprovedDirectorResearch(studies, indiaBrief, 6);
+  const indiaStudy = indiaRanked.find((study) => study.studyTitle === "Early-modern Indian textile material evidence");
+  assert.ok(indiaStudy, "The approved Indian textile evidence study must be retrieved for a seventeenth-century workshop brief.");
+  assert.ok(indiaStudy.principles.some((principle) => /fragment|material evidence|complete silhouette/i.test(principle)), "Retrieved principles must retain the fragment limitation.");
+  const [lineage] = await sql`
+    select count(*)::integer as eligible_links
+    from director_study_evidence_manifests link
+    join director_evidence_manifests manifest on manifest.id = link.manifest_id
+    where link.study_id = ${indiaStudy.id}
+      and manifest.status = 'eligible'
+      and manifest.reuse_status = 'reusable'
+      and manifest.culturally_sensitive = false
+  `;
+  assert.equal(lineage.eligible_links, 7, "The Indian textile study must retain all seven eligible item links.");
+  console.log(JSON.stringify({
+    edo: { brief, retrieved: ranked.map((study) => ({ studyTitle: study.studyTitle, score: study.score })), promoted: promoted.studyTitle },
+    india: { brief: indiaBrief, retrieved: indiaRanked.map((study) => ({ studyTitle: study.studyTitle, score: study.score })), promoted: indiaStudy.studyTitle, eligibleLinks: lineage.eligible_links },
+  }, null, 2));
   } finally { await sql.end(); }
 }
 

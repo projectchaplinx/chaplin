@@ -21,6 +21,9 @@ try {
   await sql.file("supabase/migrations/202607310001_director_research_jobs.sql");
   await sql.file("supabase/migrations/202607310002_director_evidence_manifests.sql");
   await sql.file("supabase/migrations/202607310003_director_study_evidence_links.sql");
+  await sql.file("supabase/migrations/202607310004_director_research_query_jobs.sql");
+  await sql.file("supabase/migrations/202607310005_director_research_worker_safety.sql");
+  await sql.file("supabase/migrations/202607310006_director_evidence_review_repair.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,

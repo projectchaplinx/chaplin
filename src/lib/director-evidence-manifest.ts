@@ -49,3 +49,28 @@ export function canMarkEvidenceEligible(reuse: DirectorEvidenceReuse, culturally
 export function compactEvidenceTags(values: unknown[]) {
   return [...new Set(values.flatMap((value) => typeof value === "string" ? value.split(/[,;|]/) : []).map((value) => value.trim().toLowerCase()).filter(Boolean))].slice(0, 30);
 }
+
+export function stableEvidenceContent(input: NormalizedEvidenceInput) {
+  return {
+    kind: input.kind,
+    provider: input.provider.trim(),
+    externalId: input.externalId.trim(),
+    canonicalUrl: input.canonicalUrl,
+    recordLocator: input.recordLocator.trim(),
+    title: input.title.trim(),
+    institution: input.institution.trim(),
+    dateLabel: input.dateLabel.trim(),
+    periodStart: input.periodStart ?? null,
+    periodEnd: input.periodEnd ?? null,
+    region: input.region.trim(),
+    tags: input.tags,
+    facets: input.facets,
+    provenance: input.provenance ?? {},
+    rightsUri: input.rightsUri ?? null,
+    rightsLabel: input.rightsLabel.trim(),
+    reuseStatus: input.reuseStatus,
+    rightsNotes: (input.rightsNotes ?? "").trim(),
+    culturallySensitive: input.culturallySensitive,
+    sourceUpdatedAt: input.sourceUpdatedAt ?? null,
+  };
+}

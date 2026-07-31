@@ -79,6 +79,13 @@ test("approved-study retrieval scoring responds to brief vocabulary", () => {
   assert.equal(scoreDirectorStudyForBrief(study, "An intimate kitchen confession"), 0);
 });
 
+test("resolved geography prevents cross-region research bleed", () => {
+  const india = { studyTitle: "Indian textile evidence", workTitle: "Reference", region: "India", periodLabel: "India, 17th century", tags: ["india", "textile"], candidatePrinciples: ["Preserve textile material continuity."] } as DirectorSceneStudy;
+  const japan = { studyTitle: "Edo garment evidence", workTitle: "Reference", region: "Japan", periodLabel: "Edo Japan", tags: ["japan", "kimono"], candidatePrinciples: ["Preserve textile material continuity."] } as DirectorSceneStudy;
+  assert.equal(scoreDirectorStudyForBrief(india, "Edo Japan kimono textile continuity"), 0);
+  assert.ok(scoreDirectorStudyForBrief(japan, "Edo Japan kimono textile continuity") > 0);
+});
+
 test("retrieval excludes relevant studies until a human approves them", () => {
   const study = {
     id: "route-study",

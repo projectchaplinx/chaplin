@@ -86,8 +86,7 @@ export async function synthesizeDirectorEvidenceStudy(manifestIds: string[], use
   const studyId = String(inserted.data.id);
   const linked = await supabase.from("director_study_evidence_manifests").insert(ids.map((manifestId) => ({ study_id: studyId, manifest_id: manifestId })));
   if (linked.error) {
-    await supabase.from("director_scene_studies").delete().eq("id", studyId);
-    throw new Error(`Link study evidence: ${linked.error.message}`);
+    throw new Error(`Link study evidence: ${linked.error.message}. The unlinked draft was preserved for repair under GPLC.`);
   }
   return { studyId, model, providerResponseId: result.data.id ?? null, evidenceCount: ids.length, observationCount: output.observations.length };
 }

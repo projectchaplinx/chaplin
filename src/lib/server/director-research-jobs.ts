@@ -1,5 +1,8 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+import { assertDirectorResearchExpansionAllowed } from "@/lib/director-gplc";
+import { estimateDirectorResearchCost } from "@/lib/director-research-cost";
 import {
   assertResearchTextIsAnalytical,
   directorResearchSourceMode,
@@ -44,6 +47,9 @@ type JobRow = {
   contract_version: string;
   source_mode: DirectorResearchSourceMode;
   query_key: string;
+  logical_query_key?: string | null;
+  supersedes_job_id?: string | null;
+  attempt_sequence?: number | null;
   status: DirectorResearchJobStatus;
   phase: string;
   progress: number;
@@ -55,6 +61,9 @@ type JobRow = {
   input: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   usage: Record<string, unknown> | null;
+  cost_usd?: number | string | null;
+  cost_method?: string | null;
+  pricing_note?: string | null;
   lease_owner: string | null;
   created_by: string;
   created_at: string;
@@ -113,10 +122,12 @@ function joinedSource(row: JobRow) {
 function jobFromRow(row: JobRow, events: DirectorResearchEvent[] = []): DirectorResearchJob {
   return {
     id: row.id,
+    supersedesJobId: row.supersedes_job_id ?? null,
+    attemptSequence: Number(row.attempt_sequence) || 0,
     sourceId: row.source_id,
     sourceTitle: joinedSource(row).title,
     sourceMode: row.source_mode,
-    queryKey: row.query_key || "root",
+    queryKey: row.logical_query_key || row.query_key || "root",
     queryLabel: typeof row.input?.queryLabel === "string" ? row.input.queryLabel : "Full source",
     status: row.status,
     phase: row.phase,
@@ -129,6 +140,9 @@ function jobFromRow(row: JobRow, events: DirectorResearchEvent[] = []): Director
     evidenceCount: Number(row.output?.count) || 0,
     output: row.output ?? {},
     usage: row.usage ?? {},
+    costUsd: row.cost_usd == null ? null : Number(row.cost_usd),
+    costMethod: row.cost_method ?? "",
+    pricingNote: row.pricing_note ?? "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     startedAt: row.started_at,
@@ -199,30 +213,61 @@ export async function listDirectorResearchJobs(campaignId?: string) {
 }
 
 export async function retryDirectorResearchJobs(jobIds: string[], userId: string) {
+  assertDirectorResearchExpansionAllowed();
   const ids = [...new Set(jobIds.map((id) => id.trim()).filter(Boolean))].slice(0, 100);
   if (!ids.length) throw new Error("Choose at least one research job to retry.");
   const supabase = getSupabaseAdminClient();
   const candidates = await supabase.from("director_research_jobs")
-    .select("id,status,phase")
+    .select("id,source_id,campaign_id,contract_version,source_mode,query_key,logical_query_key,parent_job_id,attempt_sequence,input,max_attempts,status,phase")
     .in("id", ids)
     .in("status", ["failed", "review-required"]);
   if (candidates.error) throw new Error(`Load retryable research jobs: ${candidates.error.message}`);
-  const retryable = (candidates.data ?? [])
-    .filter((job) => job.status === "failed" || job.phase === "no-evidence-found")
-    .map((job) => String(job.id));
+  const retryable = (candidates.data ?? []).filter((job) => job.status === "failed" || job.phase === "no-evidence-found");
   if (!retryable.length) throw new Error("Only failed or empty-evidence jobs can be retried without changing a human review decision.");
-  const result = await supabase.from("director_research_jobs").update({
-    status: "queued", phase: "queued", progress: 0,
-    message: "Retry requested after a connector or parser correction",
-    attempt: 0, error_message: null, next_attempt_at: null,
-    lease_owner: null, lease_expires_at: null, completed_at: null,
-    updated_at: new Date().toISOString(), created_by: userId,
-  }).in("id", retryable).select("id");
-  if (result.error) throw new Error(`Retry research jobs: ${result.error.message}`);
-  return { retried: (result.data ?? []).map((job) => String(job.id)) };
+  const now = new Date().toISOString();
+  const rows = retryable.map((job) => {
+    const logicalQueryKey = String(job.logical_query_key || job.query_key || "root");
+    const sequence = Number(job.attempt_sequence ?? 0) + 1;
+    return {
+      source_id: job.source_id,
+      campaign_id: job.campaign_id,
+      contract_version: job.contract_version,
+      source_mode: job.source_mode,
+      query_key: `${logicalQueryKey}::retry:${sequence}:${crypto.randomUUID().slice(0, 8)}`,
+      logical_query_key: logicalQueryKey,
+      parent_job_id: job.parent_job_id ?? job.id,
+      supersedes_job_id: job.id,
+      attempt_sequence: sequence,
+      status: "queued",
+      phase: "queued",
+      progress: 0,
+      message: "Append-only retry requested after a connector or parser correction",
+      attempt: 0,
+      max_attempts: Number(job.max_attempts) || 3,
+      input: job.input ?? {},
+      output: {},
+      usage: {},
+      error_message: null,
+      next_attempt_at: null,
+      lease_owner: null,
+      lease_expires_at: null,
+      started_at: null,
+      completed_at: null,
+      created_by: userId,
+      created_at: now,
+      updated_at: now,
+    };
+  });
+  const result = await supabase.from("director_research_jobs").insert(rows).select("id,supersedes_job_id");
+  if (result.error) throw new Error(`Create append-only research attempts: ${result.error.message}`);
+  return {
+    retried: (result.data ?? []).map((job) => String(job.id)),
+    superseded: (result.data ?? []).map((job) => String(job.supersedes_job_id)),
+  };
 }
 
 export async function enqueueDirectorResearch(campaignId: string, userId: string, sourceIds?: string[]) {
+  assertDirectorResearchExpansionAllowed();
   const supabase = getSupabaseAdminClient();
   let query = supabase.from("director_research_sources").select("*").eq("campaign_id", campaignId);
   if (sourceIds?.length) query = query.in("id", sourceIds.slice(0, 100));
@@ -277,6 +322,7 @@ export async function enqueueDirectorResearch(campaignId: string, userId: string
 }
 
 export async function enqueueDirectorGapResearch(campaignId: string, userId: string) {
+  assertDirectorResearchExpansionAllowed();
   const supabase = getSupabaseAdminClient();
   const sources = await supabase.from("director_research_sources").select("*").eq("campaign_id", campaignId);
   if (sources.error) throw new Error(`Load research sources for gap queue: ${sources.error.message}`);
@@ -366,36 +412,24 @@ async function upsertTimedMediaSource(campaignId: string, userId: string, source
 }
 
 export async function enqueueDirectorTimedMediaCorpus(campaignId: string, userId: string) {
+  assertDirectorResearchExpansionAllowed();
   const supabase = getSupabaseAdminClient();
-  const superseded = await supabase.from("director_research_jobs").update({
-    status: "cancelled",
-    phase: "superseded-contract",
-    progress: 0,
-    message: `Superseded by timed-media contract ${DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION}`,
-    lease_owner: null,
-    lease_expires_at: null,
-    completed_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }).eq("campaign_id", campaignId).eq("source_mode", "timed-media")
+  const staleActive = await supabase.from("director_research_jobs").select("id")
+    .eq("campaign_id", campaignId).eq("source_mode", "timed-media")
     .neq("contract_version", DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION)
-    .in("status", ["queued", "running", "failed"]);
-  if (superseded.error) throw new Error(`Supersede old timed-film jobs: ${superseded.error.message}`);
-  const retryCurrent = await supabase.from("director_research_jobs").update({
-    status: "queued",
-    phase: "queued",
-    progress: 0,
-    message: "Retrying the current timed-media contract after a recoverable extraction failure",
-    attempt: 0,
-    error_message: null,
-    next_attempt_at: null,
-    lease_owner: null,
-    lease_expires_at: null,
-    completed_at: null,
-    updated_at: new Date().toISOString(),
-  }).eq("campaign_id", campaignId).eq("source_mode", "timed-media")
+    .in("status", ["queued", "running"]);
+  if (staleActive.error) throw new Error(`Check prior timed-film jobs: ${staleActive.error.message}`);
+  if (staleActive.data?.length) {
+    throw new Error("Older timed-media jobs are still active. GPLC forbids rewriting them; stop their worker lease before starting P4.");
+  }
+  const failedCurrent = await supabase.from("director_research_jobs").select("id")
+    .eq("campaign_id", campaignId).eq("source_mode", "timed-media")
     .eq("contract_version", DIRECTOR_TIMED_MEDIA_CONTRACT_VERSION)
     .eq("status", "failed");
-  if (retryCurrent.error) throw new Error(`Retry current timed-film jobs: ${retryCurrent.error.message}`);
+  if (failedCurrent.error) throw new Error(`Load failed timed-film attempts: ${failedCurrent.error.message}`);
+  if (failedCurrent.data?.length) {
+    await retryDirectorResearchJobs(failedCurrent.data.map((job) => String(job.id)), userId);
+  }
   const registry = parseLocPublicDomainRegistry(await fetchLocJson(DIRECTOR_TIMED_MEDIA_REGISTRY_URL));
   if (!registry.length) throw new Error("The Library of Congress registry returned no film records.");
   const resolved = await mapConcurrent(registry, 6, async (item) => parseLocTimedMediaSource(item, await fetchLocJson(`${item.itemUrl}?fo=json`)));
@@ -607,14 +641,36 @@ type ExtractedStudy = {
 };
 
 async function updateJob(id: string, values: Record<string, unknown>, leaseOwner?: string | null) {
+  const terminal = ["succeeded", "failed", "review-required", "cancelled"].includes(String(values.status ?? ""));
+  const usage = values.usage && typeof values.usage === "object" && !Array.isArray(values.usage)
+    ? values.usage as Record<string, unknown>
+    : terminal ? {} : null;
+  const cost = usage ? estimateDirectorResearchCost(usage, {
+    inputPerMillion: Number(process.env.OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS ?? "2.5"),
+    outputPerMillion: Number(process.env.OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS ?? "15"),
+  }) : null;
   let query = getSupabaseAdminClient().from("director_research_jobs").update({
     ...values,
+    ...(cost ? { cost_usd: cost.costUsd, cost_method: cost.costMethod, pricing_note: cost.pricingNote } : {}),
     updated_at: new Date().toISOString(),
   }).eq("id", id);
   if (leaseOwner) query = query.eq("lease_owner", leaseOwner).eq("status", "running");
   const result = await query.select("id");
   if (result.error) throw new Error(`Update research job: ${result.error.message}`);
   if (leaseOwner && !result.data?.length) throw new Error("Research job lease was lost before the worker update completed.");
+  if (cost && usage) {
+    const costEntry = await getSupabaseAdminClient().from("director_research_cost_entries").upsert({
+      job_id: id,
+      usage_hash: createHash("sha256").update(JSON.stringify(usage)).digest("hex"),
+      input_tokens: cost.inputTokens,
+      output_tokens: cost.outputTokens,
+      cost_usd: cost.costUsd,
+      cost_method: cost.costMethod,
+      pricing_note: cost.pricingNote,
+      usage_snapshot: usage,
+    }, { onConflict: "job_id,usage_hash", ignoreDuplicates: true });
+    if (costEntry.error) throw new Error(`Record immutable research cost: ${costEntry.error.message}`);
+  }
 }
 
 function updateClaimedJob(row: JobRow, values: Record<string, unknown>) {

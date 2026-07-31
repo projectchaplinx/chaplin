@@ -14,18 +14,26 @@ const sql = postgres(process.env.SUPABASE_DB_URL, {
 });
 
 try {
-  await sql.file("supabase/migrations/202607290002_director_research.sql");
-  await sql.file("supabase/migrations/202607300001_director_research_campaign.sql");
-  await sql.file("supabase/migrations/202607300002_director_decision_traces.sql");
-  await sql.file("supabase/migrations/202607300003_director_evaluations.sql");
-  await sql.file("supabase/migrations/202607310001_director_research_jobs.sql");
-  await sql.file("supabase/migrations/202607310002_director_evidence_manifests.sql");
-  await sql.file("supabase/migrations/202607310003_director_study_evidence_links.sql");
-  await sql.file("supabase/migrations/202607310004_director_research_query_jobs.sql");
-  await sql.file("supabase/migrations/202607310005_director_research_worker_safety.sql");
-  await sql.file("supabase/migrations/202607310006_director_evidence_review_repair.sql");
-  await sql.file("supabase/migrations/202607310007_director_timed_media_analyses.sql");
-  await sql.file("supabase/migrations/202608010001_director_research_events.sql");
+  const [existing] = await sql`
+    select to_regclass('public.director_research_jobs') is not null
+      and to_regclass('public.director_scene_studies') is not null
+      and to_regclass('public.director_evidence_manifests') is not null as ready
+  `;
+  if (!existing?.ready) {
+    await sql.file("supabase/migrations/202607290002_director_research.sql");
+    await sql.file("supabase/migrations/202607300001_director_research_campaign.sql");
+    await sql.file("supabase/migrations/202607300002_director_decision_traces.sql");
+    await sql.file("supabase/migrations/202607300003_director_evaluations.sql");
+    await sql.file("supabase/migrations/202607310001_director_research_jobs.sql");
+    await sql.file("supabase/migrations/202607310002_director_evidence_manifests.sql");
+    await sql.file("supabase/migrations/202607310003_director_study_evidence_links.sql");
+    await sql.file("supabase/migrations/202607310004_director_research_query_jobs.sql");
+    await sql.file("supabase/migrations/202607310005_director_research_worker_safety.sql");
+    await sql.file("supabase/migrations/202607310006_director_evidence_review_repair.sql");
+    await sql.file("supabase/migrations/202607310007_director_timed_media_analyses.sql");
+    await sql.file("supabase/migrations/202608010001_director_research_events.sql");
+  }
+  await sql.file("supabase/migrations/202608010002_director_preservation_contract.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
@@ -36,9 +44,11 @@ try {
       to_regclass('public.director_evidence_manifests')::text as evidence_manifests,
       to_regclass('public.director_study_evidence_manifests')::text as evidence_links,
       to_regclass('public.director_timed_media_analyses')::text as timed_media_analyses,
-      to_regclass('public.director_research_events')::text as research_events
+      to_regclass('public.director_research_events')::text as research_events,
+      to_regclass('public.director_entity_revisions')::text as entity_revisions,
+      to_regclass('public.director_research_cost_entries')::text as research_costs
   `;
-  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

@@ -102,6 +102,8 @@ export type DirectorResearchJobStatus =
 
 export type DirectorResearchJob = {
   id: string;
+  supersedesJobId: string | null;
+  attemptSequence: number;
   sourceId: string;
   sourceTitle: string;
   sourceMode: DirectorResearchSourceMode;
@@ -120,6 +122,9 @@ export type DirectorResearchJob = {
   output: Record<string, unknown>;
   /** Provider usage is retained for audit and cost review, never used as research evidence. */
   usage: Record<string, unknown>;
+  costUsd: number | null;
+  costMethod: string;
+  pricingNote: string;
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;

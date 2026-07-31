@@ -64,6 +64,8 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
 
   const eventCount = useMemo(() => jobs.reduce((count, job) => count + job.events.length, 0), [jobs]);
   const assetCount = useMemo(() => media.reduce((count, item) => count + Object.values(item.artifactUrls).filter(Boolean).length, 0), [media]);
+  const recordedSpend = useMemo(() => jobs.reduce((total, job) => total + (job.costUsd ?? 0), 0), [jobs]);
+  const unpricedJobs = useMemo(() => jobs.filter((job) => job.costUsd == null || ["partial-rate-card", "unknown-rate"].includes(job.costMethod)).length, [jobs]);
   const running = jobs.filter((job) => job.status === "running");
   const recentJobs = [...jobs].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 12);
   const folders = useMemo(() => buildDirectorResearchArchiveFolders({ sources, jobs, studies, evidence, media }), [sources, jobs, studies, evidence, media]);
@@ -83,10 +85,11 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
           </div>
           <button type="button" onClick={() => void refresh().catch((cause) => setError(String(cause)))} className="rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink">Refresh archive</button>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {[
             ["Sources", sources.length], ["Research jobs", jobs.length], ["Saved updates", eventCount],
             ["Draft studies", studies.length], ["Evidence records", evidence.length], ["Derived assets", assetCount],
+            ["Recorded spend", `$${recordedSpend.toFixed(4)}`], ["Unpriced jobs", unpricedJobs],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-line bg-black/15 p-3">
               <p className="text-xl font-semibold text-ink">{value}</p>
@@ -123,7 +126,7 @@ export default function AdminDirectorResearchArchive({ initialBundle }: { initia
                   <div className="grid gap-3 lg:grid-cols-3">
                     <div>
                       <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Saved work</p>
-                      <div className="mt-2 space-y-2">{folder.jobs.slice(0, 8).map((job) => <div key={job.id} className="rounded-md border border-line p-2"><p className="text-[10px] font-semibold text-ink">{job.queryLabel}</p><p className="mt-1 text-[9px] text-grey">{job.status} · {job.progress}% · {researchJobOutputSummary(job.output)}</p></div>)}</div>
+                      <div className="mt-2 space-y-2">{folder.jobs.slice(0, 8).map((job) => <div key={job.id} className="rounded-md border border-line p-2"><p className="text-[10px] font-semibold text-ink">{job.queryLabel}{job.attemptSequence ? ` · attempt ${job.attemptSequence + 1}` : ""}</p><p className="mt-1 text-[9px] text-grey">{job.status} · {job.progress}% · {researchJobOutputSummary(job.output)}</p><p className="mt-1 text-[8px] text-white/40">{job.costUsd == null ? "Cost not recorded" : `$${job.costUsd.toFixed(6)} · ${job.costMethod || "method pending"}`}</p></div>)}</div>
                     </div>
                     <div>
                       <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Research assets</p>

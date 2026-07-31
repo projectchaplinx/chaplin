@@ -1,5 +1,21 @@
 # Chaplin Changelog
 
+## v0.2.96 - 2026-08-01 - Enforce the Director Brain preservation contract
+
+- Store an immutable baseline and every later before/after mutation for all
+  Director Brain research, evidence, study, decision, and evaluation records.
+- Block deletion at the database boundary and make terminal job evidence,
+  human-reviewed studies, reviewed manifests, and playback verdicts write-once.
+- Turn retries into linked new attempt rows so prior errors, outputs, usage,
+  and cancelled or exhausted attempts remain readable.
+- Backfill every one of the 351 existing research jobs into an append-only cost
+  ledger, explicitly distinguishing known estimates, partial estimates,
+  unpriced usage, and absent recorded usage without inventing provider spend.
+- Keep research expansion dormant through P0-P3 and require an explicit P4
+  phase plus enable flag before any new source or timed-media work can queue.
+- Add a repeatable preservation proof covering deletion paths, database guards,
+  immutable revisions, and complete job-cost classification.
+
 ## v0.2.95 - 2026-08-01 - Keep every research asset inside Director Brain
 
 - Turn the Director Brain archive into source folders that connect each

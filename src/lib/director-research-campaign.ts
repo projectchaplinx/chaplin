@@ -27,7 +27,7 @@ export type DirectorResearchCoverageTarget = {
   reason: string;
 };
 
-export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.30-e";
+export const DIRECTOR_RESEARCH_CAMPAIGN_VERSION = "2026.07.31-a";
 
 export const DIRECTOR_RESEARCH_COVERAGE_TARGETS: DirectorResearchCoverageTarget[] = [
   { id: "story", label: "Story change", track: "film-craft", targetApprovedStudies: 12, reason: "Objectives, tactics, reversals, choices, and consequences." },
@@ -302,6 +302,54 @@ export const DIRECTOR_RESEARCH_CAMPAIGN: DirectorResearchCampaignItem[] = [
     priority: "now",
     periodLabel: "Mughal India, 1605–1658",
     region: "Agra, Delhi, Lahore, and the Mughal court",
+  },
+  {
+    id: "smithsonian-open-access-world-evidence",
+    track: "period-world",
+    title: "Smithsonian Open Access collections and API",
+    institution: "Smithsonian Institution",
+    sourceUrl: "https://www.si.edu/openaccess/devtools",
+    sourceKind: "institutional",
+    rightsBasis: "Official Smithsonian Open Access documentation used to discover item-level collection metadata. Only assets explicitly designated CC0 may enter reusable visual evidence; restricted and culturally sensitive records remain metadata-only or excluded.",
+    accessNotes: "Verified 2026-07-31. Preserve Smithsonian identifier, title, culture/community, place, date, object type, medium, dimensions, museum, CC0 designation, record URL, access date, and any cultural-sensitivity or third-party warning.",
+    targetTags: ["period", "production-design", "costume", "materials", "objects", "technology", "community"],
+    researchQuestions: [
+      "Which CC0 objects and documentary records fill material-culture gaps outside the existing United States, European, and elite-art baselines?",
+      "Which records are culturally sensitive, ceremonial, exceptional, or otherwise unsafe to generalize into everyday production design?",
+    ],
+    priority: "now",
+  },
+  {
+    id: "europeana-cross-border-world-evidence",
+    track: "period-world",
+    title: "Europeana Search, Record, IIIF, and rights metadata APIs",
+    institution: "Europeana Foundation",
+    sourceUrl: "https://pro.europeana.eu/page/apis",
+    sourceKind: "institutional",
+    rightsBasis: "Official Europeana API documentation used to discover item-level metadata from contributing cultural institutions. Every observation retains the provider, record identifier, item rights statement, media rights statement, and source URL; a searchable record is not presumed reusable.",
+    accessNotes: "Verified 2026-07-31. Use Search for discovery and Record/IIIF for item evidence. Preserve dc:date, dc:coverage, dc:type, dc:format, provider/dataProvider, edm:rights, object and shown-at URLs, language, and access date.",
+    targetTags: ["period", "production-design", "costume", "location", "transport", "photography", "europe"],
+    researchQuestions: [
+      "Which dated and located records distinguish regional European streets, domestic life, work, dress, transport, and image language across each era band?",
+      "How do conflicting or incomplete rights labels, translated metadata, and provider-specific dating affect confidence and reuse eligibility?",
+    ],
+    priority: "now",
+  },
+  {
+    id: "dpla-us-community-evidence",
+    track: "period-world",
+    title: "Digital Public Library of America API and bulk records",
+    institution: "Digital Public Library of America",
+    sourceUrl: "https://pro.dp.la/developers",
+    sourceKind: "institutional",
+    rightsBasis: "Official DPLA developer documentation used for federated discovery across United States libraries, archives, and museums. DPLA metadata licensing does not override item-level media rights; the contributing institution and rights field remain attached to every record.",
+    accessNotes: "Verified 2026-07-31. Use DPLA for cross-institution discovery by date, place, subject, type, provider, and rights. Follow the item back to the contributing institution before approving visual evidence.",
+    targetTags: ["period", "production-design", "costume", "location", "transport", "work", "community", "united-states"],
+    researchQuestions: [
+      "Which local archives fill city, neighborhood, occupation, class, race, migration, and everyday-life gaps that national collections underrepresent?",
+      "Which item-level rights and provenance checks must pass before a discovered record can support a production constraint?",
+    ],
+    priority: "next",
   },
   {
     id: "openai-sora-video-api",

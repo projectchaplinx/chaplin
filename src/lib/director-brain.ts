@@ -783,7 +783,11 @@ export function buildDirectorPromptBlock(trace: DirectorBrainTrace) {
           "HUMAN-APPROVED RESEARCH PRINCIPLES:",
           ...trace.approvedStudies.flatMap((study) => [
             `STUDY ${study.id}: ${study.studyTitle}. Source: ${study.sourceTitle} (${study.sourceKind}).`,
+            ...((study.periodLabel || study.region)
+              ? [`WORLD EVIDENCE: ${[study.periodLabel, study.region].filter(Boolean).join("; ")}.`]
+              : []),
             ...study.principles.map((principle) => `- ${principle}`),
+            ...(study.limitations ? [`- Evidence boundary: ${study.limitations}`] : []),
           ]),
         ]
       : []),

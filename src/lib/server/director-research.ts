@@ -82,10 +82,17 @@ function validObservations(value: unknown): DirectorStudyObservation[] {
   return value.flatMap((candidate) => {
     if (!candidate || typeof candidate !== "object") return [];
     const row = candidate as Partial<DirectorStudyObservation>;
-    if (!Number.isFinite(row.startSecond) || !Number.isFinite(row.endSecond) || typeof row.evidence !== "string") return [];
+    const hasTime = Number.isFinite(row.startSecond) && Number.isFinite(row.endSecond);
+    const locator = row.locator && typeof row.locator === "object"
+      && typeof row.locator.kind === "string" && typeof row.locator.value === "string"
+      ? row.locator
+      : hasTime
+        ? { kind: "time" as const, value: `${Number(row.startSecond)}-${Number(row.endSecond)}` }
+        : null;
+    if (!locator || typeof row.evidence !== "string") return [];
     return [{
-      startSecond: Number(row.startSecond),
-      endSecond: Number(row.endSecond),
+      locator,
+      ...(hasTime ? { startSecond: Number(row.startSecond), endSecond: Number(row.endSecond) } : {}),
       evidence: row.evidence,
       craft: typeof row.craft === "string" ? row.craft : "",
       transition: typeof row.transition === "string" ? row.transition : "",
@@ -261,7 +268,18 @@ export async function updateDirectorResearchSource(input: Record<string, unknown
   const allowed = ["queued", "in-progress", "analyzed", "paused"] as const;
   const queueStatus = allowed.find((status) => status === input.queueStatus);
   if (!queueStatus) throw new Error("Choose queued, in progress, analyzed, or paused.");
-  const result = await getSupabaseAdminClient()
+  const supabase = getSupabaseAdminClient();
+  if (queueStatus === "analyzed") {
+    const studyCount = await supabase
+      .from("director_scene_studies")
+      .select("id", { count: "exact", head: true })
+      .eq("source_id", sourceId);
+    if (studyCount.error) throw new Error(`Check Director Brain studies: ${studyCount.error.message}`);
+    if (!studyCount.count) {
+      throw new Error("Record at least one evidence study before marking this source analyzed.");
+    }
+  }
+  const result = await supabase
     .from("director_research_sources")
     .update({
       queue_status: queueStatus,

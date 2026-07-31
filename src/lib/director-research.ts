@@ -10,9 +10,26 @@ export const DIRECTOR_SOURCE_KINDS = [
 export type DirectorSourceKind = typeof DIRECTOR_SOURCE_KINDS[number];
 export type DirectorStudyStatus = "draft" | "reviewed" | "approved" | "rejected";
 
+export const DIRECTOR_EVIDENCE_LOCATOR_KINDS = [
+  "time",
+  "page",
+  "section",
+  "record",
+  "object",
+  "api-field",
+  "benchmark",
+] as const;
+
+export type DirectorEvidenceLocator = {
+  kind: typeof DIRECTOR_EVIDENCE_LOCATOR_KINDS[number];
+  value: string;
+};
+
 export type DirectorStudyObservation = {
-  startSecond: number;
-  endSecond: number;
+  /** Legacy timed studies infer a time locator from start/end. New studies persist this explicitly. */
+  locator?: DirectorEvidenceLocator;
+  startSecond?: number;
+  endSecond?: number;
   evidence: string;
   craft: string;
   transition: string;
@@ -65,6 +82,52 @@ export type DirectorResearchBundle = {
   studies: DirectorSceneStudy[];
 };
 
+export const DIRECTOR_RESEARCH_SOURCE_MODES = [
+  "document",
+  "collection-discovery",
+  "provenance",
+  "timed-media",
+  "provider-doc",
+] as const;
+
+export type DirectorResearchSourceMode = typeof DIRECTOR_RESEARCH_SOURCE_MODES[number];
+
+export type DirectorResearchJobStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "review-required"
+  | "cancelled";
+
+export type DirectorResearchJob = {
+  id: string;
+  sourceId: string;
+  sourceTitle: string;
+  sourceMode: DirectorResearchSourceMode;
+  status: DirectorResearchJobStatus;
+  phase: string;
+  progress: number;
+  message: string;
+  attempt: number;
+  maxAttempts: number;
+  model: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export function directorResearchSourceMode(source: Pick<DirectorResearchSourceRecord, "sourceKind" | "sourceUrl" | "targetTags" | "title">): DirectorResearchSourceMode {
+  const joined = `${source.title} ${source.sourceUrl ?? ""} ${source.targetTags.join(" ")}`.toLowerCase();
+  if (source.targetTags.includes("public-domain-scene") && /viewing file|\.webm|\.mp4|archive\.org/.test(joined)) return "timed-media";
+  if (/open access|collections? (?:and|&) api|collection api|metadata api|structured era-evidence discovery|digital public library|dpla|europeana|smithsonian/.test(joined)) return "collection-discovery";
+  if (source.sourceKind === "public-domain" && source.targetTags.includes("public-domain-scene")) return "provenance";
+  if (source.sourceKind === "provider-research") return "provider-doc";
+  return "document";
+}
+
 export type ApprovedDirectorStudyContext = {
   id: string;
   studyTitle: string;
@@ -73,6 +136,9 @@ export type ApprovedDirectorStudyContext = {
   sourceUrl: string | null;
   sourceKind: DirectorSourceKind;
   rightsBasis: string;
+  periodLabel?: string;
+  region?: string;
+  limitations?: string;
   principles: string[];
   score: number;
 };
@@ -163,15 +229,25 @@ export function parseObservationLines(value: unknown): DirectorStudyObservation[
     if (!line.trim()) return [];
     const parts = line.split("|").map((part) => part.trim());
     if (parts.length < 2) {
-      throw new Error(`Observation line ${index + 1} needs "seconds | observable change" at minimum.`);
+      throw new Error(`Observation line ${index + 1} needs "locator | observable change" at minimum.`);
     }
-    const range = /^(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?$/.exec(parts[0]);
-    if (!range) throw new Error(`Observation line ${index + 1} has an invalid second or time range.`);
-    const startSecond = Number(range[1]);
-    const endSecond = Number(range[2] ?? range[1]);
-    if (endSecond < startSecond || endSecond - startSecond > 300) {
+    const rawLocator = parts[0];
+    const range = /^(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?$/.exec(rawLocator);
+    const namedLocator = /^(page|section|record|object|api-field|benchmark)\s*:\s*(.+)$/i.exec(rawLocator);
+    if (!range && !namedLocator) {
+      throw new Error(`Observation line ${index + 1} needs a time range or a named locator such as "page: 12" or "section: Camera movement".`);
+    }
+    const startSecond = range ? Number(range[1]) : undefined;
+    const endSecond = range ? Number(range[2] ?? range[1]) : undefined;
+    if (startSecond != null && endSecond != null && (endSecond < startSecond || endSecond - startSecond > 300)) {
       throw new Error(`Observation line ${index + 1} has an invalid time range.`);
     }
+    const locator: DirectorEvidenceLocator = range
+      ? { kind: "time", value: rawLocator }
+      : {
+          kind: namedLocator![1].toLowerCase() as DirectorEvidenceLocator["kind"],
+          value: text(namedLocator![2], 240),
+        };
     const evidence = text(parts[1], 500);
     if (evidence.length < 5) throw new Error(`Observation line ${index + 1} needs an observable change.`);
     const inference = text(parts[5], 500);
@@ -179,8 +255,9 @@ export function parseObservationLines(value: unknown): DirectorStudyObservation[
     const confidence: DirectorStudyObservation["confidence"] =
       parts[6] === "low" || parts[6] === "medium" ? parts[6] : "high";
     return [{
-      startSecond,
-      endSecond,
+      locator,
+      ...(startSecond != null ? { startSecond } : {}),
+      ...(endSecond != null ? { endSecond } : {}),
       evidence,
       craft: text(parts[2], 400),
       transition: text(parts[3], 400),
@@ -213,7 +290,7 @@ export function normalizeDirectorStudyInput(input: Record<string, unknown>) {
   const sourceUrl = text(input.sourceUrl, 2000);
   if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) throw new Error("Research source URL must start with http:// or https://.");
   const observations = parseObservationLines(input.observationLines);
-  if (!observations.length) throw new Error("Add at least one time-based observable craft note.");
+  if (!observations.length) throw new Error("Add at least one attributable evidence note.");
   const candidatePrinciples = parsePrincipleLines(input.candidatePrinciples);
   if (!candidatePrinciples.length) throw new Error("Add at least one candidate principle to review.");
   const duration = number(input.durationSeconds);
@@ -255,16 +332,20 @@ export function normalizeDirectorStudyInput(input: Record<string, unknown>) {
 }
 
 export function scoreDirectorStudyForBrief(study: DirectorSceneStudy, brief: string) {
-  const query = new Set(brief.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2));
-  const searchable = [
+  const stopwords = new Set(["and", "the", "for", "with", "from", "into", "that", "this", "then", "than", "when", "where", "which", "while", "through", "scene", "shot", "seconds", "second"]);
+  const tokens = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+    .filter((word) => word.length > 2 && !stopwords.has(word));
+  const query = new Set(tokens(brief));
+  const searchable = new Set(tokens([
     study.studyTitle,
     study.workTitle,
     study.periodLabel,
     study.region,
-    ...study.tags,
     ...study.candidatePrinciples,
-  ].join(" ").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/);
-  return searchable.reduce((score, token) => score + (query.has(token) ? 1 : 0), 0);
+  ].join(" ")));
+  const textScore = [...searchable].reduce((score, token) => score + (query.has(token) ? 1 : 0), 0);
+  const tagScore = study.tags.reduce((score, tag) => score + (query.has(tag.toLowerCase()) ? 3 : 0), 0);
+  return textScore + tagScore;
 }
 
 export function rankApprovedDirectorResearch(
@@ -286,6 +367,9 @@ export function rankApprovedDirectorResearch(
       sourceUrl: study.source.sourceUrl,
       sourceKind: study.source.sourceKind,
       rightsBasis: study.source.rightsBasis,
+      periodLabel: study.periodLabel,
+      region: study.region,
+      limitations: study.limitations,
       principles: study.candidatePrinciples,
       score,
     }));
@@ -338,7 +422,7 @@ export function buildDirectorResearchDiagnostics(studies: DirectorSceneStudy[]):
       Boolean(observation.audioEvidence?.trim() || observation.soundFunction?.trim()),
     )).length,
     soundObservedSeconds: studies.reduce((total, study) => total + study.observations.reduce((studyTotal, observation) =>
-      observation.audioEvidence?.trim()
+      observation.audioEvidence?.trim() && observation.startSecond != null && observation.endSecond != null
         ? studyTotal + Math.max(0, observation.endSecond - observation.startSecond)
         : studyTotal,
     0), 0),

@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import AdminDirectorCampaign from "@/components/AdminDirectorCampaign";
 import AdminDirectorResearch from "@/components/AdminDirectorResearch";
+import AdminDirectorResearchJobs from "@/components/AdminDirectorResearchJobs";
 import AdminDirectorGraph from "@/components/AdminDirectorGraph";
 import AdminDirectorLearning from "@/components/AdminDirectorLearning";
+import AdminDirectorWorldAtlas from "@/components/AdminDirectorWorldAtlas";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -113,6 +115,8 @@ export default async function AdminDirectorBrainPage() {
         ))}
       </section>
 
+      <AdminDirectorWorldAtlas profiles={DIRECTOR_PERIOD_PROFILES} studies={research.studies} />
+
       <section className="poster-card mb-8 rounded-md p-5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-secondary">Learning contract</p>
         <h2 className="reel-title mt-2 text-2xl">What the brain is allowed to learn</h2>
@@ -127,6 +131,8 @@ export default async function AdminDirectorBrainPage() {
       </section>
 
       <AdminDirectorCampaign initialBundle={research} />
+
+      <AdminDirectorResearchJobs />
 
       <AdminDirectorResearch initialBundle={research} initialError={researchError} />
 

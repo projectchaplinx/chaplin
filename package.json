@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.2.85",
+  "version": "0.2.86",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "db:director-research": "node scripts/apply-director-research.mjs",
     "db:director-research-campaign": "tsx scripts/seed-director-research-campaign.ts",
     "db:director-research-studies": "tsx scripts/seed-director-research-studies.ts",
+    "db:director-world-studies": "tsx scripts/seed-director-world-studies.ts",
     "research:director-audio": "tsx scripts/analyze-director-audio.ts",
     "research:director-contact-sheet": "tsx scripts/analyze-director-contact-sheet.ts",
     "verify:providers": "node scripts/verify-providers.mjs",
@@ -35,7 +36,7 @@
     "test:feed": "node --import tsx --test src/lib/feed-mentions.test.ts src/lib/feed-visibility.test.ts",
     "test:scene-variety": "node --import tsx --test src/lib/scene-variety.test.ts",
     "test:director-brain": "node --import tsx --test src/lib/director-brain.test.ts src/lib/director-decisions.test.ts src/lib/director-evaluation.test.ts",
-    "test:director-research": "node --import tsx --test src/lib/director-research.test.ts src/lib/director-research-campaign.test.ts src/lib/director-research-seeds.test.ts",
+    "test:director-research": "node --import tsx --test src/lib/director-research.test.ts src/lib/director-research-campaign.test.ts src/lib/director-research-seeds.test.ts src/lib/director-world-atlas.test.ts",
     "test:prompt-compaction": "node --import tsx --test src/lib/prompt-compaction.test.ts",
     "test:video-types": "node --import tsx --test src/lib/video-brief.test.ts src/lib/production-prompting.test.ts src/lib/shot-director.test.ts",
     "test:screen-time": "node --import tsx --test src/lib/screen-time.test.ts",

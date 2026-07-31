@@ -126,11 +126,16 @@ test("human-approved research adds only reviewed abstract principles to the prom
     sourceUrl: null,
     sourceKind: "chaplin-test",
     rightsBasis: "Owned internal production test.",
+    periodLabel: "Los Angeles, 1966",
+    region: "Working service bay, Los Angeles",
+    limitations: "One controlled internal test; do not generalize beyond this production context.",
     principles: ["Escalate a pursuit by visibly removing one viable route at each beat."],
     score: 4,
   }];
   const prompt = buildDirectorPromptBlock(trace);
   assert.match(prompt, /HUMAN-APPROVED RESEARCH PRINCIPLES/);
   assert.match(prompt, /removing one viable route/);
+  assert.match(prompt, /WORLD EVIDENCE: Los Angeles, 1966; Working service bay, Los Angeles/);
+  assert.match(prompt, /Evidence boundary: One controlled internal test/);
   assert.doesNotMatch(prompt, /Owned internal production test/);
 });

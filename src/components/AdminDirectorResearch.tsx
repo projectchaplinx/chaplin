@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   buildDirectorResearchDiagnostics,
   DIRECTOR_SOURCE_KINDS,
   type DirectorResearchBundle,
+  type DirectorResearchSourceRecord,
   type DirectorSceneStudy,
   type DirectorStudyStatus,
 } from "@/lib/director-research";
@@ -134,6 +135,8 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [sourceDraft, setSourceDraft] = useState<DirectorResearchSourceRecord | null>(null);
+  const intakeRef = useRef<HTMLDetailsElement>(null);
   const counts = useMemo(() => ({
     draft: bundle.studies.filter((study) => study.status === "draft").length,
     reviewed: bundle.studies.filter((study) => study.status === "reviewed").length,
@@ -141,6 +144,37 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
     rejected: bundle.studies.filter((study) => study.status === "rejected").length,
   }), [bundle.studies]);
   const diagnostics = useMemo(() => buildDirectorResearchDiagnostics(bundle.studies), [bundle.studies]);
+
+  useEffect(() => {
+    function selectCampaignSource(event: Event) {
+      const source = (event as CustomEvent<DirectorResearchSourceRecord>).detail;
+      if (!source?.id) return;
+      setSourceDraft(source);
+    }
+    window.addEventListener("director-research-source-selected", selectCampaignSource);
+    async function reloadAfterJobs() {
+      const response = await fetch("/api/admin/director-brain", { cache: "no-store" });
+      const data = await response.json() as DirectorResearchBundle & { error?: string };
+      if (!response.ok) {
+        setError(data.error || "Could not refresh extracted studies.");
+        return;
+      }
+      setBundle(data);
+      window.dispatchEvent(new CustomEvent("director-research-bundle-updated", { detail: data }));
+    }
+    function jobsFinished() { void reloadAfterJobs(); }
+    window.addEventListener("director-research-jobs-finished", jobsFinished);
+    return () => {
+      window.removeEventListener("director-research-source-selected", selectCampaignSource);
+      window.removeEventListener("director-research-jobs-finished", jobsFinished);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sourceDraft || !intakeRef.current) return;
+    intakeRef.current.open = true;
+    intakeRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [sourceDraft]);
 
   async function submitStudy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,8 +192,10 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
       const data = await response.json() as DirectorResearchBundle & { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not save the scene study.");
       setBundle(data);
+      window.dispatchEvent(new CustomEvent("director-research-bundle-updated", { detail: data }));
       setMessage("Study saved as a draft. A second decision is required before any principle can enter Magic.");
       form.reset();
+      setSourceDraft(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save the scene study.");
     } finally {
@@ -184,6 +220,7 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
       const data = await response.json() as DirectorResearchBundle & { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not review the scene study.");
       setBundle(data);
+      window.dispatchEvent(new CustomEvent("director-research-bundle-updated", { detail: data }));
       setMessage(status === "approved"
         ? `"${study.studyTitle}" is approved. Its abstract principles can now be retrieved by Magic when the brief matches.`
         : `"${study.studyTitle}" is now ${status}.`);
@@ -201,7 +238,7 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Research lab</p>
           <h2 className="reel-title mt-1 text-3xl">Observe first. Generalize second.</h2>
           <p className="mt-2 max-w-3xl text-xs leading-5 text-grey">
-            Record time-based craft evidence and provenance. New studies remain drafts; only explicitly approved abstract principles may enter scene generation.
+            Record attributable evidence and provenance with time, page, section, object, record, API-field, or benchmark locators. New studies remain drafts; only explicitly approved abstract principles may enter scene generation.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[9px] uppercase tracking-[0.12em]">
@@ -272,40 +309,51 @@ export default function AdminDirectorResearch({ initialBundle, initialError = ""
         </div>
       </div>
 
-      <details className="poster-card mb-5 rounded-xl" open={bundle.studies.length === 0}>
+      <details
+        id="director-research-intake"
+        ref={intakeRef}
+        className="poster-card mb-5 scroll-mt-20 rounded-xl"
+        open={bundle.studies.length === 0 || Boolean(sourceDraft)}
+      >
         <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-ink">
-          + Add a rights-cleared scene study
+          {sourceDraft ? `Researching: ${sourceDraft.title}` : "+ Add a rights-cleared scene study"}
         </summary>
-        <form onSubmit={submitStudy} className="grid gap-4 border-t border-line p-5">
+        <form key={sourceDraft?.id ?? "blank-study"} onSubmit={submitStudy} className="grid gap-4 border-t border-line p-5">
+          {sourceDraft ? (
+            <div className="rounded-lg border border-accent-secondary/30 bg-accent-secondary/[0.045] p-3 text-[10px] leading-5 text-grey">
+              <p className="font-semibold text-accent-secondary">Source details copied from the campaign queue.</p>
+              <p>Now add specific, attributable observations and candidate principles. Saving creates a draft only; approval remains a separate human decision.</p>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-xs text-grey">Source title<input required name="sourceTitle" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Archive collection, interview, paper, or owned test" /></label>
-            <label className="text-xs text-grey">Institution or owner<input name="institution" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Library of Congress, ASC, Chaplin..." /></label>
-            <label className="text-xs text-grey">Source URL<input name="sourceUrl" type="url" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="https://..." /></label>
+            <label className="text-xs text-grey">Source title<input required name="sourceTitle" defaultValue={sourceDraft?.title} className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Archive collection, interview, paper, or owned test" /></label>
+            <label className="text-xs text-grey">Institution or owner<input name="institution" defaultValue={sourceDraft?.institution} className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Library of Congress, ASC, Chaplin..." /></label>
+            <label className="text-xs text-grey">Source URL<input name="sourceUrl" type="url" defaultValue={sourceDraft?.sourceUrl ?? undefined} className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="https://..." /></label>
             <label className="text-xs text-grey">Source type
-              <select required name="sourceKind" defaultValue="institutional" className="mt-1 w-full rounded-lg border border-line bg-surface p-3 text-ink">
+              <select required name="sourceKind" defaultValue={sourceDraft?.sourceKind ?? "institutional"} className="mt-1 w-full rounded-lg border border-line bg-surface p-3 text-ink">
                 {DIRECTOR_SOURCE_KINDS.map((kind) => <option key={kind} value={kind}>{SOURCE_KIND_LABELS[kind]}</option>)}
               </select>
             </label>
           </div>
-          <label className="text-xs text-grey">Rights basis<textarea required name="rightsBasis" className="mt-1 min-h-20 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Why Chaplin may analyze this material; include license, public-domain status, institutional access terms, or ownership." /></label>
-          <label className="text-xs text-grey">Access notes<input name="accessNotes" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Date accessed, collection identifier, or license boundary" /></label>
+          <label className="text-xs text-grey">Rights basis<textarea required name="rightsBasis" defaultValue={sourceDraft?.rightsBasis} className="mt-1 min-h-20 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Why Chaplin may analyze this material; include license, public-domain status, institutional access terms, or ownership." /></label>
+          <label className="text-xs text-grey">Access notes<input name="accessNotes" defaultValue={sourceDraft?.accessNotes} className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Date accessed, collection identifier, or license boundary" /></label>
 
           <div className="my-1 border-t border-line" />
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-xs text-grey">Study title<input required name="studyTitle" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Readable geography before pursuit acceleration" /></label>
-            <label className="text-xs text-grey">Work or collection<input name="workTitle" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" /></label>
+            <label className="text-xs text-grey">Work or collection<input name="workTitle" defaultValue={sourceDraft?.title} className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" /></label>
             <label className="text-xs text-grey">Scene locator<input name="sceneLocator" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Reel, chapter, archive image numbers, or test ID" /></label>
             <label className="text-xs text-grey">Duration in seconds<input name="durationSeconds" type="number" min="0.1" max="86400" step="0.1" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" /></label>
             <label className="text-xs text-grey">Period<input name="periodLabel" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="United States, 1968" /></label>
             <label className="text-xs text-grey">Region and community<input name="region" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="Detroit, Michigan; factory district" /></label>
           </div>
-          <label className="text-xs text-grey">Retrieval tags<input name="tags" className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="chase, geography, vehicle, 1960s, detroit" /></label>
+          <label className="text-xs text-grey">Retrieval tags<input name="tags" defaultValue={sourceDraft?.targetTags.join(", ")} className="mt-1 w-full rounded-lg border border-line bg-black/20 p-3 text-ink" placeholder="chase, geography, vehicle, 1960s, detroit" /></label>
           <label className="text-xs text-grey">
-            Timed observations
+            Attributable observations
             <span className="mt-1 block text-[10px] leading-4 text-white/45">
-              One line per beat: seconds | visual evidence | camera/blocking | transition | narrative job | inference | confidence | audio evidence | sound function
+              Start with seconds, or a locator such as page:, section:, record:, object:, api-field:, or benchmark:. Then use | evidence | craft | transition | narrative job | inference | confidence | optional audio evidence | sound function.
             </span>
-            <textarea required name="observationLines" className="mt-2 min-h-40 w-full rounded-lg border border-line bg-black/20 p-3 font-mono text-[11px] leading-5 text-ink" placeholder={"0-2 | Exit and destination share the frame | wide, fixed geography | impact leads the cut | establishes route and threat | clarity precedes speed | high | distant engine approaches through sparse ambience | offscreen threat narrows options"} />
+            <textarea required name="observationLines" className="mt-2 min-h-40 w-full rounded-lg border border-line bg-black/20 p-3 font-mono text-[11px] leading-5 text-ink" placeholder={"section: Camera movement | The source distinguishes a locked frame from a controlled move | camera | comparison | capability boundary | treat movement as a selectable constraint | medium"} />
           </label>
           <label className="text-xs text-grey">
             Candidate reusable principles

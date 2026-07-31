@@ -28,7 +28,7 @@ test("study seeds reference campaign sources and contain analytical evidence", (
     && seed.observations.every((observation) => Boolean(observation.audioEvidence && observation.soundFunction)));
   assert.ok(soundStudy, "corpus milestone needs a fully timed sound-evidence study");
   assert.equal(soundStudy.durationSeconds, 90);
-  assert.equal(soundStudy.observations.reduce((total, observation) => total + observation.endSecond - observation.startSecond, 0), 90);
+  assert.equal(soundStudy.observations.reduce((total, observation) => total + (observation.endSecond ?? 0) - (observation.startSecond ?? 0), 0), 90);
 });
 
 test("study seed observations cover the researched extract without gaps", () => {
@@ -37,7 +37,7 @@ test("study seed observations cover the researched extract without gaps", () => 
     for (let index = 0; index < seed.observations.length; index += 1) {
       const observation = seed.observations[index];
       assert.ok(["low", "medium", "high"].includes(observation.confidence));
-      assert.ok(observation.endSecond > observation.startSecond);
+      assert.ok((observation.endSecond ?? 0) > (observation.startSecond ?? 0));
       if (index > 0) {
         assert.equal(observation.startSecond, seed.observations[index - 1].endSecond);
       }

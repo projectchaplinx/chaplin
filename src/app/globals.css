@@ -667,6 +667,63 @@ body:has([data-home-shell]) > main {
   }
 
   /*
+    Video direction is one workstation, not a long form. Keep the recent seed
+    frames in a compact rail, the selected first frame in a restrained viewer,
+    and the prompt/generate controls beside both on wide screens.
+  */
+  .video-production-workspace {
+    display: grid;
+    min-height: 0;
+    gap: 0.75rem;
+  }
+
+  .video-seed-workspace {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: 9.5rem minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+  }
+
+  .video-seed-workspace__rail {
+    display: grid;
+    max-height: min(42dvh, 25rem);
+    grid-auto-rows: max-content;
+    gap: 0.5rem;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+  }
+
+  .video-seed-workspace__preview {
+    width: 100%;
+    height: min(42dvh, 25rem);
+    aspect-ratio: 16 / 9;
+  }
+
+  .video-motion-panel {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 1280px) {
+    .video-production-workspace {
+      grid-template-columns: minmax(0, 1fr) 17.5rem;
+      grid-template-rows: auto minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .video-production-workspace > [data-video-seed-picker] {
+      grid-column: 1;
+    }
+
+    .video-production-workspace > [data-video-motion-panel] {
+      grid-column: 2;
+    }
+  }
+
+  /*
     Scene Studio: the same canvas the Character Studio uses, so scene creation
     stops being a scrolling page. Stage rail on the left, the authoring surface
     in the middle, generated frames on the right. Each column owns its own

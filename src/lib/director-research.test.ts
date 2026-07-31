@@ -5,6 +5,7 @@ import {
   buildDirectorResearchDiagnostics,
   normalizeDirectorStudyInput,
   parseObservationLines,
+  directorResearchSourceMode,
   rankApprovedDirectorResearch,
   scoreDirectorStudyForBrief,
   type DirectorSceneStudy,
@@ -32,6 +33,26 @@ test("scene-study intake separates timed evidence, craft, transition, function, 
   assert.deepEqual(normalized.study.tags, ["vehicle", "pursuit", "action"]);
   assert.match(normalized.study.observations[1].audioEvidence ?? "", /engine drops out/i);
   assert.match(normalized.study.observations[1].soundFunction ?? "", /route cost/i);
+});
+
+test("research evidence accepts attributable document locators without fake timestamps", () => {
+  const observations = parseObservationLines([
+    "section: Camera movement | The documentation distinguishes a locked camera from a controlled move. | camera | comparison | capability boundary | Treat the distinction as a selectable production constraint. | medium",
+    "api-field: duration | The request contract lists bounded duration values. | timing | request validation | provider compatibility | Validate duration before dispatch. | high",
+  ].join("\n"));
+  assert.equal(observations[0].locator?.kind, "section");
+  assert.equal(observations[0].startSecond, undefined);
+  assert.equal(observations[1].locator?.kind, "api-field");
+});
+
+test("research sources route to distinct evidence workflows", () => {
+  const base = { sourceKind: "institutional" as const, sourceUrl: "https://example.com", targetTags: ["period"], title: "Museum essay" };
+  assert.equal(directorResearchSourceMode(base), "document");
+  assert.equal(directorResearchSourceMode({ ...base, title: "Smithsonian Open Access collections and API" }), "collection-discovery");
+  assert.equal(directorResearchSourceMode({ ...base, title: "Met Collection API material-world discovery" }), "collection-discovery");
+  assert.equal(directorResearchSourceMode({ ...base, sourceKind: "provider-research", title: "Video API" }), "provider-doc");
+  assert.equal(directorResearchSourceMode({ ...base, sourceKind: "public-domain", title: "Film viewing file", sourceUrl: "https://example.com/film.webm", targetTags: ["public-domain-scene"] }), "timed-media");
+  assert.equal(directorResearchSourceMode({ ...base, sourceKind: "public-domain", title: "Public Domain Films from the National Film Registry", targetTags: ["public-domain-scene"] }), "provenance");
 });
 
 test("screenplays, transcripts, and long copied dialogue are rejected", () => {

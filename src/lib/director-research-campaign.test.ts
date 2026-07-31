@@ -32,3 +32,18 @@ test("campaign covers every declared research track and coverage target", () => 
     );
   }
 });
+
+test("world-evidence connectors preserve item-level rights instead of treating discovery as reuse", () => {
+  const connectorIds = [
+    "smithsonian-open-access-world-evidence",
+    "europeana-cross-border-world-evidence",
+    "dpla-us-community-evidence",
+  ];
+  for (const id of connectorIds) {
+    const source = DIRECTOR_RESEARCH_CAMPAIGN.find((item) => item.id === id);
+    assert.ok(source, `${id} is missing`);
+    assert.equal(source.track, "period-world");
+    assert.match(`${source.rightsBasis} ${source.accessNotes}`, /rights|CC0|reus|license|restricted/i);
+    assert.ok(source.targetTags.includes("period"));
+  }
+});

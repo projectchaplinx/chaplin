@@ -18,14 +18,16 @@ try {
   await sql.file("supabase/migrations/202607300001_director_research_campaign.sql");
   await sql.file("supabase/migrations/202607300002_director_decision_traces.sql");
   await sql.file("supabase/migrations/202607300003_director_evaluations.sql");
+  await sql.file("supabase/migrations/202607310001_director_research_jobs.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
       to_regclass('public.director_scene_studies')::text as studies,
       to_regclass('public.director_decision_traces')::text as decisions,
       to_regclass('public.director_evaluations')::text as evaluations
+      ,to_regclass('public.director_research_jobs')::text as research_jobs
   `;
-  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

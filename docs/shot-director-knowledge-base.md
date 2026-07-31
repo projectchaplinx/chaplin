@@ -159,3 +159,40 @@ Close-up example:
 `Hold for a beat. Slow push in. The eyes shift right, then the head follows a few degrees late. One slow blink. Faint breath in the shoulders. Background haze drifts. Ends on stillness, camera fully stopped.`
 
 `Negative: warped face, lip movement, camera cut, invented objects. --duration 5`
+
+## Director research and World Atlas contract
+
+The campaign queue, the evidence library, and the knowledge available to Magic are three
+different states. The interface and server must never present them as interchangeable.
+
+1. **Queued source:** a rights-bounded pointer and research question. It is not knowledge
+   and may not enter a production. An in-progress job is real only when the durable job
+   ledger shows a lease, phase, progress, and attempt.
+2. **Draft or reviewed study:** attributable observations with time, page, section,
+   record, object, API-field, or benchmark locators; abstract candidate
+   principles, uncertainty, and provenance have been recorded. The evidence is visible to
+   reviewers but remains blocked from generation.
+3. **Approved study:** a human has recorded an approval reason. Only then may matching
+   abstract principles, their time/place coordinate, and their evidence boundary be
+   retrieved into a Director Brain prompt and decision trace.
+
+Research execution is bounded to four concurrent leased jobs. Text documents and provider
+documentation may produce draft studies through GPT-5.6 Terra structured output. Collection
+connectors stop for item selection and item-level rights review; catalog/provenance sources
+stop for a reusable-item decision; timed media stops until contact-sheet, audio, and human
+playback evidence exist. Transient failures retry at most three times. A server restart or
+closed browser cannot erase queued work, and rerunning the same source/contract is idempotent.
+
+The World Atlas is an evidence-coverage map, not a generic period-style picker:
+
+- Every cell is the intersection of an era band and a broad region.
+- A hard-coded period profile is a **baseline**, never proof that the cell is researched.
+- A cell becomes **verified** only when at least one approved study is explicitly tagged as
+  world evidence and resolves both a usable period and region.
+- Eight evidence layers are tracked separately: built environment; transport and
+  infrastructure; costume and body; objects and materials; work and domestic life; sound
+  and acoustics; social and ritual context; capture and image language.
+- A year alone never resolves a world. Place, community or role, season or time, and the
+  immediate location remain required production coordinates.
+- Empty cells remain visible gaps. Generation must stay neutral or ask for missing context,
+  never fill gaps with decade shorthand or untraceable invention.

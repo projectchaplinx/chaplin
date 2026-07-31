@@ -133,6 +133,7 @@ export async function requestOpenAIResponse(input: Parameters<typeof buildOpenAI
       authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(buildOpenAIResponseBody(input)),
+    signal: AbortSignal.timeout(90_000),
     cache: "no-store",
   });
 }

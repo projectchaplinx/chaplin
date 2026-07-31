@@ -39,6 +39,10 @@ expression. It learns relationships such as:
 12. When no production has run, the graph opens an original guided shot example
     that explains the input brief, story job, frame, camera, performance, sound,
     historical evidence, continuity handoff, and exact generator instruction.
+13. The Human Review Desk orders pending work as two explicit gates: exact
+    passage playback first, then the separate reusable-knowledge decision.
+14. Coverage gaps and related approved studies appear beside each decision;
+    there is no bulk approval and no machine-controlled promotion.
 
 ## Research asset archive
 
@@ -63,6 +67,19 @@ No transcript, dialogue, lyrics, subtitles, screenplay text, or full source film
 is archived. A saved evidence package remains excluded from production
 retrieval until a person plays the exact source passage, verifies or rejects
 the machine reading, and separately approves the resulting study.
+
+## Human review desk
+
+The review desk at `/admin/director-brain#director-review-queue` combines the
+backlog without collapsing its safety boundaries. Playback-required passages
+always rank above study approvals. A linked study remains hidden from the
+knowledge gate until playback is verified. Rejected playback never advances.
+
+Within each gate, items that cover tags absent from the approved corpus rank
+ahead of already-covered work. The reviewer sees the exact evidence,
+candidate principles, limitations, missing coverage, and up to three related
+approved studies. This makes redundancy and contradiction visible while still
+requiring a substantive written reason for approval or rejection.
 
 ## Knowledge layers
 

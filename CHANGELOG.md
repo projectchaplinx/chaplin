@@ -1,5 +1,19 @@
 # Chaplin Changelog
 
+## v0.2.92 - 2026-08-01 - Add the Director Brain human review desk
+
+- Add one prioritized review desk inside Director Brain for every pending film
+  playback check and reusable-knowledge decision.
+- Enforce the two-gate order in the interface: direct playback must be verified
+  before a linked study can appear for approval.
+- Rank missing approved coverage ahead of redundant material while keeping
+  every decision individual and explicitly human.
+- Show the exact evidence, candidate principles, coverage gaps, and related
+  approved studies beside the decision so reinforcement and contradiction can
+  be reviewed in context.
+- Keep all draft material visibly outside retrieval until the existing server
+  approval contract passes; add regression tests for ordering and gate safety.
+
 ## v0.2.91 - 2026-08-01 - Unify the Director Brain research archive
 
 - Add a single archive at the top of Director Brain for live research activity,

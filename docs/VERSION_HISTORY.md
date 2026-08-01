@@ -310,3 +310,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.2 | `695cd39` | 2026-08-01T12:40:33+05:30 | v0.3.2: operationalize Director Sprint 1 amendment |
 | v0.3.3 | `4f3090d` | 2026-08-01T13:12:51+05:30 | v0.3.3: gate Director Sprint shot proof |
 | v0.3.4 | `50d14d5` | 2026-08-01T23:04:43+05:30 | v0.3.4: unblock Spark animation and stabilize gallery |
+| v0.3.5 | `3591a6c` | 2026-08-01T23:31:49+05:30 | v0.3.5: keep Spark rendering through voice gaps |

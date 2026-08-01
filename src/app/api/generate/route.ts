@@ -2031,7 +2031,8 @@ export async function POST(request: Request) {
       }
       const promptBudget = budgetVideoPrompt(
         styledVideoPrompt,
-        wantsCompleteNativeAudio ? "native_multishot" : "image_to_video",
+        reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
+        true,
       );
       const prompt = promptBudget.prompt;
       const bannedVideoPhrase = bannedPromptWord(prompt);
@@ -2293,12 +2294,26 @@ export async function POST(request: Request) {
             wantsCompleteNativeAudio
               ? standardizedAttemptPrompt.replace(/\bNo music\.\s*/gi, "").trim()
               : standardizedAttemptPrompt,
-            wantsCompleteNativeAudio ? "native_multishot" : "image_to_video",
+            reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
+            true,
           ).prompt;
           const attemptReferenceAudio = attemptPlan
             ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""
             : referenceAudio;
-          const attemptGenerateAudio = attemptPlan ? audioPlanUsesNative(attemptPlan) : wantsSceneAudio;
+          /*
+            A model that cannot receive the locked recording must not get an
+            opportunity to invent the actor's line. Seedance 1.5 can emit
+            native audio but cannot accept the ElevenLabs reference, so a
+            dialogue shot on that path is deliberately rendered silent and
+            receives the exact locked performance only in post-mix.
+          */
+          const attemptGenerateAudio = attemptPlan
+            ? audioPlanUsesNative(attemptPlan)
+            : dialogueText && !seedanceSupportsAudioReference(attempt.model)
+              ? false
+            : audioScene?.postMix
+              ? false
+              : wantsSceneAudio;
           const attemptLipSync = attemptPlan
             ? attemptPlan.dialogue.owner === "native"
               && Boolean(attemptReferenceAudio)
@@ -2340,7 +2355,13 @@ export async function POST(request: Request) {
                     if (!/content|reference|not valid|invalid/i.test(detail)) throw lipSyncError;
                   }
                 }
-                return runVideoTask(attempt.model, false, scheduledPrompt);
+                return runVideoTask(
+                  attempt.model,
+                  false,
+                  scheduledPrompt,
+                  audioScene?.postMix ? false : wantsSceneAudio,
+                  "",
+                );
               })());
           videoUrl = result.videoUrl;
           taskId = result.taskId;
@@ -2417,7 +2438,20 @@ export async function POST(request: Request) {
           assetId: asset.id,
         });
       }
-      return Response.json({ url: asset.url, assetId: asset.id, taskId, tier });
+      return Response.json({
+        url: asset.url,
+        assetId: asset.id,
+        taskId,
+        tier,
+        provider: videoProviderUsed,
+        model: videoModelUsed,
+        nativeAudioRequested,
+        voicePath: audioPlanUsed?.dialogue.owner === "native" && referenceAudio
+          ? "A-native-reference"
+          : dialogueText
+            ? "B-post-mix"
+            : null,
+      });
     }
 
     return Response.json({ error: "Unknown generation action." }, { status: 400 });

@@ -38,6 +38,7 @@ try {
   await sql.file("supabase/migrations/202608010003_director_quarantine_ledger.sql");
   await sql.file("supabase/migrations/202608010004_director_sprint_one.sql");
   await sql.file("supabase/migrations/202608010005_director_sprint_one_shot_test.sql");
+  await sql.file("supabase/migrations/202608020001_director_sprint_two_contract.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
@@ -46,6 +47,13 @@ try {
       to_regclass('public.director_evaluations')::text as evaluations,
       to_regclass('public.director_sprint_shot_tests')::text as sprint_shot_tests,
       to_regclass('public.director_sprint_shot_scores')::text as sprint_shot_scores
+      ,to_regclass('public.director_dense_verifier_runs')::text as dense_verifier_runs
+      ,to_regclass('public.director_dense_verifications')::text as dense_verifications
+      ,to_regclass('public.director_dense_shortlist_entries')::text as dense_shortlist
+      ,to_regclass('public.director_sprint_two_runs')::text as sprint_two_runs
+      ,to_regclass('public.director_sprint_two_outputs')::text as sprint_two_outputs
+      ,to_regclass('public.director_sprint_two_evaluations')::text as sprint_two_evaluations
+      ,to_regclass('public.director_sprint_two_human_picks')::text as sprint_two_human_picks
       ,to_regclass('public.director_research_jobs')::text as research_jobs,
       to_regclass('public.director_evidence_manifests')::text as evidence_manifests,
       to_regclass('public.director_study_evidence_manifests')::text as evidence_links,
@@ -58,7 +66,7 @@ try {
       ,to_regclass('public.director_principle_playback_reviews')::text as principle_playback_reviews
       ,to_regclass('public.director_coverage_findings')::text as coverage_findings
   `;
-  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs || !tables?.quarantine_assessments || !tables?.principle_assessments || !tables?.principle_playback_reviews || !tables?.coverage_findings) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs || !tables?.quarantine_assessments || !tables?.principle_assessments || !tables?.principle_playback_reviews || !tables?.coverage_findings || !tables?.dense_verifier_runs || !tables?.dense_verifications || !tables?.dense_shortlist || !tables?.sprint_two_runs || !tables?.sprint_two_outputs || !tables?.sprint_two_evaluations || !tables?.sprint_two_human_picks) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

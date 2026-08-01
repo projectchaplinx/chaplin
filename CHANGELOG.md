@@ -1,5 +1,22 @@
 # Chaplin Changelog
 
+## v0.3.6 - 2026-08-02 - Run the adversarial Director Brain comparison
+
+- Calibrate the dense 2 fps verifier against five human verdicts, preserve all
+  37 held/refuted findings, and lock a five-principle shortlist spanning three
+  craft axes with near-duplicate and per-axis caps enforced in the database.
+- Build the fixed Nova comparison as six keyframes, 24 controlled video shots,
+  one byte-locked ElevenLabs performance, and twelve playable final mixes with
+  a shared world, lighting, camera, ambience, effects, and continuity contract.
+- Route speech through Seedance audio reference when accepted and fall back to
+  silent motion plus the exact post-mixed voice when the provider rejects the
+  human reference; Seedance is never allowed to invent the line.
+- Add the visible Sprint 2 gallery, costs, failures, output provenance, variant
+  deltas, automatic scores, hard gates, and human-pick ceiling to Director Brain.
+- Preserve the completed but non-promotable first run: all twelve final clips
+  remain playable, while zero human picks are allowed because no candidate
+  passed every identity/audio/lip-sync gate.
+
 ## v0.3.5 - 2026-08-01 - Keep Spark rendering through voice gaps
 
 - Start the live production clock for five-second Spark runs so elapsed time

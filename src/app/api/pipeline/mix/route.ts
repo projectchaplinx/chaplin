@@ -80,6 +80,13 @@ export async function POST(request: Request) {
     const dialogueValue = run.steps.find((step) => step.key === "dialogue")?.output.url;
     const dialogueUrl = typeof dialogueValue === "string" ? dialogueValue : "";
     const hasDialogue = Boolean(dialogueUrl);
+    const dialogueStep = run.steps.find((step) => step.key === "dialogue");
+    const dialogueRequired = dialogueStep && dialogueStep.status !== "skipped";
+    if (dialogueRequired && !hasDialogue) {
+      throw new Error(
+        "VOICE_STAGE_FAILED: the exact locked voice is missing. A visual-only plate may exist, but it cannot be mixed, completed, or promoted.",
+      );
+    }
 
     await Promise.all([
       download(stepUrl(run, "motion-plate"), videoPath),

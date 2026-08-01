@@ -1313,6 +1313,7 @@ export function ProductionWorkspace({
       // This keeps the four authored scene starts visible and reviewable as one sequence.
       let framesDesigned = 0;
       let scenesRecorded = 0;
+      const voiceFailures: string[] = [];
       setRenderShots((shots) => shots.map((shot) => ({ ...shot, status: "designing", error: undefined })));
       setRenderProgress(`Parallel generation · 0/${contract.shotCount} frames · 0/${contract.shotCount} soundtracks`);
       const frameResultsPromise = mapScenes(contract.shotCount, async (index) => {
@@ -1416,17 +1417,19 @@ export function ProductionWorkspace({
                 speechText: dialogueText,
               }).catch((error: unknown) => {
                 /*
-                  A voice orphaned by an API-key change must not cost the whole
-                  production. Losing one line is recoverable - the shot still
-                  renders and the line can be mixed in once the voice is
-                  re-locked - whereas failing here loses every scene.
+                  Keep the visual diagnostic useful, but never convert an
+                  orphaned locked voice into a successful production. The
+                  silent plates may finish; the voice stage remains failed and
+                  assembly/promotion stays closed until the actor is re-locked.
                 */
                 const detail = error instanceof Error ? error.message : "";
                 if (!/ORPHANED_VOICE/.test(detail)) {
                   activeShotIndex = index;
                   throw error;
                 }
-                setError(`${dialogueSpeaker.name}'s locked voice is missing on the current ElevenLabs account, so this scene renders without their line. Re-lock their voice and regenerate the dialogue.`);
+                voiceFailures.push(
+                  `Scene ${index + 1}: ${dialogueSpeaker.name}'s locked voice is missing on the current ElevenLabs account.`,
+                );
                 return null;
               })
             : Promise.resolve(null),
@@ -1596,6 +1599,29 @@ export function ProductionWorkspace({
         })();
       }
       const shotResults = await Promise.all(shotPromises);
+
+      if (voiceFailures.length) {
+        const voiceFailureMessage = [
+          "VOICE_STAGE_FAILED: visual-only plates were preserved, but this production is not complete or promotable.",
+          ...voiceFailures,
+          "Re-lock the actor's ElevenLabs voice, then retry to create and reuse the exact locked performance.",
+        ].join(" ");
+        activeRun = await transitionStep(activeRun, "shot-packages", "fail", {
+          errorMessage: voiceFailureMessage,
+          output: {
+            visualOnly: true,
+            promotable: false,
+            shotUrls: shotResults.map((shot) => shot.url),
+            shotAssetIds: shotResults.map((shot) => shot.assetId),
+            frameUrls: shotResults.map((shot) => shot.frameUrl),
+            frameAssetIds: shotResults.map((shot) => shot.frameAssetId).filter(Boolean),
+            voiceFailures,
+            failedAt: new Date().toISOString(),
+          },
+        });
+        activePipelineStepKey = "";
+        throw new Error(voiceFailureMessage);
+      }
 
       activeRun = await transitionStep(activeRun, "shot-packages", "complete", {
         output: {

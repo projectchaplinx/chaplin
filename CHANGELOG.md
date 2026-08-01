@@ -1,5 +1,14 @@
 # Chaplin Changelog
 
+## v0.3.0 - 2026-08-01 - Make Director review gates measurable
+
+- Prove the live GPLC preservation contract across all 351 research jobs,
+  immutable cost entries, revision history, and database deletion guards.
+- Show the exact P1 exit counters for draft studies, unverified playback
+  packages, and discovered manifests inside the Human Review Desk.
+- Enforce the two-step study decision in the interface and keyboard workflow:
+  mark a draft reviewed first, then separately approve it for Magic retrieval.
+
 ## v0.2.99 - 2026-08-01 - Compare 15-second Punch generation methods
 
 - Put the 15-second generation choice at the Studio runtime gate so creators

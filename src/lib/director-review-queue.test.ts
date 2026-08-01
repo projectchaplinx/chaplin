@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDirectorReviewQueue } from "@/lib/director-review-queue";
+import { buildDirectorReviewQueue, directorReviewExitProgress } from "@/lib/director-review-queue";
 import type { DirectorSceneStudy } from "@/lib/director-research";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
 import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
@@ -82,4 +82,28 @@ test("coverage-gap count dominates lane priority", () => {
   const gapStudy = study("gap-study", "draft", ["sound", "silence", "rhythm", "acoustics"]);
   const queue = buildDirectorReviewQueue([approved, coveredStudy, gapStudy], [coveredPlayback]);
   assert.equal(queue[0]?.id, "study:gap-study");
+});
+
+test("P1 progress exposes the exact GPLC exit gates", () => {
+  const studies = [
+    ...Array.from({ length: 10 }, (_, index) => study(`draft-${index}`, "draft", ["camera"])),
+    study("reviewed", "reviewed", ["sound"]),
+  ];
+  const pendingPlayback = analysis("clip", "draft-0", "required");
+  const discovered = manifest("manifest");
+  assert.deepEqual(directorReviewExitProgress(studies, [pendingPlayback], [discovered]), {
+    draftStudies: 10,
+    reviewedStudies: 1,
+    playbackRequired: 1,
+    discoveredManifests: 1,
+    draftTarget: 9,
+    exitReady: false,
+  });
+});
+
+test("P1 progress passes only after every exit condition passes", () => {
+  const studies = Array.from({ length: 9 }, (_, index) => study(`draft-${index}`, "draft", ["camera"]));
+  const verified = analysis("clip", "draft-0", "verified");
+  const eligible = { ...manifest("manifest"), status: "eligible" as const };
+  assert.equal(directorReviewExitProgress(studies, [verified], [eligible]).exitReady, true);
 });

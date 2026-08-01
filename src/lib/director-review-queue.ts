@@ -17,6 +17,40 @@ export type DirectorReviewQueueItem = {
   relatedApproved: DirectorSceneStudy[];
 };
 
+export type DirectorReviewExitProgress = {
+  draftStudies: number;
+  reviewedStudies: number;
+  playbackRequired: number;
+  discoveredManifests: number;
+  draftTarget: number;
+  exitReady: boolean;
+};
+
+/**
+ * GPLC P1 has three explicit exit checks. Keep them as product data rather
+ * than explanatory copy so Super Admin shows the same gate the server and
+ * operating contract enforce.
+ */
+export function directorReviewExitProgress(
+  studies: DirectorSceneStudy[],
+  analyses: DirectorTimedMediaAnalysis[],
+  manifests: DirectorEvidenceManifest[],
+): DirectorReviewExitProgress {
+  const draftStudies = studies.filter((study) => study.status === "draft").length;
+  const reviewedStudies = studies.filter((study) => study.status === "reviewed").length;
+  const playbackRequired = analyses.filter((analysis) => analysis.playbackStatus === "required").length;
+  const discoveredManifests = manifests.filter((manifest) => manifest.status === "discovered").length;
+  const draftTarget = 9;
+  return {
+    draftStudies,
+    reviewedStudies,
+    playbackRequired,
+    discoveredManifests,
+    draftTarget,
+    exitReady: draftStudies <= draftTarget && playbackRequired === 0 && discoveredManifests === 0,
+  };
+}
+
 function normalized(values: string[]) {
   return [...new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))];
 }

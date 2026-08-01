@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { buildDirectorReviewQueue } from "@/lib/director-review-queue";
+import { buildDirectorReviewQueue, directorReviewExitProgress } from "@/lib/director-review-queue";
 import type { DirectorResearchBundle, DirectorStudyStatus } from "@/lib/director-research";
 import type { DirectorTimedMediaAnalysis } from "@/lib/director-timed-media";
 import type { DirectorEvidenceManifest } from "@/lib/director-evidence-manifest";
@@ -21,6 +21,10 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const queue = useMemo(() => buildDirectorReviewQueue(studies, analyses, manifests, assessments), [studies, analyses, manifests, assessments]);
+  const exitProgress = useMemo(
+    () => directorReviewExitProgress(studies, analyses, manifests),
+    [studies, analyses, manifests],
+  );
   const visibleQueue = useMemo(() => {
     const query = filter.trim().toLowerCase();
     return queue.filter((item) => (lane === "all" || item.lane === lane) && (!query || [
@@ -147,7 +151,7 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
       event.preventDefault();
       if (selected.kind === "playback") void decidePlayback("verified");
       else if (selected.kind === "evidence") void decideEvidence("eligible");
-      else void decideStudy("approved");
+      else void decideStudy(selected.study?.status === "draft" ? "reviewed" : "approved");
     } else if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       if (selected.kind === "playback") void decidePlayback("rejected");
@@ -182,6 +186,44 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
           ] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => { setLane(value); setSelectedId(""); }} className={`rounded-full border px-3 py-2 text-[9px] font-semibold ${lane === value ? "border-accent bg-accent/[0.09] text-ink" : "border-line text-grey"}`}>{label} · {count}</button>)}
           <span className="self-center text-[9px] text-grey">↑/↓ navigate · Alt+A approve · Alt+R reject · written reason required</span>
         </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3" data-director-p1-exit-progress>
+          {[
+            {
+              label: "Draft studies",
+              value: exitProgress.draftStudies,
+              target: `< ${exitProgress.draftTarget + 1}`,
+              passed: exitProgress.draftStudies <= exitProgress.draftTarget,
+              detail: `${exitProgress.reviewedStudies} separately reviewed`,
+            },
+            {
+              label: "Playback verdicts",
+              value: exitProgress.playbackRequired,
+              target: "0 required",
+              passed: exitProgress.playbackRequired === 0,
+              detail: "Exact source passage must be played",
+            },
+            {
+              label: "Discovered manifests",
+              value: exitProgress.discoveredManifests,
+              target: "0 discovered",
+              passed: exitProgress.discoveredManifests === 0,
+              detail: "Every item needs a rights/context decision",
+            },
+          ].map((gate) => (
+            <article key={gate.label} className={`rounded-lg border p-3 ${gate.passed ? "border-emerald-400/30 bg-emerald-400/[0.05]" : "border-amber-300/25 bg-amber-300/[0.04]"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-grey">{gate.label}</p><p className="mt-1 font-mono text-xl text-ink">{gate.value}</p></div>
+                <span className={`rounded-full border px-2 py-1 text-[8px] font-semibold uppercase ${gate.passed ? "border-emerald-400/35 text-emerald-200" : "border-amber-300/30 text-amber-100"}`}>{gate.passed ? "Passed" : `Target ${gate.target}`}</span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-grey">{gate.detail}</p>
+            </article>
+          ))}
+        </div>
+        <p className={`mt-2 text-[9px] font-semibold ${exitProgress.exitReady ? "text-emerald-200" : "text-amber-100"}`}>
+          {exitProgress.exitReady
+            ? "GPLC P1 exit check passed. Evaluation work may proceed."
+            : "GPLC P1 remains human-gated. Expansion and automatic promotion stay closed."}
+        </p>
       </header>
       {error ? <p className="m-4 rounded-lg border border-red-400/30 bg-red-400/[0.06] p-3 text-xs text-red-100">{error}</p> : null}
       {message ? <p className="m-4 rounded-lg border border-emerald-400/30 bg-emerald-400/[0.06] p-3 text-xs text-emerald-100">{message}</p> : null}
@@ -227,7 +269,14 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={selected.kind === "playback" ? "What did direct playback confirm or contradict?" : selected.kind === "evidence" ? "Record the rights, date, geography, object context, and any limitation you verified." : "Why is this reliable, limited, redundant, contradictory, approved, or rejected?"} className="mt-4 min-h-24 w-full rounded-lg border border-line bg-black/20 p-3 text-xs text-ink outline-none focus:border-accent" />
             <p className={`mt-2 text-[9px] ${notesReady ? "text-emerald-200" : "text-amber-100"}`}>{notesReady ? "Decision reason ready." : `Write ${Math.max(0, 20 - notes.trim().length)} more characters before deciding.`}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {selected.kind === "playback" ? <><button type="button" disabled={busy || !notesReady || !!selected.quarantineReasons.length} onClick={() => void decidePlayback("verified")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-45">Playback confirms evidence</button><button type="button" disabled={busy || !notesReady} onClick={() => void decidePlayback("rejected")} className="rounded-full border border-red-400/35 px-4 py-2 text-xs font-semibold text-red-200 disabled:opacity-45">Reject machine reading</button></> : selected.kind === "evidence" ? <><button type="button" disabled={busy || !notesReady || !!selected.quarantineReasons.length || selected.manifest?.reuseStatus !== "reusable" || selected.manifest?.culturallySensitive} onClick={() => void decideEvidence("eligible")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-35">Mark evidence eligible</button><button type="button" disabled={busy || !notesReady} onClick={() => void decideEvidence("rejected")} className="rounded-full border border-red-400/35 px-4 py-2 text-xs font-semibold text-red-200 disabled:opacity-45">Reject evidence</button></> : <><button type="button" disabled={busy || !notesReady} onClick={() => void decideStudy("reviewed")} className="rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink disabled:opacity-45">Mark reviewed</button><button type="button" disabled={busy || !notesReady || !!selected.quarantineReasons.length} onClick={() => void decideStudy("approved")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-45">Approve for Magic</button><button type="button" disabled={busy || !notesReady} onClick={() => void decideStudy("rejected")} className="rounded-full border border-red-400/35 px-4 py-2 text-xs font-semibold text-red-200 disabled:opacity-45">Reject</button></>}
+              {selected.kind === "playback" ? <><button type="button" disabled={busy || !notesReady || !!selected.quarantineReasons.length} onClick={() => void decidePlayback("verified")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-45">Playback confirms evidence</button><button type="button" disabled={busy || !notesReady} onClick={() => void decidePlayback("rejected")} className="rounded-full border border-red-400/35 px-4 py-2 text-xs font-semibold text-red-200 disabled:opacity-45">Reject machine reading</button></> : selected.kind === "evidence" ? <><button type="button" disabled={busy || !notesReady || !!selected.quarantineReasons.length || selected.manifest?.reuseStatus !== "reusable" || selected.manifest?.culturallySensitive} onClick={() => void decideEvidence("eligible")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-35">Mark evidence eligible</button><button type="button" disabled={busy || !notesReady} onClick={() => void decideEvidence("rejected")} className="rounded-full border border-red-400/35 px-4 py-2 text-xs font-semibold text-red-200 disabled:opacity-45">Reject evidence</button></> : <>
+                {selected.study?.status === "draft" ? (
+                  <button type="button" disabled={busy || !notesReady} onClick={() => void decideStudy("reviewed")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-45">Step 1 · Mark reviewed</button>
+                ) : (
+                  <button type="button" disabled={busy || !notesReady || !!selected.quarantineReasons.length} onClick={() => void decideStudy("approved")} className="magic-action rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-45">Step 2 · Approve for Magic</button>
+                )}
+                <button type="button" disabled={busy || !notesReady} onClick={() => void decideStudy("rejected")} className="rounded-full border border-red-400/35 px-4 py-2 text-xs font-semibold text-red-200 disabled:opacity-45">Reject</button>
+              </>}
             </div>
           </div>
         </div>

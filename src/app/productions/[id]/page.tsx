@@ -289,6 +289,10 @@ export function ProductionWorkspace({
   const referenceImageUrl = typeof referenceStep?.output.url === "string"
     ? referenceStep.output.url
     : null;
+  const referenceReviewStep = run?.steps.find((step) => step.key === "reference-review") ?? null;
+  const referenceApproved = referenceReviewStep
+    ? ["approved", "succeeded"].includes(referenceReviewStep.status)
+    : true;
   const finalVideoStep = run
     ? [...run.steps].reverse().find((step) => (
       ["mastering", "assembly", "shot-mix"].includes(step.key)
@@ -719,6 +723,8 @@ export function ProductionWorkspace({
         format: story.format,
         actorName: cast[0].name,
         actorIdentity: cast[0].personality,
+        visualMedium: cast[0].productionBible?.creationInputs?.visualFormat
+          ?? cast[0].productionBible?.visual.medium,
         productName: story.productImageName,
         hasProductReference: Boolean(story.productImageUrl),
         continuityNote: "Preserve the actor's canonical face, age, hair, proportions, wardrobe materials, palette, product, and location geography exactly.",
@@ -1293,6 +1299,8 @@ export function ProductionWorkspace({
           sceneIndex: index, sceneCount: contract.shotCount, format: story.format,
           actorName: sceneActorNames(sceneActors),
           actorIdentity: `${sceneActorIdentity(sceneActors)}\n${absentCastNegative(sceneActors, cast)}`.trim(),
+          visualMedium: cast[0].productionBible?.creationInputs?.visualFormat
+            ?? cast[0].productionBible?.visual.medium,
           actors: sceneActors.map((actor) => ({ name: actor.name, identity: actor.personality })),
           productName: story.productImageName, hasProductReference: Boolean(story.productImageUrl),
           continuityNote: "Keep every locked actor visually distinct and consistent, but obey this scene's own authored location, blocking, action, and camera. Carry geography or screen direction only when adjacent scenes explicitly remain continuous.",
@@ -2261,6 +2269,26 @@ export function ProductionWorkspace({
                     {busy ? renderProgress || "Rendering…" : reviewHasNoMedia ? "Generate missing preview →" : "Generate preview →"}
                   </button>
                 )}
+                {canvasOnly && contract.format !== "punch" && !busy && !referenceImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => void generateReferenceFrame()}
+                    className="magic-action relative z-10 shrink-0 rounded-full px-5 py-3 text-xs font-bold"
+                    data-intelligence-action
+                  >
+                    Create the scene frame →
+                  </button>
+                )}
+                {canvasOnly && contract.format !== "punch" && !busy && referenceImageUrl && !referenceApproved && (
+                  <button
+                    type="button"
+                    onClick={() => void approveReferenceFrame()}
+                    className="magic-action relative z-10 shrink-0 rounded-full px-5 py-3 text-xs font-bold"
+                    data-intelligence-action
+                  >
+                    Approve frame &amp; animate 5s →
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -2317,6 +2345,16 @@ export function ProductionWorkspace({
                 data-intelligence-action
               >
                 Create first frame
+              </button>
+            )}
+            {!busy && referenceImageUrl && !referenceApproved && contract.format !== "punch" && (
+              <button
+                type="button"
+                onClick={() => void approveReferenceFrame()}
+                className="magic-action shrink-0 rounded-full px-4 py-2 text-[10px] font-bold"
+                data-intelligence-action
+              >
+                Approve &amp; animate 5s
               </button>
             )}
           </div>

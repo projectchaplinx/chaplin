@@ -308,3 +308,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.0 | `acdb368` | 2026-08-01T11:49:57+05:30 | v0.3.0: make Director review gates measurable |
 | v0.3.1 | `666127a` | 2026-08-01T12:03:14+05:30 | v0.3.1: quarantine incomplete Director review packages |
 | v0.3.2 | `695cd39` | 2026-08-01T12:40:33+05:30 | v0.3.2: operationalize Director Sprint 1 amendment |
+| v0.3.3 | `4f3090d` | 2026-08-01T13:12:51+05:30 | v0.3.3: gate Director Sprint shot proof |

@@ -60,6 +60,17 @@ test("narrative first-frame prompt depicts one authored scene without ad or cont
   assert.doesNotMatch(prompt, /OFFERING LOCK|business|storefront hero|advertised product/i);
 });
 
+test("first-frame prompt preserves a creator-selected manga identity", () => {
+  const prompt = buildShotImagePrompt({
+    ...basePromptInput,
+    visualMedium: "cinematic seinen manga illustration",
+  });
+  assert.match(prompt, /VISUAL MEDIUM LOCK: cinematic seinen manga illustration/i);
+  assert.match(prompt, /Never translate a manga.*into a photoreal live-action human/i);
+  assert.match(prompt, /do not realism-wash or restyle the actor/i);
+  assert.doesNotMatch(prompt, /REALISM: Photoreal live-action captured/i);
+});
+
 test("video prompt animates the exact first frame for the scene's authoritative duration", () => {
   const prompt = buildShotVideoPrompt(basePromptInput);
   assert.match(prompt, /supplied image is the exact first frame/i);

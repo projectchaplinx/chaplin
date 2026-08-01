@@ -47,6 +47,12 @@ export type ShotPromptInput = {
   actorName: string;
   actorIdentity?: string;
   /**
+   * Creator-selected rendering medium for the locked actor. This is a hard
+   * continuity constraint: manga, anime, illustration, and other stylized
+   * identities must never be silently converted into live action.
+   */
+  visualMedium?: string;
+  /**
    * Every actor in this frame, lead first. When two or more are supplied the
    * prompt switches to ensemble grammar: explicit screen staging plus anti-blend
    * locks. `actorName`/`actorIdentity` remain the single-actor fallback.
@@ -319,6 +325,9 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
     "SINGLE-FRAME RULE: Return one full-bleed camera view only. No split screen, tiled variants, storyboard, contact sheet, diptych, triptych, or collage.",
     ...(ensemble ? [castingComposition(actors)] : []),
     actorLock(actors),
+    input.visualMedium?.trim()
+      ? `VISUAL MEDIUM LOCK: ${input.visualMedium.trim()}. Preserve this exact rendering medium from the supplied identity reference. Never translate a manga, anime, illustrated, graphic-novel, 3D, or otherwise stylized actor into a photoreal live-action human.`
+      : "VISUAL MEDIUM: Follow the supplied identity reference exactly. Use photoreal live action only when the reference and concept are live action.",
     ...(ensemble
       ? [`CONTACT: Stage the interaction physically — state whose hand, shoulder, or weight meets whom, keep both actors' full bodies coherent through the contact, and preserve the ${actors[0].name}-to-${actors[1].name} screen direction. No merged bodies and no detached limbs.`]
       : []),
@@ -333,7 +342,9 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
     }),
     "LIGHT: Use motivated cinematic light from visible or plausible sources. Natural skin, tactile materials, controlled contrast, and no bright studio-light contamination unless the scene explicitly requires a studio.",
     `CONTINUITY: ${input.continuityNote || "Preserve identity, wardrobe, props, product, screen direction, background geography, palette, and time of day across adjacent shots."}`,
-    "REALISM: Photoreal live-action captured through a physical camera unless the concept explicitly requests animation, manga, illustration, or another stylized medium.",
+    input.visualMedium?.trim()
+      ? "MEDIUM FIDELITY: Camera, light, anatomy, texture, and motion cues must remain native to the locked visual medium; do not realism-wash or restyle the actor."
+      : "REALISM: Photoreal live-action captured through a physical camera unless the concept or supplied identity reference requests animation, manga, illustration, or another stylized medium.",
     ...(risks.length ? [`DIRECTOR CHECK: ${risks.map((risk) => risk.message).join(" ")}`] : []),
     `EXCLUSIONS: ${[...SHOT_KNOWLEDGE_BASE.negative, ...(input.scene.sensitiveNegatives ?? [])].join(" ")}`,
   ].filter(Boolean).join("\n");

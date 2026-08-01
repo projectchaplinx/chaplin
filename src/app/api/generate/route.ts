@@ -2241,10 +2241,14 @@ export async function POST(request: Request) {
           ? replicateFallbacks(videoConfig).map((entry) => ({ provider: "replicate" as const, model: entry.model, entry }))
           : []),
       ];
-      // Sprint 1 is a strict one-cycle experiment: exactly one provider attempt
-      // may represent each variant. A fallback would silently turn six tests
-      // into more than six generated videos and invalidate the comparison.
-      const videoAttempts = directorSprintGrant ? configuredVideoAttempts.slice(0, 1) : configuredVideoAttempts;
+      /*
+        Sprint 1 caps successful generated outputs, not rejected transport
+        attempts. A safety refusal creates no clip and cannot represent a test
+        variant, so the provider ladder may continue until the one immutable
+        result slot succeeds or every configured provider fails. The database
+        still enforces exactly one image and one video result per variant.
+      */
+      const videoAttempts = configuredVideoAttempts;
       let videoUrl = "";
       let taskId = "";
       let videoModelUsed = videoConfig.model;

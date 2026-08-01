@@ -1,5 +1,18 @@
 # Chaplin Changelog
 
+## v0.3.7 - 2026-08-02 - Generate the exact Sprint 1 comparison
+
+- Add an executable audit for every original Sprint 1 exit criterion, including
+  preservation, shortlist-only playback, generation ceilings, trace linkage,
+  scorecards, evaluation linkage, and the shipped artifact.
+- Initialize the live Nova Calloway proof and persist exactly six keyframes and
+  six five-second videos: one control and five single-principle challengers.
+- Allow a rejected provider transport to fall through to the next configured
+  provider without consuming or expanding the immutable one-output test slot.
+- Keep the final preference genuinely human: all six clips are visible in
+  Super Admin, while scoring, winner selection, and shipping remain unrecorded
+  until a person reviews the playable evidence.
+
 ## v0.3.6 - 2026-08-02 - Run the adversarial Director Brain comparison
 
 - Calibrate the dense 2 fps verifier against five human verdicts, preserve all

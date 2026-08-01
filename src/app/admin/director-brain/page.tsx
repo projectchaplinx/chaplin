@@ -10,6 +10,7 @@ import AdminDirectorWorldAtlas from "@/components/AdminDirectorWorldAtlas";
 import AdminDirectorResearchArchive from "@/components/AdminDirectorResearchArchive";
 import AdminDirectorReviewQueue from "@/components/AdminDirectorReviewQueue";
 import AdminDirectorSprintOne from "@/components/AdminDirectorSprintOne";
+import AdminDirectorSprintTest from "@/components/AdminDirectorSprintTest";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -24,6 +25,7 @@ import { listDirectorResearch } from "@/lib/server/director-research";
 import { listDirectorDecisionTraces } from "@/lib/server/director-decisions";
 import { listDirectorEvaluations } from "@/lib/server/director-evaluations";
 import { listDirectorSprintOne } from "@/lib/server/director-sprint-one";
+import { listDirectorSprintTest } from "@/lib/server/director-sprint-test";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,7 @@ export default async function AdminDirectorBrainPage() {
     durationSeconds: 15,
     sceneCount: 4,
   });
-  const [{ research, researchError }, decisionBundle, evaluationBundle, sprintOneBundle] = await Promise.all([(async () => {
+  const [{ research, researchError }, decisionBundle, evaluationBundle, sprintOneBundle, sprintTestBundle] = await Promise.all([(async () => {
     try {
       return { research: await listDirectorResearch(), researchError: "" };
     } catch (error) {
@@ -48,7 +50,7 @@ export default async function AdminDirectorBrainPage() {
         researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
       };
     }
-  })(), listDirectorDecisionTraces(100), listDirectorEvaluations(250), listDirectorSprintOne()]);
+  })(), listDirectorDecisionTraces(100), listDirectorEvaluations(250), listDirectorSprintOne(), listDirectorSprintTest()]);
 
   return (
     <main className="app-width min-w-0 px-4 py-8 sm:px-6 sm:py-10" data-director-brain>
@@ -63,6 +65,8 @@ export default async function AdminDirectorBrainPage() {
       <AdminSectionNav />
 
       <AdminDirectorSprintOne initialBundle={sprintOneBundle} />
+
+      <AdminDirectorSprintTest initialBundle={sprintTestBundle} />
 
       <AdminDirectorResearchArchive initialBundle={research} />
 

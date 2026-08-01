@@ -36,11 +36,21 @@ try {
       (select count(*)::integer from information_schema.triggers
         where trigger_schema = 'public' and trigger_name = 'director_prevent_delete') as delete_guards,
       (select count(*)::integer from information_schema.triggers
-        where trigger_schema = 'public' and trigger_name = 'director_projection_preservation') as projection_guards
+        where trigger_schema = 'public' and trigger_name = 'director_projection_preservation') as projection_guards,
+      (to_regclass('public.director_sprint_shot_tests') is not null
+        and to_regclass('public.director_sprint_shot_scores') is not null) as sprint_test_storage_ready,
+      (select count(*)::integer from information_schema.triggers
+        where trigger_schema = 'public' and trigger_name in (
+          'director_sprint_generation_ceiling', 'director_sprint_result_delete_guard',
+          'director_sprint_test_update_guard'
+        )) as sprint_test_guards
   `;
   if (state.jobs_without_cost !== 0) throw new Error(`${state.jobs_without_cost} research jobs still have no cost classification.`);
   if (state.cost_entries < state.jobs) throw new Error("The append-only cost ledger does not cover every research job.");
   if (state.delete_guards < 11 || state.projection_guards < 8) throw new Error("Director database preservation triggers are incomplete.");
+  if (!state.sprint_test_storage_ready || state.sprint_test_guards !== 3) {
+    throw new Error("Sprint 1 generation ceilings and preservation guards are incomplete.");
+  }
 
   let deletionBlocked = false;
   try {

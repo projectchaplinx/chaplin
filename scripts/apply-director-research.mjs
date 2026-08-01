@@ -37,12 +37,15 @@ try {
   await sql.file("supabase/migrations/202608010002_director_preservation_contract.sql");
   await sql.file("supabase/migrations/202608010003_director_quarantine_ledger.sql");
   await sql.file("supabase/migrations/202608010004_director_sprint_one.sql");
+  await sql.file("supabase/migrations/202608010005_director_sprint_one_shot_test.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
       to_regclass('public.director_scene_studies')::text as studies,
       to_regclass('public.director_decision_traces')::text as decisions,
-      to_regclass('public.director_evaluations')::text as evaluations
+      to_regclass('public.director_evaluations')::text as evaluations,
+      to_regclass('public.director_sprint_shot_tests')::text as sprint_shot_tests,
+      to_regclass('public.director_sprint_shot_scores')::text as sprint_shot_scores
       ,to_regclass('public.director_research_jobs')::text as research_jobs,
       to_regclass('public.director_evidence_manifests')::text as evidence_manifests,
       to_regclass('public.director_study_evidence_manifests')::text as evidence_links,

@@ -97,7 +97,7 @@ function normalizeVariant(stage: PipelineStageId, value: unknown, index: number)
 
 function normalizeVariants(stage: PipelineStageId, value: unknown): PipelineExperimentVariant[] {
   if (!Array.isArray(value)) throw new Error("An experiment needs variants.");
-  const variants = value.slice(0, 4).map((item, index) => normalizeVariant(stage, item, index));
+  const variants = value.slice(0, 6).map((item, index) => normalizeVariant(stage, item, index));
   if (variants.length < 2) throw new Error("An experiment needs at least two variants.");
   if (new Set(variants.map((variant) => variant.id)).size !== variants.length) {
     throw new Error("Variant IDs must be unique.");

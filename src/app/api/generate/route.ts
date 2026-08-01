@@ -33,6 +33,11 @@ import {
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
 import { requireOwnedCharacter, requireRequestIdentity } from "@/lib/server/auth";
 import {
+  authorizeDirectorSprintGeneration,
+  finishDirectorSprintDecisionTrace,
+  startDirectorSprintDecisionTrace,
+} from "@/lib/server/director-sprint-test";
+import {
   assertRequestBodySize,
   enforceRateLimit,
   securityErrorStatus,
@@ -809,6 +814,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   let jobId: string | undefined;
+  let generationCompleted = false;
+  let directorSprintGrant: Awaited<ReturnType<typeof authorizeDirectorSprintGeneration>> | null = null;
+  let directorSprintTraceId: string | null = null;
   try {
     assertRequestBodySize(request, 256 * 1024);
     const identity = await requireRequestIdentity(request);
@@ -831,6 +839,31 @@ export async function POST(request: Request) {
         windowSeconds: 24 * 60 * 60,
         identityId: identity.id,
       });
+    }
+    if (input.directorSprint && typeof input.directorSprint === "object") {
+      if (identity.role !== "admin") throw new Error("Super Admin access is required for the controlled Director Sprint 1 test.");
+      const request = input.directorSprint as Record<string, unknown>;
+      const stage = stageForGenerationAction(action);
+      if (stage !== "image" && stage !== "video") {
+        throw new RequestValidationError("Director Sprint 1 only permits its controlled image and video stages.");
+      }
+      directorSprintGrant = await authorizeDirectorSprintGeneration({
+        testId: text(request, "testId", 1, 100),
+        variantId: text(request, "variantId", 1, 40),
+        stage,
+        characterId,
+      });
+      input.prompt = directorSprintGrant.prompt;
+      input.durationSeconds = 5;
+      input.comparisonCandidate = true;
+      input.pipelineExperiment = {
+        id: directorSprintGrant.experimentId,
+        variantId: directorSprintGrant.variantId,
+        stage,
+        config: directorSprintGrant.stageConfig,
+      };
+      if (stage === "image") input.imagePurpose = "sprint-test";
+      if (stage === "video") input.referenceImage = directorSprintGrant.referenceImageUrl;
     }
     let requestCharacter: Character | undefined;
     if (input.character && typeof input.character === "object") {
@@ -938,7 +971,7 @@ export async function POST(request: Request) {
         updatedBy: pipeline.updatedBy,
       });
     }
-    const startGeneration = (details: {
+    const startGeneration = async (details: {
       characterId: string;
       kind: string;
       provider: string;
@@ -979,7 +1012,7 @@ export async function POST(request: Request) {
       if (blockingResult?.failures.length && process.env.CHAPLIN_BLOCK_ON_PROMPT_LINT === "true") {
         throw new PromptLintError({ ...blockingResult, pass: false });
       }
-      return beginGeneration({
+      const generationJobId = await beginGeneration({
         ...details,
         metadata: {
           ...(details.metadata ?? {}),
@@ -991,10 +1024,33 @@ export async function POST(request: Request) {
           ...(blockingResult?.failures.length
             ? { prompt_lint_advisory: blockingResult.failures }
             : {}),
+          ...(directorSprintGrant ? {
+            directorSprint: {
+              testId: directorSprintGrant.testId,
+              variantId: directorSprintGrant.variantId,
+              stage: directorSprintGrant.stage,
+              principle: directorSprintGrant.traceVariant.principle,
+            },
+          } : {}),
         },
         experimentId,
         experimentVariantId,
       });
+      if (directorSprintGrant) {
+        try {
+          directorSprintTraceId = await startDirectorSprintDecisionTrace({
+            grant: directorSprintGrant,
+            generationJobId,
+            userId: identity.id,
+            provider: details.provider,
+            model: details.model,
+          });
+        } catch (error) {
+          await failGeneration(generationJobId, error instanceof Error ? error.message : "Could not persist the Sprint 1 decision trace.");
+          throw error;
+        }
+      }
+      return generationJobId;
     };
     const resolveStyleContractText = async () => {
       const explicit = typeof input.styleContractText === "string" ? input.styleContractText.trim().slice(0, 5000) : "";
@@ -1441,6 +1497,8 @@ export async function POST(request: Request) {
         ? "scene"
         : input.imagePurpose === "character-sheet"
           ? "character-sheet"
+          : input.imagePurpose === "sprint-test"
+            ? "sprint-test"
           : "identity";
       const requestedReference = typeof input.referenceImage === "string" ? input.referenceImage : "";
       const requestedReferences = Array.isArray(input.referenceImages)
@@ -1545,7 +1603,7 @@ export async function POST(request: Request) {
         // compare; it stays out of the feed until one is chosen.
         comparisonCandidate: input.comparisonCandidate === true,
         referenceImage: reference || null,
-        referenceAssetId: imagePurpose === "scene" ? canonicalReference?.assetId ?? null : null,
+        referenceAssetId: imagePurpose === "scene" || imagePurpose === "sprint-test" ? canonicalReference?.assetId ?? null : null,
         referenceSource: preserveIdentity
           ? imagePurpose === "character-sheet"
             ? "generated-identity-hero"
@@ -1642,12 +1700,13 @@ export async function POST(request: Request) {
       let providerReportedCostUsd = 0;
       let finalGenerationPrompt = effectivePrompt;
       const anatomyAttemptLimit = imagePurpose === "scene" ? MAX_ANATOMY_ATTEMPTS : 1;
+      const safetyAttemptLimit = imagePurpose === "sprint-test" ? 1 : MAX_IMAGE_ATTEMPTS;
       for (let anatomyAttempt = 0; anatomyAttempt < anatomyAttemptLimit; anatomyAttempt += 1) {
         const qualityPrompt = anatomyAttempt === 0 || !anatomyReview
           ? effectivePrompt
           : `${effectivePrompt}\n\n${buildAnatomyRetryDirection(anatomyReview)}`;
         let candidate: GeneratedImage | null = null;
-        for (let safetyAttempt = 0; safetyAttempt < MAX_IMAGE_ATTEMPTS; safetyAttempt += 1) {
+        for (let safetyAttempt = 0; safetyAttempt < safetyAttemptLimit; safetyAttempt += 1) {
           const attemptPrompt = safetyAttempt === 0
             ? qualityPrompt
             : softenPromptForSafety(qualityPrompt, safetyAttempt);
@@ -1663,7 +1722,7 @@ export async function POST(request: Request) {
             finalGenerationPrompt = attemptPrompt;
             break;
           } catch (error) {
-            if (!isSafetyRejection(error) || safetyAttempt === MAX_IMAGE_ATTEMPTS - 1) throw error;
+            if (!isSafetyRejection(error) || safetyAttempt === safetyAttemptLimit - 1) throw error;
             safetyAttempts += 1;
           }
         }
@@ -1759,6 +1818,15 @@ export async function POST(request: Request) {
         }),
         generated.requestId
       );
+      generationCompleted = true;
+      if (directorSprintGrant) {
+        await finishDirectorSprintDecisionTrace({
+          traceId: directorSprintTraceId,
+          grant: directorSprintGrant,
+          status: "succeeded",
+          assetId: asset.id,
+        });
+      }
       return Response.json({
         url: asset.url,
         assetId: asset.id,
@@ -2166,12 +2234,16 @@ export async function POST(request: Request) {
       }
       // Seedance first (cheapest, already contracted), then open weights, which
       // have no likeness filter and so cannot refuse a photoreal seed image.
-      const videoAttempts: Array<{ provider: "byteplus" | "replicate"; model: string; entry?: ReplicateFallback }> = [
+      const configuredVideoAttempts: Array<{ provider: "byteplus" | "replicate"; model: string; entry?: ReplicateFallback }> = [
         ...seedanceCandidates.map((model) => ({ provider: "byteplus" as const, model })),
         ...(!wantsCompleteNativeAudio && replicateToken()
           ? replicateFallbacks(videoConfig).map((entry) => ({ provider: "replicate" as const, model: entry.model, entry }))
           : []),
       ];
+      // Sprint 1 is a strict one-cycle experiment: exactly one provider attempt
+      // may represent each variant. A fallback would silently turn six tests
+      // into more than six generated videos and invalidate the comparison.
+      const videoAttempts = directorSprintGrant ? configuredVideoAttempts.slice(0, 1) : configuredVideoAttempts;
       let videoUrl = "";
       let taskId = "";
       let videoModelUsed = videoConfig.model;
@@ -2336,13 +2408,30 @@ export async function POST(request: Request) {
         }),
         videoRequestId ?? taskId
       );
+      generationCompleted = true;
+      if (directorSprintGrant) {
+        await finishDirectorSprintDecisionTrace({
+          traceId: directorSprintTraceId,
+          grant: directorSprintGrant,
+          status: "succeeded",
+          assetId: asset.id,
+        });
+      }
       return Response.json({ url: asset.url, assetId: asset.id, taskId, tier });
     }
 
     return Response.json({ error: "Unknown generation action." }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Generation failed.";
-    if (jobId) await failGeneration(jobId, message);
+    if (jobId && !generationCompleted) await failGeneration(jobId, message);
+    if (directorSprintGrant && directorSprintTraceId && !generationCompleted) {
+      await finishDirectorSprintDecisionTrace({
+        traceId: directorSprintTraceId,
+        grant: directorSprintGrant,
+        status: "failed",
+        errorMessage: message,
+      }).catch((traceError) => console.error("Fail Sprint 1 decision trace:", traceError));
+    }
     const status = securityErrorStatus(
       error,
       message === "Sign in to continue."

@@ -36,6 +36,7 @@ try {
   }
   await sql.file("supabase/migrations/202608010002_director_preservation_contract.sql");
   await sql.file("supabase/migrations/202608010003_director_quarantine_ledger.sql");
+  await sql.file("supabase/migrations/202608010004_director_sprint_one.sql");
   const [tables] = await sql`
     select
       to_regclass('public.director_research_sources')::text as sources,
@@ -50,8 +51,11 @@ try {
       to_regclass('public.director_entity_revisions')::text as entity_revisions,
       to_regclass('public.director_research_cost_entries')::text as research_costs
       ,to_regclass('public.director_quarantine_assessments')::text as quarantine_assessments
+      ,to_regclass('public.director_principle_assessments')::text as principle_assessments
+      ,to_regclass('public.director_principle_playback_reviews')::text as principle_playback_reviews
+      ,to_regclass('public.director_coverage_findings')::text as coverage_findings
   `;
-  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs || !tables?.quarantine_assessments) {
+  if (!tables?.sources || !tables?.studies || !tables?.decisions || !tables?.evaluations || !tables?.research_jobs || !tables?.evidence_manifests || !tables?.evidence_links || !tables?.timed_media_analyses || !tables?.research_events || !tables?.entity_revisions || !tables?.research_costs || !tables?.quarantine_assessments || !tables?.principle_assessments || !tables?.principle_playback_reviews || !tables?.coverage_findings) {
     throw new Error("Director Brain research tables were not created.");
   }
   const [campaignColumn] = await sql`

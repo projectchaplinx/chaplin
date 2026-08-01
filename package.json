@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -18,6 +18,8 @@
     "research:director-evidence-promote": "node scripts/promote-director-evidence.mjs",
     "research:director-evidence-synthesize": "node scripts/synthesize-director-evidence.mjs",
     "research:director-evidence-test": "node --import tsx scripts/test-director-evidence-retrieval.ts",
+    "research:director-sprint-one": "tsx scripts/triage-director-sprint-one.ts",
+    "research:director-sprint-one-rank": "tsx scripts/rank-director-sprint-one.ts",
     "verify:providers": "node scripts/verify-providers.mjs",
     "verify:director-preservation": "node --env-file=.env.local scripts/verify-director-preservation.mjs",
     "verify:pipeline-state": "node scripts/verify-pipeline-state.mjs",

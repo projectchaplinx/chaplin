@@ -9,6 +9,7 @@ import AdminDirectorLearning from "@/components/AdminDirectorLearning";
 import AdminDirectorWorldAtlas from "@/components/AdminDirectorWorldAtlas";
 import AdminDirectorResearchArchive from "@/components/AdminDirectorResearchArchive";
 import AdminDirectorReviewQueue from "@/components/AdminDirectorReviewQueue";
+import AdminDirectorSprintOne from "@/components/AdminDirectorSprintOne";
 import AdminSectionNav from "@/components/AdminSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
@@ -22,6 +23,7 @@ import { getServerAuthIdentity } from "@/lib/server/auth";
 import { listDirectorResearch } from "@/lib/server/director-research";
 import { listDirectorDecisionTraces } from "@/lib/server/director-decisions";
 import { listDirectorEvaluations } from "@/lib/server/director-evaluations";
+import { listDirectorSprintOne } from "@/lib/server/director-sprint-one";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +39,7 @@ export default async function AdminDirectorBrainPage() {
     durationSeconds: 15,
     sceneCount: 4,
   });
-  const [{ research, researchError }, decisionBundle, evaluationBundle] = await Promise.all([(async () => {
+  const [{ research, researchError }, decisionBundle, evaluationBundle, sprintOneBundle] = await Promise.all([(async () => {
     try {
       return { research: await listDirectorResearch(), researchError: "" };
     } catch (error) {
@@ -46,7 +48,7 @@ export default async function AdminDirectorBrainPage() {
         researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
       };
     }
-  })(), listDirectorDecisionTraces(100), listDirectorEvaluations(250)]);
+  })(), listDirectorDecisionTraces(100), listDirectorEvaluations(250), listDirectorSprintOne()]);
 
   return (
     <main className="app-width min-w-0 px-4 py-8 sm:px-6 sm:py-10" data-director-brain>
@@ -59,6 +61,8 @@ export default async function AdminDirectorBrainPage() {
       </header>
 
       <AdminSectionNav />
+
+      <AdminDirectorSprintOne initialBundle={sprintOneBundle} />
 
       <AdminDirectorResearchArchive initialBundle={research} />
 

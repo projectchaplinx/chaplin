@@ -305,3 +305,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.2.97 | `1b5232e` | 2026-08-01T03:07:10+05:30 | v0.2.97: make Director review backlog actionable |
 | v0.2.98 | `c9d8719` | 2026-08-01T03:17:33+05:30 | v0.2.98: preserve Director quarantine ledger |
 | v0.2.99 | `6ad3cd6` | 2026-08-01T03:30:15+05:30 | v0.2.99: compare Punch generation methods |
+| v0.3.0 | `acdb368` | 2026-08-01T11:49:57+05:30 | v0.3.0: make Director review gates measurable |

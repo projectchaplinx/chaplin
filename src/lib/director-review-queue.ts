@@ -109,14 +109,17 @@ export function buildDirectorReviewQueue(
     .map((analysis) => {
       const study = analysis.studyId ? studies.find((candidate) => candidate.id === analysis.studyId) ?? null : null;
       const { coverageGaps, relatedApproved } = details(study, analysis);
+      const quarantineReasons = [...new Set(persistedReasons.get(`timed-media:${analysis.id}`) ?? [])];
       return {
         id: `playback:${analysis.id}`,
         kind: "playback" as const,
         lane: "playback" as const,
         priorityScore: (coverageGaps.length * 10_000) + 3_000 + analysis.observationCount,
-        reason: "Direct playback is required before this evidence can advance.",
+        reason: quarantineReasons.length
+          ? "The playback package is incomplete and cannot receive a positive human verdict. The preserved analysis remains visible."
+          : "Direct playback is required before this evidence can advance.",
         coverageGaps,
-        quarantineReasons: [],
+        quarantineReasons,
         study,
         analysis,
         manifest: null,

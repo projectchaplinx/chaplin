@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evidenceQuarantineReasons, explicitPrincipleContradictions } from "@/lib/director-quarantine";
+import { evidenceQuarantineReasons, explicitPrincipleContradictions, timedMediaReviewPackageReasons } from "@/lib/director-quarantine";
 
 test("rights, sensitivity, and duplicate rules quarantine without a review decision", () => {
   const reasons = evidenceQuarantineReasons({
@@ -17,3 +17,30 @@ test("only explicit opposite-polarity principles are quarantined as contradictio
   assert.equal(explicitPrincipleContradictions(["Keep the cut rhythm restrained."], approved).length, 0);
 });
 
+test("incomplete timed-media packages are quarantined without discarding analysis", () => {
+  const reasons = timedMediaReviewPackageReasons({
+    playbackUrl: "",
+    studyId: "study",
+    observationCount: 6,
+    principleCount: 5,
+    limitations: "Still samples require direct playback.",
+    artifactPaths: {},
+    audioAvailable: true,
+  });
+  assert.equal(reasons[0]?.ruleKey, "incomplete-review-package");
+  assert.deepEqual(reasons[0]?.evidence.missing, [
+    "trusted playback URL", "contact sheet", "evidence package", "waveform",
+  ]);
+});
+
+test("complete timed-media packages remain reviewable", () => {
+  assert.deepEqual(timedMediaReviewPackageReasons({
+    playbackUrl: "https://tile.loc.gov/example.mp4",
+    studyId: "study",
+    observationCount: 3,
+    principleCount: 2,
+    limitations: "Human playback is still required.",
+    artifactPaths: { contactSheet: "sheet.jpg", evidencePackage: "evidence.json", waveform: "wave.png" },
+    audioAvailable: true,
+  }), []);
+});

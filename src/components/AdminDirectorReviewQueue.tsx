@@ -39,6 +39,10 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
     counts[item.lane] = (counts[item.lane] ?? 0) + 1;
     return counts;
   }, {}), [queue]);
+  const incompletePlaybackPackages = useMemo(
+    () => queue.filter((item) => item.kind === "playback" && item.quarantineReasons.length > 0).length,
+    [queue],
+  );
 
   const refresh = useCallback(async () => {
     const [researchResponse, timedResponse, evidenceResponse, quarantineResponse] = await Promise.all([
@@ -200,7 +204,9 @@ export default function AdminDirectorReviewQueue({ initialBundle }: { initialBun
               value: exitProgress.playbackRequired,
               target: "0 required",
               passed: exitProgress.playbackRequired === 0,
-              detail: "Exact source passage must be played",
+              detail: incompletePlaybackPackages
+                ? `${incompletePlaybackPackages} package${incompletePlaybackPackages === 1 ? " is" : "s are"} incomplete and quarantined`
+                : "Exact source passage must be played",
             },
             {
               label: "Discovered manifests",

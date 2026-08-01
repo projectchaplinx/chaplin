@@ -3,6 +3,7 @@ import "server-only";
 import {
   evidenceQuarantineReasons,
   explicitPrincipleContradictions,
+  timedMediaReviewPackageReasons,
   type DirectorQuarantineAssessment,
 } from "@/lib/director-quarantine";
 import { getSupabaseAdminClient } from "@/lib/server/supabase-admin";
@@ -26,11 +27,12 @@ function fromRow(row: AssessmentRow): DirectorQuarantineAssessment {
 
 export async function syncDirectorQuarantineAssessments() {
   const supabase = getSupabaseAdminClient();
-  const [manifestResult, studyResult] = await Promise.all([
+  const [manifestResult, studyResult, timedMediaResult] = await Promise.all([
     supabase.from("director_evidence_manifests").select("id,reuse_status,culturally_sensitive,content_hash"),
     supabase.from("director_scene_studies").select("id,study_title,candidate_principles,status"),
+    supabase.from("director_timed_media_analyses").select("id,playback_url,study_id,observations,candidate_principles,limitations,artifact_paths,audio_analysis"),
   ]);
-  const error = manifestResult.error ?? studyResult.error;
+  const error = manifestResult.error ?? studyResult.error ?? timedMediaResult.error;
   if (error) {
     if (/director_quarantine_assessments|director_evidence_manifests|schema cache|does not exist/i.test(error.message)) return { storageReady: false, inserted: 0 };
     throw new Error(`Assess Director Brain quarantine: ${error.message}`);
@@ -61,6 +63,24 @@ export async function syncDirectorQuarantineAssessments() {
         reason: assessment.reason, evidence: assessment.evidence,
       }));
     }),
+    ...(timedMediaResult.data ?? []).flatMap((analysis) => timedMediaReviewPackageReasons({
+      playbackUrl: typeof analysis.playback_url === "string" ? analysis.playback_url : "",
+      studyId: typeof analysis.study_id === "string" ? analysis.study_id : null,
+      observationCount: Array.isArray(analysis.observations) ? analysis.observations.length : 0,
+      principleCount: Array.isArray(analysis.candidate_principles) ? analysis.candidate_principles.length : 0,
+      limitations: typeof analysis.limitations === "string" ? analysis.limitations : "",
+      artifactPaths: analysis.artifact_paths && typeof analysis.artifact_paths === "object" && !Array.isArray(analysis.artifact_paths)
+        ? analysis.artifact_paths as Record<string, unknown>
+        : {},
+      audioAvailable: Boolean(analysis.audio_analysis && typeof analysis.audio_analysis === "object" && !Array.isArray(analysis.audio_analysis)
+        && (analysis.audio_analysis as Record<string, unknown>).available),
+    }).map((assessment) => ({
+      entity_kind: "timed-media",
+      entity_id: analysis.id,
+      rule_key: assessment.ruleKey,
+      reason: assessment.reason,
+      evidence: assessment.evidence,
+    }))),
   ];
   if (!rows.length) return { storageReady: true, inserted: 0 };
   const saved = await supabase.from("director_quarantine_assessments").upsert(rows, {
@@ -82,4 +102,3 @@ export async function listDirectorQuarantineAssessments() {
   if (result.error) throw new Error(`Load Director Brain quarantine: ${result.error.message}`);
   return { storageReady: true, assessments: ((result.data ?? []) as AssessmentRow[]).map(fromRow) };
 }
-

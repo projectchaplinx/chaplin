@@ -45,3 +45,29 @@ export function evidenceQuarantineReasons(manifest: Pick<DirectorEvidenceManifes
     ...(manifest.contentHash && duplicateCount > 1 ? [{ ruleKey: "duplicate-content-hash", reason: "Duplicate content hash is already present in the evidence corpus." }] : []),
   ];
 }
+
+export function timedMediaReviewPackageReasons(input: {
+  playbackUrl: string;
+  studyId: string | null;
+  observationCount: number;
+  principleCount: number;
+  limitations: string;
+  artifactPaths: Record<string, unknown>;
+  audioAvailable: boolean;
+}) {
+  const missing = [
+    ...(!/^https:\/\/tile[.]loc[.]gov\//i.test(input.playbackUrl) ? ["trusted playback URL"] : []),
+    ...(!input.studyId ? ["linked study"] : []),
+    ...(input.observationCount < 3 ? ["analytical observations"] : []),
+    ...(input.principleCount < 2 ? ["candidate principles"] : []),
+    ...(!input.limitations.trim() ? ["limitations"] : []),
+    ...(typeof input.artifactPaths.contactSheet !== "string" || !input.artifactPaths.contactSheet ? ["contact sheet"] : []),
+    ...(typeof input.artifactPaths.evidencePackage !== "string" || !input.artifactPaths.evidencePackage ? ["evidence package"] : []),
+    ...(input.audioAvailable && (typeof input.artifactPaths.waveform !== "string" || !input.artifactPaths.waveform) ? ["waveform"] : []),
+  ];
+  return missing.length ? [{
+    ruleKey: "incomplete-review-package",
+    reason: `Human review package is incomplete: missing ${missing.join(", ")}.`,
+    evidence: { missing },
+  }] : [];
+}

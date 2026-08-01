@@ -38,6 +38,22 @@ test("verified playback unlocks the separate study decision", () => {
   assert.deepEqual(queue.map((item) => item.id), [`study:${draft.id}`]);
 });
 
+test("persisted timed-media quarantine blocks a false positive playback decision", () => {
+  const draft = study("timed", "draft", ["sound"]);
+  const clip = analysis("clip", draft.id, "required");
+  const queue = buildDirectorReviewQueue([draft], [clip], [], [{
+    id: "assessment",
+    entityKind: "timed-media",
+    entityId: clip.id,
+    ruleKey: "incomplete-review-package",
+    reason: "Human review package is incomplete: missing trusted playback URL.",
+    evidence: { missing: ["trusted playback URL"] },
+    createdAt: "2026-08-01T00:00:00.000Z",
+  }]);
+  assert.match(queue[0]?.reason ?? "", /cannot receive a positive human verdict/i);
+  assert.deepEqual(queue[0]?.quarantineReasons, ["Human review package is incomplete: missing trusted playback URL."]);
+});
+
 test("coverage gaps outrank already-covered draft material", () => {
   const approved = study("approved", "approved", ["camera"]);
   const queue = buildDirectorReviewQueue([approved, study("covered", "draft", ["camera"]), study("gap", "draft", ["sound"])], []);

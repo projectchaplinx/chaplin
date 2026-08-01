@@ -1,5 +1,15 @@
 # Chaplin Changelog
 
+## v0.3.1 - 2026-08-01 - Quarantine incomplete Director review packages
+
+- Validate every timed-media review package before a positive human playback
+  verdict can be recorded, while preserving the underlying analysis.
+- Require trusted playback, study linkage, observations, principles,
+  limitations, contact sheets, evidence packages, and waveforms when audio is
+  available.
+- Surface incomplete package counts in the P1 Human Review Desk and retain the
+  reason in the immutable Director quarantine ledger.
+
 ## v0.3.0 - 2026-08-01 - Make Director review gates measurable
 
 - Prove the live GPLC preservation contract across all 351 research jobs,

@@ -1,5 +1,16 @@
 # Chaplin Changelog
 
+## v0.3.5 - 2026-08-01 - Keep Spark rendering through voice gaps
+
+- Start the live production clock for five-second Spark runs so elapsed time
+  advances every second and the remaining duration is explicitly estimated.
+- Continue visual Spark generation when an actor has no usable locked voice,
+  while preserving an actionable re-lock notice instead of failing the run.
+- Let silent-dialogue Sparks mix effects, room tone, and an optional theme, and
+  route retry through the correct Spark or Punch production path.
+- Make the Director Sprint playback gate advance directly to the next pending
+  passage and enforce each exact review window in the player.
+
 ## v0.3.1 - 2026-08-01 - Quarantine incomplete Director review packages
 
 - Validate every timed-media review package before a positive human playback

@@ -51,6 +51,10 @@ export default function AdminDirectorSprintOne({ initialBundle }: { initialBundl
       if (!response.ok) throw new Error(data.error ?? "Could not save playback verdict.");
       setBundle(data);
       setNotes("");
+      const nextPending = data.assessments
+        .filter((item) => item.shortlistRank != null && !item.playbackReview)
+        .sort((left, right) => left.shortlistRank! - right.shortlistRank!)[0];
+      if (nextPending) setSelectedId(nextPending.id);
       setMessage(verdict === "verified" ? "Direct playback verified this reading." : "Direct playback rejected this reading; the record remains preserved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save playback verdict.");
@@ -60,7 +64,7 @@ export default function AdminDirectorSprintOne({ initialBundle }: { initialBundl
   }
 
   return (
-    <section className="poster-card mb-8 overflow-hidden rounded-md" data-director-sprint-one>
+    <section id="director-sprint-one" className="poster-card mb-8 scroll-mt-4 overflow-hidden rounded-md" data-director-sprint-one>
       <header className="border-b border-line p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -160,9 +164,17 @@ export default function AdminDirectorSprintOne({ initialBundle }: { initialBundl
                 <video
                   key={`${selected.playbackUrl}-${selected.playbackStartSecond}`}
                   controls
+                  playsInline
                   preload="metadata"
                   className="mt-4 aspect-video w-full rounded-md border border-line bg-black"
                   src={`${selected.playbackUrl}#t=${selected.playbackStartSecond ?? 0},${(selected.playbackStartSecond ?? 0) + (selected.playbackDurationSeconds ?? 30)}`}
+                  onLoadedMetadata={(event) => {
+                    event.currentTarget.currentTime = selected.playbackStartSecond ?? 0;
+                  }}
+                  onTimeUpdate={(event) => {
+                    const end = (selected.playbackStartSecond ?? 0) + (selected.playbackDurationSeconds ?? 30);
+                    if (event.currentTarget.currentTime >= end) event.currentTarget.pause();
+                  }}
                 />
               ) : (
                 <p className="mt-4 rounded-md border border-red-500/30 bg-red-950/20 p-3 text-xs text-red-200">No trusted playback URL is available. This item cannot be verified.</p>
@@ -175,6 +187,18 @@ export default function AdminDirectorSprintOne({ initialBundle }: { initialBundl
                 <div className="mt-4 rounded-md border border-line p-3 text-xs leading-5 text-grey">
                   <b className="text-ink">Immutable human verdict: {selected.playbackReview.verdict}</b><br />
                   {selected.playbackReview.reviewNotes}
+                  {bundle.progress.playbackPending > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextPending = shortlist.find((item) => !item.playbackReview);
+                        if (nextPending) setSelectedId(nextPending.id);
+                      }}
+                      className="magic-action mt-3 block rounded-full px-4 py-2 text-xs font-semibold"
+                    >
+                      Review next pending passage →
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>

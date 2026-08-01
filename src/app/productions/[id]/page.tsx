@@ -257,6 +257,7 @@ export function ProductionWorkspace({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [productionNotice, setProductionNotice] = useState("");
   const [voiceRecoveryOpen, setVoiceRecoveryOpen] = useState(false);
   const [voiceRecoveryBusy, setVoiceRecoveryBusy] = useState(false);
   const [voiceRecoveryCandidates, setVoiceRecoveryCandidates] = useState<VoiceCapacityCandidate[]>([]);
@@ -889,8 +890,14 @@ export function ProductionWorkspace({
 
   async function continueProduction(startingRun: MediaPipelineRun) {
     if (!story || !cast[0]) return;
+    const productionStarted = Date.now();
+    setRenderStartedAt(productionStarted);
+    setRenderPhaseStartedAt(productionStarted);
+    setClock(productionStarted);
+    setRenderProgress("Preparing the production");
     setBusy(true);
     setError("");
+    setProductionNotice("");
     let activeRun = startingRun;
     let activeStepKey = "";
     try {
@@ -950,9 +957,17 @@ export function ProductionWorkspace({
               const line = story.scenes.flatMap((scene) => scene.lines).find((candidate) => candidate.characterId === cast[0].id)?.text
                 ?? story.scenes.flatMap((scene) => scene.lines)[0]?.text
                 ?? cast[0].tagline;
-              const asset = await generatePipelineAudio({ action: "speech", characterId: cast[0].id, speechText: line });
-              output = { ...output, url: asset.url, text: line };
-              outputAssetId = asset.assetId;
+              try {
+                const asset = await generatePipelineAudio({ action: "speech", characterId: cast[0].id, speechText: line });
+                output = { ...output, url: asset.url, text: line };
+                outputAssetId = asset.assetId;
+              } catch (dialogueError) {
+                const detail = dialogueError instanceof Error ? dialogueError.message : "";
+                if (!/ORPHANED_VOICE|no active locked voice/i.test(detail)) throw dialogueError;
+                const reason = `${cast[0].name}'s locked voice is unavailable on the current ElevenLabs account.`;
+                output = { ...output, skipped: true, reason, text: line };
+                setProductionNotice(`${reason} The visual Spark will continue without dialogue. Re-lock the voice later to restore the spoken line.`);
+              }
             } else if (step.key === "sfx") {
               const prompt = `A clean 1.5-second non-musical physical sound for ${story.title}: ${cast[0].sfxDesc}. One foreground event, no speech, no melody, no ambience tail.`;
               const asset = await generatePipelineAudio({ action: "sfx", characterId: cast[0].id, prompt, durationSeconds: 1.5 });
@@ -1002,6 +1017,7 @@ export function ProductionWorkspace({
         if (step.key === "creative-review") break;
       }
       setRun(activeRun);
+      setRenderProgress("");
     } catch (pipelineError) {
       if (activeStepKey) {
         await transitionStep(activeRun, activeStepKey, "fail", {
@@ -1217,6 +1233,18 @@ export function ProductionWorkspace({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function retryProduction() {
+    if (!run) return;
+    if (contract?.format === "punch") {
+      await renderPunchOutput();
+      return;
+    }
+    let retryRun = run;
+    const failedStep = retryRun.steps.find((step) => step.status === "failed");
+    if (failedStep) retryRun = await transitionStep(retryRun, failedStep.key, "retry");
+    await continueProduction(retryRun);
   }
 
   async function renderPunchOutput() {
@@ -2164,7 +2192,7 @@ export function ProductionWorkspace({
                     <p className="mt-0.5 font-mono text-sm text-white">{timerLabel(renderElapsedSeconds)}</p>
                   </div>
                   <div className="rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2">
-                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">Est. remaining</p>
+                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">Estimated remaining</p>
                     <p className="mt-0.5 font-mono text-sm text-white">~{timerLabel(estimatedRemainingSeconds)}</p>
                   </div>
                   <div className="rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2">
@@ -2361,6 +2389,25 @@ export function ProductionWorkspace({
         </section>
       )}
 
+      {canvasOnly && productionNotice && (
+        <section className="mt-4 rounded-2xl border border-amber-300/35 bg-amber-300/[0.06] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-200">Continuing without dialogue</p>
+              <p className="mt-1 text-xs leading-5 text-grey">{productionNotice}</p>
+            </div>
+            {cast[0] && (
+              <Link
+                href={`/characters/${cast[0].id}/studio`}
+                className="shrink-0 rounded-full border border-amber-200/40 px-4 py-2 text-[10px] font-semibold text-amber-100"
+              >
+                Re-lock voice
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
       {canvasOnly && run && (error || (reviewStep?.key === "creative-review" && finalVideoUrl)) && (
         <section
           className={`mt-4 rounded-2xl border p-4 ${
@@ -2379,14 +2426,14 @@ export function ProductionWorkspace({
               <div className="flex shrink-0 flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void renderPunchOutput()}
+                  onClick={() => void retryProduction()}
                   disabled={busy}
                   className="magic-action rounded-full px-4 py-2 text-[10px] font-bold disabled:opacity-40"
                   data-intelligence-action
                 >
                   Retry generation
                 </button>
-                {/no active locked voice|custom-voice limit|maximum amount of custom voices/i.test(error) && cast[0] && (
+                {/ORPHANED_VOICE|no active locked voice|custom-voice limit|maximum amount of custom voices/i.test(error) && cast[0] && (
                   <Link
                     href={`/characters/${cast[0].id}/studio`}
                     className="rounded-full border border-red-300/55 px-4 py-2 text-[10px] font-semibold text-red-200"
@@ -2886,7 +2933,7 @@ export function ProductionWorkspace({
           {error && (
             <div className="mt-4 rounded-xl border border-red-400/35 bg-red-400/[0.06] p-4">
               <p className="text-xs text-red-300">{error}</p>
-              {/no active locked voice|custom-voice limit|maximum amount of custom voices/i.test(error) && cast[0] && (
+              {/ORPHANED_VOICE|no active locked voice|custom-voice limit|maximum amount of custom voices/i.test(error) && cast[0] && (
                 <div className="mt-3">
                   <p className="text-[10px] leading-4 text-grey">
                     Chaplin will never invent this actor&apos;s speech. Free one confirmed inactive voice slot, lock this actor&apos;s chosen voice, and retry the failed production step.

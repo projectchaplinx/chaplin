@@ -77,26 +77,30 @@ export async function POST(request: Request) {
     const production = await getCharacterProductionState(characterId).catch(() => null);
     const themeUrl = production?.latestThemeUrl ?? "";
     const themePath = themeUrl ? path.join(workDirectory, "theme.mp3") : "";
+    const dialogueValue = run.steps.find((step) => step.key === "dialogue")?.output.url;
+    const dialogueUrl = typeof dialogueValue === "string" ? dialogueValue : "";
+    const hasDialogue = Boolean(dialogueUrl);
 
     await Promise.all([
       download(stepUrl(run, "motion-plate"), videoPath),
-      download(stepUrl(run, "dialogue"), dialoguePath),
+      hasDialogue ? download(dialogueUrl, dialoguePath) : Promise.resolve(),
       download(stepUrl(run, "sfx"), sfxPath),
       download(stepUrl(run, "room-tone"), roomTonePath),
       themePath ? download(themeUrl, themePath) : Promise.resolve(),
     ]);
 
-    const mixLabels = ["[a1]", "[a2]", "[a3]"];
-    const mixFilters = [
-      "[1:a]volume=1.0[a1]",
-      "[2:a]volume=0.72,adelay=350|350[a2]",
-      "[3:a]volume=0.22[a3]",
-    ];
+    const audioInputs: Array<{ path: string; filter: (index: number, label: string) => string }> = [];
+    if (hasDialogue) audioInputs.push({ path: dialoguePath, filter: (index, label) => `[${index}:a]volume=1.0${label}` });
+    audioInputs.push(
+      { path: sfxPath, filter: (index, label) => `[${index}:a]volume=0.72,adelay=350|350${label}` },
+      { path: roomTonePath, filter: (index, label) => `[${index}:a]volume=0.22${label}` },
+    );
     if (themePath) {
       // Well under the voice, looped so a short cue still covers the shot.
-      mixFilters.push("[4:a]volume=0.16,aloop=loop=-1:size=2e9[a4]");
-      mixLabels.push("[a4]");
+      audioInputs.push({ path: themePath, filter: (index, label) => `[${index}:a]volume=0.16,aloop=loop=-1:size=2e9${label}` });
     }
+    const mixLabels = audioInputs.map((_, index) => `[a${index + 1}]`);
+    const mixFilters = audioInputs.map((input, index) => input.filter(index + 1, mixLabels[index]));
     mixFilters.push(
       `${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=longest:dropout_transition=0,atrim=0:5,alimiter=limit=0.95[aout]`,
     );
@@ -104,10 +108,7 @@ export async function POST(request: Request) {
     await execute(ffmpegExecutable(), [
       "-y",
       "-i", videoPath,
-      "-i", dialoguePath,
-      "-i", sfxPath,
-      "-i", roomTonePath,
-      ...(themePath ? ["-i", themePath] : []),
+      ...audioInputs.flatMap((input) => ["-i", input.path]),
       "-filter_complex",
       mixFilters.join(";"),
       "-map", "0:v:0",
@@ -131,9 +132,9 @@ export async function POST(request: Request) {
       durationSeconds: 5,
       metadata: {
         pipelineRunId: run.id,
-        sourceSteps: ["motion-plate", "dialogue", "sfx", "room-tone", ...(themePath ? ["character-theme"] : [])],
+        sourceSteps: ["motion-plate", ...(hasDialogue ? ["dialogue"] : []), "sfx", "room-tone", ...(themePath ? ["character-theme"] : [])],
         audioManifest: {
-          lockedVoice: stepUrl(run, "dialogue"),
+          lockedVoice: hasDialogue ? dialogueUrl : null,
           sceneEffects: stepUrl(run, "sfx"),
           roomTone: stepUrl(run, "room-tone"),
           themeUrl: themeUrl || null,

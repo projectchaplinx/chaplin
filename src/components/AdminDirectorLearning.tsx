@@ -3,6 +3,7 @@ import {
   DIRECTOR_EVALUATION_DIMENSIONS,
   type DirectorEvaluationRecord,
 } from "@/lib/director-evaluation";
+import type { RenderLearningPanels } from "@/lib/server/director-intelligence";
 
 function scoreTone(score: number) {
   if (score >= 80) return "text-emerald-300";
@@ -13,9 +14,11 @@ function scoreTone(score: number) {
 export default function AdminDirectorLearning({
   evaluations,
   storageReady,
+  renderPanels,
 }: {
   evaluations: DirectorEvaluationRecord[];
   storageReady: boolean;
+  renderPanels?: RenderLearningPanels;
 }) {
   const diagnostics = buildDirectorEvaluationDiagnostics(evaluations);
   return (
@@ -92,6 +95,63 @@ export default function AdminDirectorLearning({
           </div>
         </div>
       </div>
+
+      {renderPanels && (
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_1fr]" data-render-learning-panels>
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-grey">Identity hold — measured per rendered clip</p>
+            {renderPanels.identityReadings.length ? (
+              <div className="mt-2 space-y-1.5">
+                {renderPanels.identityReadings.slice(0, 10).map((reading) => (
+                  <div key={`${reading.at}:${reading.label}`} className="rounded-lg border border-white/10 p-2.5">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-[9px]">
+                      <span className="truncate text-grey">{reading.label}</span>
+                      <span className={reading.identityContinuity == null ? "text-grey" : scoreTone(reading.identityContinuity)}>
+                        ID {reading.identityContinuity ?? "—"}
+                      </span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[8px] uppercase tracking-[0.1em] ${reading.gateStatus === "pass" ? "border-emerald-500/40 text-emerald-300" : "border-red-500/40 text-red-300"}`}>
+                        {reading.gateStatus}
+                      </span>
+                    </div>
+                    {reading.driftNotes.length > 0 && reading.gateStatus !== "pass" && (
+                      <p className="mt-1 line-clamp-2 text-[8px] leading-4 text-white/50">{reading.driftNotes.join(" · ")}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 rounded-lg border border-dashed border-line p-4 text-[10px] leading-5 text-grey">
+                No measured clips yet. The identity instrument scores every new Spark and Punch shot automatically — render one and its identity hold appears here.
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-grey">Kill causes — human verdicts by changed variable</p>
+            {renderPanels.killByVariable.length ? (
+              <div className="mt-2 space-y-2">
+                {renderPanels.killByVariable.map((entry) => {
+                  const total = entry.kept + entry.killed;
+                  const killShare = total ? Math.round((entry.killed / total) * 100) : 0;
+                  return (
+                    <div key={entry.variable} className="grid grid-cols-[80px_minmax(0,1fr)_auto] items-center gap-2 text-[9px]">
+                      <span className="truncate text-grey">{entry.variable}</span>
+                      <span className="flex h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <span className="block h-full bg-red-400/80" style={{ width: `${killShare}%` }} />
+                        <span className="block h-full bg-emerald-400/70" style={{ width: `${100 - killShare}%` }} />
+                      </span>
+                      <span className="font-mono text-grey">{entry.killed}✕ / {entry.kept}✓</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-2 rounded-lg border border-dashed border-line p-4 text-[10px] leading-5 text-grey">
+                No verdicts recorded yet. Keep/kill controls sit on every watched shot in the production canvas.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

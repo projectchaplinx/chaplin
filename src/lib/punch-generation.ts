@@ -34,6 +34,84 @@ export function providerDurationSeconds(
   return Math.min(15, Math.max(4, Math.ceil(authoredSeconds)));
 }
 
+export type NativeMultiShotReference = {
+  /** e.g. "@Image1" — the tag used inline in beat text. */
+  tag: string;
+  role: "canonical-identity" | "style-sheet-panel" | "product" | "style";
+  description: string;
+};
+
+/**
+ * Native multi-shot prompt, v2 — structured for the Seedance 2.5 contract
+ * (dated 2026-08-02, official Dreamina guide): beat-by-beat timecodes,
+ * @-tagged references, shot-size + movement camera grammar, and the guide's
+ * own anti-drift practice of repeating wardrobe, props, and time of day at
+ * every beat. One lens feel and palette is declared once and held.
+ *
+ * Dialogue is deliberately absent: spoken lines belong to the locked
+ * ElevenLabs voice, and this template is used only for no-dialogue briefs
+ * until reference-audio passes its controlled validation.
+ */
+export function buildNativeMultiShotPrompt(input: {
+  title: string;
+  logline: string;
+  creativeDirection?: string;
+  actorIdentity: string;
+  references: NativeMultiShotReference[];
+  lookContract: string;
+  wardrobeLine: string;
+  timeOfDay: string;
+  totalDurationSeconds: 15 | 30;
+  scenes: Array<{
+    setting: string;
+    objective?: string;
+    action?: string;
+    shotSize?: "CU" | "MCU" | "WS";
+    cameraMove?: string;
+    transitionOut?: string;
+  }>;
+  themeDirection?: string;
+}) {
+  const scenes = input.scenes.slice(0, 6);
+  if (scenes.length < 2) throw new Error("A native multi-shot piece needs at least two beats.");
+  const beatSeconds = input.totalDurationSeconds / scenes.length;
+  const identityTags = input.references.filter((reference) => reference.role !== "product").map((reference) => reference.tag);
+  const anchor = identityTags.length ? `${identityTags.join(" and ")} are the same single actor — identity truth.` : "";
+  const beats = scenes.map((scene, index) => {
+    const start = Math.round(index * beatSeconds);
+    const end = index === scenes.length - 1 ? input.totalDurationSeconds : Math.round((index + 1) * beatSeconds);
+    const camera = `${scene.shotSize ?? (index === 0 ? "WS" : "MCU")} ${scene.cameraMove ?? "camera locked"}`;
+    return [
+      `${String(start).padStart(2, "0")}–${String(end).padStart(2, "0")}s — BEAT ${index + 1}:`,
+      `${scene.setting || "the established location"}. ${scene.objective || "The situation visibly changes."}`,
+      `ACTION: ${scene.action || "the actor completes one clear physical action"}.`,
+      `CAMERA: ${camera}.`,
+      // The guide's anti-drift rule: restate wardrobe, props, and time of day
+      // in every beat rather than trusting the model to remember beat one.
+      `CONSTANT: ${input.wardrobeLine}; ${input.timeOfDay}.`,
+      index < scenes.length - 1
+        ? `TRANSITION: ${scene.transitionOut || "hard cut motivated by the action"}.`
+        : "LANDING: hold the final image; no fade unless stated.",
+    ].join(" ");
+  });
+
+  return [
+    `Create one continuous ${input.totalDurationSeconds}-second video titled "${input.title}" with ${scenes.length} internal beats. One generation, not separate files.`,
+    `STORY PROMISE: ${input.logline}.`,
+    input.creativeDirection ? `CREATIVE DIRECTION: ${input.creativeDirection}.` : "",
+    ...input.references.map((reference) => `${reference.tag} — ${reference.role}: ${reference.description}.`),
+    anchor,
+    `IDENTITY CANON: ${input.actorIdentity}. The actor matches ${identityTags[0] ?? "the supplied reference"} exactly in every beat; never blend, duplicate, beautify, age-shift, or substitute the face.`,
+    `LOOK CONTRACT: ${input.lookContract} Hold this one lens feel and palette across every beat.`,
+    "TIMED BEAT PLAN:",
+    ...beats,
+    "MOTION RULES: Concrete, physically plausible motion only. Name no more than one moving subject per beat. No frozen figures.",
+    "AUDIO: Generate location-true ambience, footsteps, cloth, and handled objects only. No spoken words, no narration, no singing, and no lip movement implying speech: dialogue is performed by the locked voice and mixed separately.",
+    input.themeDirection ? `MUSIC DIRECTION: ${input.themeDirection}.` : "MUSIC DIRECTION: one restrained motif under the ambience; never louder than the environment.",
+    "OUTPUT: one continuous vertical-safe video, no captions, no readable background text, no logo, no watermark.",
+  ].filter(Boolean).join("\n");
+}
+
 export function buildPunchSingleTakePrompt(input: {
   title: string;
   logline: string;

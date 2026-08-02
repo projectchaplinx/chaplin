@@ -1,4 +1,5 @@
 ﻿import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   beginGeneration,
@@ -2382,6 +2383,18 @@ export async function POST(request: Request) {
           rejectedModels.push(`${attempt.model}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
+      /*
+        Shot provenance for the research loop: which voice path actually ran,
+        and a hash of the exact prompt so a null result — a variant whose
+        rendered instruction is byte-identical to control — is detectable
+        without storing two copies of the text.
+      */
+      const voicePathUsed = audioPlanUsed?.dialogue.owner === "native" && referenceAudio
+        ? "A-native-reference"
+        : dialogueText
+          ? "B-post-mix"
+          : null;
+      const promptHash = createHash("sha256").update(prompt).digest("hex");
       const asset = await saveRemoteMediaAsset({
         characterId,
         kind: "video",
@@ -2393,6 +2406,8 @@ export async function POST(request: Request) {
           taskId,
           videoModel: videoModelUsed,
           videoProvider: videoProviderUsed,
+          voicePath: voicePathUsed,
+          promptHash,
           ...(rejectedModels.length ? { safetyRejectedModels: rejectedModels } : {}),
           ...(audioPlanUsed
             ? {
@@ -2450,11 +2465,7 @@ export async function POST(request: Request) {
         provider: videoProviderUsed,
         model: videoModelUsed,
         nativeAudioRequested,
-        voicePath: audioPlanUsed?.dialogue.owner === "native" && referenceAudio
-          ? "A-native-reference"
-          : dialogueText
-            ? "B-post-mix"
-            : null,
+        voicePath: voicePathUsed,
       });
     }
 

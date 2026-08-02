@@ -314,3 +314,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.6 | `faad9e9` | 2026-08-02T02:30:10+05:30 | v0.3.6: run adversarial Director Brain comparison |
 | v0.3.7 | `35b9ef5` | 2026-08-02T02:54:04+05:30 | v0.3.7: generate exact Sprint 1 comparison |
 | v0.3.8 | `127a85d` | 2026-08-02T14:01:36+05:30 | v0.3.8: split Director Brain into lazy workspaces |
+| v0.3.9 | `f48af22` | 2026-08-02T14:41:11+05:30 | v0.3.6: protect identity and voice through the render path |

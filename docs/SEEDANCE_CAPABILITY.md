@@ -75,3 +75,31 @@ must not invent a model ID, submit undocumented fields, or claim those limits.
    request shape.
 4. Boards longer than the active adapter's maximum duration split at a seam.
    For the present 2.0 adapter, 15,000 ms is the hard output ceiling.
+
+## Seedance 2.5 — profile dated 2026-08-02
+
+Source: official Dreamina prompt guide
+(`https://dreamina.capcut.com/seedance/seedance-2-5-prompt`), read 2026-08-02.
+Per the Director Brain AI-production contract, provider claims are hypotheses
+until reproduced in a controlled Chaplin generation test.
+
+| Claim | Value | Status |
+|---|---|---|
+| Continuous duration | up to 30 s | recorded, unvalidated |
+| Multimodal references | up to 50, inline `@Image1`-style tags | recorded, unvalidated |
+| Reference roles | portraits, product, storyboard frames, style, video, audio | recorded |
+| Shot declaration | beat-by-beat timecode intervals, 6–8 s per beat | recorded |
+| Camera grammar | shot size (CU/MCU/WS) + movement verb | recorded |
+| Native audio | "voice or sound references", audio sync | **hypothesis — gates dialogue routing; validate before flipping `audio_reference_input`** |
+| Aspect ratios | 9:16, 16:9, 1:1 | recorded |
+
+Provider-stated best practices adopted into `buildNativeMultiShotPrompt` v2:
+lock identity early with 2–3 tagged portrait stills per lead; repeat wardrobe,
+props, and time of day at each beat; one lens feel and palette declared once;
+concrete motion over adjectives; name cuts intentionally; avoid stitching short
+clips for long pieces.
+
+Code: `SEEDANCE_AUDIO_CAPABILITIES["seedance-2.5"]` (audio reference OFF until
+validated), `seedanceCapabilities()` 2.5 branch (30 000 ms, 50 refs,
+`structuredMultiShot: true`, still subject to the account probe), and
+`buildNativeMultiShotPrompt` in `src/lib/punch-generation.ts`.

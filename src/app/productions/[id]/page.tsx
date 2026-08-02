@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Avatar from "@/components/Avatar";
+import TakeVerdictControls from "@/components/TakeVerdictControls";
 import SceneStudioAssets from "@/components/studio/SceneStudioAssets";
 import SceneStudioRail, { type SceneStage } from "@/components/studio/SceneStudioRail";
 import StudioWorkspaceHeader from "@/components/studio/StudioWorkspaceHeader";
@@ -462,6 +463,7 @@ export function ProductionWorkspace({
           : scene?.durationSeconds ?? (contract.format === "punch" ? 4 : 5),
         frameUrl,
         videoUrl,
+        videoAssetId: liveShot?.videoAssetId,
         status,
         error: liveShot?.error,
       };
@@ -1022,6 +1024,19 @@ export function ProductionWorkspace({
               if (!response.ok || !data.url || !data.assetId) throw new Error(data.error ?? "The shot could not be mixed.");
               output = { ...output, url: data.url, durationSeconds: 5 };
               outputAssetId = data.assetId;
+              // Research instrumentation — fire-and-forget identity measurement.
+              void fetch("/api/pipeline/identity-score", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  characterId: cast[0].id,
+                  videoUrl: data.url,
+                  assetId: data.assetId,
+                  pipelineRunId: activeRun.id,
+                  durationSeconds: 5,
+                  label: "spark shot",
+                }),
+              }).catch(() => undefined);
             } else if (step.key === "technical-qc") {
               const mixedUrl = activeRun.steps.find((candidate) => candidate.key === "shot-mix")?.output.url;
               if (typeof mixedUrl !== "string") throw new Error("Technical QC needs a mixed shot.");
@@ -1617,6 +1632,21 @@ export function ProductionWorkspace({
           selectShot(index);
           setRenderFrameUrl(frameData.frameUrl);
           setRenderProgress(`Animated ${scenesAnimated} of ${contract.shotCount} scenes`);
+          // Research instrumentation: score this shot's identity hold against
+          // the canonical reference. Fire-and-forget — a measurement failure
+          // never touches the render.
+          void fetch("/api/pipeline/identity-score", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              characterId: cast[0].id,
+              videoUrl: videoData.url,
+              assetId: videoData.assetId,
+              pipelineRunId: activeRun.id,
+              durationSeconds: renderedDurationMs(index) / 1000,
+              label: `punch shot ${index + 1} of ${contract.shotCount}`,
+            }),
+          }).catch(() => undefined);
           setRenderShots((shots) => shots.map((shot, shotIndex) => (
             shotIndex === index
               ? {
@@ -1726,6 +1756,20 @@ export function ProductionWorkspace({
           completedAt: new Date().toISOString(),
         },
       });
+      // Measure identity across the assembled master too — cross-shot drift
+      // only shows once the cuts sit next to each other.
+      void fetch("/api/pipeline/identity-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId: cast[0].id,
+          videoUrl: data.url,
+          assetId: data.assetId,
+          pipelineRunId: activeRun.id,
+          durationSeconds: contract.duration,
+          label: "assembled punch master",
+        }),
+      }).catch(() => undefined);
 
       const captionsStep = activeRun.steps.find((step) => step.key === "captions");
       if (captionsStep && ["ready", "queued", "failed"].includes(captionsStep.status)) {
@@ -2330,6 +2374,16 @@ export function ProductionWorkspace({
               </div>
             )}
 
+            {/*
+              Keep/kill on the shot being watched. Verdicts require a
+              generation job, so they attach to shots — the FFmpeg-assembled
+              master has no job and is judged through its shots' verdicts.
+            */}
+            {canvasVideoUrl && selectedShot?.videoAssetId && (
+              <div className="absolute bottom-14 left-3 rounded-md bg-black/60 px-2 py-1 backdrop-blur">
+                <TakeVerdictControls assetId={selectedShot.videoAssetId} />
+              </div>
+            )}
             {!canvasVideoUrl && <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/10 to-black/35" />}
             {(busy || liveStep) && !canvasVideoUrl && (
               <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 animate-[pipeline-live-sweep_2.2s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/15 to-transparent blur-xl" />

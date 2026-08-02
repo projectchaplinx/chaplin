@@ -9,6 +9,7 @@ import AdminDirectorLearning from "@/components/AdminDirectorLearning";
 import AdminDirectorWorldAtlas from "@/components/AdminDirectorWorldAtlas";
 import AdminDirectorResearchArchive from "@/components/AdminDirectorResearchArchive";
 import AdminDirectorReviewQueue from "@/components/AdminDirectorReviewQueue";
+import AdminDirectorIntelligence from "@/components/AdminDirectorIntelligence";
 import AdminDirectorSprintOne from "@/components/AdminDirectorSprintOne";
 import AdminDirectorSprintTest from "@/components/AdminDirectorSprintTest";
 import AdminDirectorSprintTwo from "@/components/AdminDirectorSprintTwo";
@@ -23,6 +24,7 @@ import {
   retrieveDirectorKnowledge,
 } from "@/lib/director-brain";
 import { getServerAuthIdentity } from "@/lib/server/auth";
+import { getDirectorIntelligence, getRenderLearningPanels } from "@/lib/server/director-intelligence";
 import { listDirectorResearch } from "@/lib/server/director-research";
 import { listDirectorDecisionTraces } from "@/lib/server/director-decisions";
 import { listDirectorEvaluations } from "@/lib/server/director-evaluations";
@@ -65,9 +67,10 @@ async function SprintTwoSection() {
 async function DecisionsSection() {
   const guidedBrief = "Los Angeles, summer 1966, late afternoon. In a working service bay, a young mechanic hears an engine stumble, finds a freshly cut ignition wire, and spots the departing sedan responsible. Original 15-second suspense Punch.";
   const guidedTrace = retrieveDirectorKnowledge({ brief: guidedBrief, format: "punch", durationSeconds: 15, sceneCount: 4 });
-  const [decisionBundle, evaluationBundle] = await Promise.all([
+  const [decisionBundle, evaluationBundle, renderPanels] = await Promise.all([
     listDirectorDecisionTraces(100),
     listDirectorEvaluations(250),
+    getRenderLearningPanels().catch(() => undefined),
   ]);
 
   return (
@@ -114,7 +117,7 @@ async function DecisionsSection() {
           },
         }}
       />
-      <AdminDirectorLearning evaluations={evaluationBundle.evaluations} storageReady={evaluationBundle.storageReady} />
+      <AdminDirectorLearning evaluations={evaluationBundle.evaluations} storageReady={evaluationBundle.storageReady} renderPanels={renderPanels} />
     </>
   );
 }
@@ -143,10 +146,12 @@ async function OperationsSection() {
 }
 
 async function KnowledgeSection() {
-  const { research } = await loadResearch();
+  const [{ research }, intelligence] = await Promise.all([loadResearch(), getDirectorIntelligence()]);
   const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
   return (
     <>
+      <AdminDirectorIntelligence intelligence={intelligence} />
+
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Brain version", DIRECTOR_BRAIN_VERSION],

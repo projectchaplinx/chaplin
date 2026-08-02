@@ -144,6 +144,15 @@ export type DirectorResearchEvent = {
   createdAt: string;
 };
 
+/**
+ * A chaplin-test source is Chaplin's own controlled production evidence. Its
+ * material comes from render instrumentation, never from fetching a URL, so
+ * it must not be enqueued as a research job at all.
+ */
+export function isChaplinTestSource(source: Pick<DirectorResearchSourceRecord, "sourceKind">) {
+  return source.sourceKind === "chaplin-test";
+}
+
 export function directorResearchSourceMode(source: Pick<DirectorResearchSourceRecord, "sourceKind" | "sourceUrl" | "targetTags" | "title">): DirectorResearchSourceMode {
   const joined = `${source.title} ${source.sourceUrl ?? ""} ${source.targetTags.join(" ")}`.toLowerCase();
   if (source.targetTags.includes("public-domain-scene") && /viewing file|\.webm|\.mp4|archive\.org/.test(joined)) return "timed-media";

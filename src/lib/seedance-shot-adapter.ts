@@ -15,6 +15,23 @@ export type SeedanceSubmission =
   | { transport: "multi-shot"; job: ShotJob; prompt: string; references: Reference[] };
 
 export function seedanceCapabilities(model: string): SeedanceShotCapabilities {
+  /*
+    Seedance 2.5 — dated 2026-08-02 from the official Dreamina prompt guide:
+    30s continuous generation, up to 50 @-tagged multimodal references
+    (images, video, audio), beat-timecoded native multi-shot as the
+    provider-recommended path. Reference-audio and multi-shot stay subject to
+    the account probe below; the guide's claims are recorded, not trusted.
+  */
+  if (/seedance-2-5|seedance-2\.5/i.test(model)) {
+    return {
+      maxDurationMs: 30_000,
+      maxReferences: 50,
+      acceptsReferenceImages: true,
+      acceptsReferenceVideo: true,
+      acceptsReferenceAudio: true,
+      structuredMultiShot: true,
+    };
+  }
   if (/dreamina-seedance-2-0/i.test(model)) {
     return {
       maxDurationMs: 15_000,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const generationVerdictSchema = z.enum(["kept", "killed", "pending"]);
-export const changedVariableSchema = z.enum(["camera", "lighting", "speed", "action", "reference"]);
+export const changedVariableSchema = z.enum(["camera", "lighting", "speed", "action", "reference", "identity", "voice"]);
 export const generationVerdictInputSchema = z.object({
   job_id: z.string().uuid().optional(),
   result_asset_id: z.string().uuid().optional(),

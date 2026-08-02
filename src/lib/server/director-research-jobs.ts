@@ -6,6 +6,7 @@ import { estimateDirectorResearchCost } from "@/lib/director-research-cost";
 import {
   assertResearchTextIsAnalytical,
   directorResearchSourceMode,
+  isChaplinTestSource,
   type DirectorResearchJob,
   type DirectorResearchEvent,
   type DirectorResearchJobStatus,
@@ -279,7 +280,11 @@ export async function enqueueDirectorResearch(campaignId: string, userId: string
     : { data: [], error: null };
   if (terminal.error) throw new Error(`Check completed research jobs: ${terminal.error.message}`);
   const completedSourceIds = new Set((terminal.data ?? []).map((job) => String(job.source_id)));
-  const rows = sourceRows.filter((row) => !completedSourceIds.has(row.id)).map((row) => {
+  const rows = sourceRows.filter((row) => !completedSourceIds.has(row.id)
+    // Chaplin's own production evidence has no URL to fetch; render
+    // instrumentation writes it directly. Enqueueing one would send the
+    // document worker after a source that cannot be downloaded.
+    && !isChaplinTestSource(sourceFromRow(row))).map((row) => {
     const source = sourceFromRow(row);
     return {
       source_id: source.id,

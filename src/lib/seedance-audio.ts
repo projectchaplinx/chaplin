@@ -14,6 +14,20 @@ export type SeedanceAudioCapability = {
  * provider does not expose.
  */
 export const SEEDANCE_AUDIO_CAPABILITIES = {
+  /*
+    Seedance 2.5 — profile dated 2026-08-02, from the official Dreamina prompt
+    guide (dreamina.capcut.com/seedance/seedance-2-5-prompt): up to 30 seconds
+    continuous, up to 50 @-tagged multimodal references, native audio with
+    "voice or sound references" and audio sync. The reference-audio claim has
+    NOT been reproduced in a controlled Chaplin test, so it stays false here:
+    flipping it would route locked-voice dialogue through an unvalidated
+    transport. Flip after the GPSC Phase 1.5 validation passes.
+  */
+  "seedance-2.5": {
+    audio_reference_input: false,
+    native_audio_output: true,
+    max_audio_ref_ms: 0,
+  },
   "seedance-2.0": {
     audio_reference_input: true,
     native_audio_output: true,
@@ -40,6 +54,7 @@ export function seedanceSupportsAudioReference(model: string) {
 }
 
 export function seedanceAudioCapability(model: string): SeedanceAudioCapability {
+  if (/seedance-2-5|seedance-2\.5/i.test(model)) return SEEDANCE_AUDIO_CAPABILITIES["seedance-2.5"];
   if (/dreamina-seedance-2-0/i.test(model)) return SEEDANCE_AUDIO_CAPABILITIES["seedance-2.0"];
   if (/seedance-1-5/i.test(model)) return SEEDANCE_AUDIO_CAPABILITIES["seedance-1.5"];
   return SEEDANCE_AUDIO_CAPABILITIES.fallback;

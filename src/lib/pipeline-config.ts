@@ -117,8 +117,10 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       settings: {
         concurrencyCap: 3,
         guidanceScale: 4,
-        dialogueModel: "eleven_multilingual_v2",
-        stability: 0.78,
+        // Same engine family as eleven_ttv_v3 design — multilingual_v2 flattened
+        // the designed accent into a different-sounding voice.
+        dialogueModel: "eleven_v3",
+        stability: 0.5,
         similarityBoost: 0.9,
         style: 0,
         speakerBoost: true,

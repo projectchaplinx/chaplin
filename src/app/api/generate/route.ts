@@ -121,9 +121,15 @@ const MODEL_ARK_API = "https://ark.ap-southeast.bytepluses.com/api/v3";
 export const ORPHANED_VOICE = "ORPHANED_VOICE";
 const OPENROUTER_IMAGE_API = "https://openrouter.ai/api/v1/images";
 const OPENAI_IMAGE_API = "https://api.openai.com/v1/images";
-const DIALOGUE_MODEL = "eleven_multilingual_v2";
+/*
+ * Dialogue must render on the same engine family that designed the voice.
+ * Auditions come from the v3 voice-design engine; rendering the locked voice
+ * through multilingual_v2 at high stability flattened accent and delivery so
+ * badly it read as a different person. v3 stability is a preset: 0.5 = Natural.
+ */
+const DIALOGUE_MODEL = "eleven_v3";
 const DIALOGUE_VOICE_SETTINGS = {
-  stability: 0.78,
+  stability: 0.5,
   similarity_boost: 0.9,
   style: 0,
   use_speaker_boost: true,

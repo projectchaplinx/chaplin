@@ -79,10 +79,40 @@ function anthropicContent(message: OpenAIInputMessage): Anthropic.MessageParam["
   return blocks.length ? blocks : "(empty)";
 }
 
+/*
+  Anthropic structured outputs reject numeric, string-length, and array-count
+  constraints (minItems, maxItems, minLength, pattern, minimum, ...) with a
+  400 — schemas written for OpenAI's json_schema mode routinely carry them.
+  Strip the unsupported keywords recursively; the semantic constraints are
+  already restated in the prompt text, so the output shape still holds.
+*/
+const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
+  "minItems", "maxItems", "uniqueItems", "contains", "minContains", "maxContains",
+  "minLength", "maxLength", "pattern",
+  "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+  "minProperties", "maxProperties", "patternProperties", "propertyNames",
+  "default", "examples",
+]);
+
+export function sanitizeSchemaForAnthropic(schema: Record<string, unknown>): Record<string, unknown> {
+  const clean = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(clean);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !UNSUPPORTED_SCHEMA_KEYWORDS.has(key))
+        .map(([key, entry]) => [key, clean(entry)]),
+    );
+  };
+  return clean(schema) as Record<string, unknown>;
+}
+
 /**
  * Runs the same request shape the OpenAI transport takes, on Claude.
  * With a schema, structured outputs guarantee the first text block is valid
  * JSON matching it — same contract the OpenAI json_schema path provided.
+ * Failures are rethrown with a [CLAUDE-...] code so the UI can show exactly
+ * what went wrong instead of a generic retry message.
  */
 export async function createAnthropicResponse(input: {
   instructions: string;
@@ -95,35 +125,43 @@ export async function createAnthropicResponse(input: {
   // claude-sonnet-5 shares max_tokens with the response text, so give the
   // caller's budget headroom rather than passing it through exactly.
   const maxTokens = Math.min(16000, Math.max(4096, input.maxOutputTokens + 6000));
-  const response = await client().messages.create({
-    model: anthropicModel(),
-    max_tokens: maxTokens,
-    system: input.instructions,
-    messages: input.messages.map((message) => ({
-      role: message.role === "assistant" ? "assistant" as const : "user" as const,
-      content: anthropicContent(message),
-    })),
-    ...(input.schema
-      ? {
-          output_config: {
-            format: {
-              type: "json_schema" as const,
-              schema: input.schema,
+  let response: Anthropic.Message;
+  try {
+    response = await client().messages.create({
+      model: anthropicModel(),
+      max_tokens: maxTokens,
+      system: input.instructions,
+      messages: input.messages.map((message) => ({
+        role: message.role === "assistant" ? "assistant" as const : "user" as const,
+        content: anthropicContent(message),
+      })),
+      ...(input.schema
+        ? {
+            output_config: {
+              format: {
+                type: "json_schema" as const,
+                schema: sanitizeSchemaForAnthropic(input.schema),
+              },
             },
-          },
-        }
-      : {}),
-  });
+          }
+        : {}),
+    });
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      throw new Error(`[CLAUDE-${error.status ?? "NET"}] ${error.message}`);
+    }
+    throw new Error(`[CLAUDE-UNKNOWN] ${error instanceof Error ? error.message : "Claude request failed."}`);
+  }
   if (response.stop_reason === "refusal") {
-    throw new Error("Claude declined this request for safety reasons.");
+    throw new Error("[CLAUDE-REFUSAL] Claude declined this request for safety reasons.");
   }
   const text = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)
     .join("");
-  if (!text) throw new Error("Claude returned no writing output.");
+  if (!text) throw new Error("[CLAUDE-EMPTY] Claude returned no writing output.");
   if (response.stop_reason === "max_tokens") {
-    throw new Error("Claude reached the output-token limit before finishing.");
+    throw new Error("[CLAUDE-TRUNCATED] Claude reached the output-token limit before finishing.");
   }
   return {
     text,

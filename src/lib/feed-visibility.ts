@@ -49,10 +49,30 @@ export function isPunchGeneration(videoType?: string | null, metadata?: unknown)
 }
 
 /**
+ * Research and experiment output must never read as product. Sprint runs,
+ * pipeline experiments, and sprint-test images carry markers on the asset or
+ * job metadata; anything marked stays out of the public feed while remaining
+ * fully visible in the admin research surfaces.
+ */
+function isResearchArtifact(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const record = metadata as Record<string, unknown>;
+  return Boolean(
+    record.directorSprintTwoRunId
+    || record.directorSprintRunId
+    || record.directorSprintGrant
+    || record.pipelineExperimentId
+    || record.pipelineExperiment
+    || normalized(record.imagePurpose) === "sprint_test",
+  );
+}
+
+/**
  * The public feed is a finished-work surface, not a mirror of every provider
  * event. Admin generation logs retain every asset regardless of this policy.
  */
 export function isGenerationVisibleInFeed(input: FeedGenerationVisibility) {
+  if (isResearchArtifact(input.assetMetadata) || isResearchArtifact(input.jobMetadata)) return false;
   if (isCharacterStyleSheetAsset({
     kind: input.assetKind ?? "",
     metadata: input.assetMetadata,

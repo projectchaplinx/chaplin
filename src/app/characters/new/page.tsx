@@ -832,7 +832,16 @@ export default function NewCharacterPage() {
       }
     } catch (suggestionError) {
       console.error("Character suggestion failed", suggestionError);
-      setError("Magic Write could not finish. Please try again.");
+      /*
+        Show the provider's actual failure. The generic "try again" hid an
+        out-of-credit account for a full debugging cycle; error codes like
+        [CLAUDE-400] or an OpenAI quota message tell us what broke instantly.
+      */
+      setError(
+        suggestionError instanceof Error && suggestionError.message
+          ? `Magic Write failed: ${suggestionError.message}`
+          : "Magic Write could not finish. Please try again.",
+      );
     } finally {
       setSuggestingTarget(null);
     }

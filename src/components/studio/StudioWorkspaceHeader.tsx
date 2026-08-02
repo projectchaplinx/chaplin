@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import BrandLogo from "@/components/BrandLogo";
+import StudioAccountMenu from "@/components/studio/StudioAccountMenu";
 
 export type StudioMode = "actor" | "scene" | "render" | "projects";
 
@@ -64,6 +65,7 @@ export default function StudioWorkspaceHeader({
       <div className="studio-workspace-header__actions">
         <span className="studio-workspace-header__mode">{mode} studio</span>
         {actions}
+        <StudioAccountMenu />
       </div>
     </header>
   );

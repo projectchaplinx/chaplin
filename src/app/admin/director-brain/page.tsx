@@ -13,6 +13,7 @@ import AdminDirectorSprintOne from "@/components/AdminDirectorSprintOne";
 import AdminDirectorSprintTest from "@/components/AdminDirectorSprintTest";
 import AdminDirectorSprintTwo from "@/components/AdminDirectorSprintTwo";
 import AdminSectionNav from "@/components/AdminSectionNav";
+import DirectorBrainSectionNav, { directorBrainSection, type DirectorBrainSection } from "@/components/DirectorBrainSectionNav";
 import {
   DIRECTOR_BRAIN_POLICY,
   DIRECTOR_BRAIN_VERSION,
@@ -31,51 +32,46 @@ import { listDirectorSprintTwo } from "@/lib/server/director-sprint-two";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminDirectorBrainPage() {
-  const identity = await getServerAuthIdentity();
-  if (identity?.role !== "admin") redirect("/super-admin?next=/admin/director-brain");
+type PageProps = {
+  searchParams: Promise<{ section?: string }>;
+};
 
-  const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
+async function loadResearch() {
+  try {
+    return { research: await listDirectorResearch(), researchError: "" };
+  } catch (error) {
+    return {
+      research: { storageReady: false, sources: [], studies: [] },
+      researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
+    };
+  }
+}
+
+async function ProofSection() {
+  const bundle = await listDirectorSprintTest();
+  return <AdminDirectorSprintTest initialBundle={bundle} />;
+}
+
+async function SprintOneSection() {
+  const bundle = await listDirectorSprintOne();
+  return <AdminDirectorSprintOne initialBundle={bundle} />;
+}
+
+async function SprintTwoSection() {
+  const bundle = await listDirectorSprintTwo();
+  return <AdminDirectorSprintTwo initialBundle={bundle} />;
+}
+
+async function DecisionsSection() {
   const guidedBrief = "Los Angeles, summer 1966, late afternoon. In a working service bay, a young mechanic hears an engine stumble, finds a freshly cut ignition wire, and spots the departing sedan responsible. Original 15-second suspense Punch.";
-  const guidedTrace = retrieveDirectorKnowledge({
-    brief: guidedBrief,
-    format: "punch",
-    durationSeconds: 15,
-    sceneCount: 4,
-  });
-  const [{ research, researchError }, decisionBundle, evaluationBundle, sprintOneBundle, sprintTestBundle, sprintTwoBundle] = await Promise.all([(async () => {
-    try {
-      return { research: await listDirectorResearch(), researchError: "" };
-    } catch (error) {
-      return {
-        research: { storageReady: false, sources: [], studies: [] },
-        researchError: error instanceof Error ? error.message : "Could not load Director Brain research.",
-      };
-    }
-  })(), listDirectorDecisionTraces(100), listDirectorEvaluations(250), listDirectorSprintOne(), listDirectorSprintTest(), listDirectorSprintTwo()]);
+  const guidedTrace = retrieveDirectorKnowledge({ brief: guidedBrief, format: "punch", durationSeconds: 15, sceneCount: 4 });
+  const [decisionBundle, evaluationBundle] = await Promise.all([
+    listDirectorDecisionTraces(100),
+    listDirectorEvaluations(250),
+  ]);
 
   return (
-    <main className="app-width min-w-0 px-4 py-8 sm:px-6 sm:py-10" data-director-brain>
-      <header className="mb-7">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">Super Admin · Explainable direction</p>
-        <h1 className="marquee-title mt-2 text-3xl leading-tight sm:text-5xl">DIRECTOR BRAIN</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-grey">
-          See what Chaplin knows, where it came from, and which rules can enter a production. This corpus stores reusable craft relationships and historical evidence—not copied scripts, transcripts, or protected scenes.
-        </p>
-      </header>
-
-      <AdminSectionNav />
-
-      <AdminDirectorSprintOne initialBundle={sprintOneBundle} />
-
-      <AdminDirectorSprintTwo initialBundle={sprintTwoBundle} />
-
-      <AdminDirectorSprintTest initialBundle={sprintTestBundle} />
-
-      <AdminDirectorResearchArchive initialBundle={research} />
-
-      <AdminDirectorReviewQueue initialBundle={research} />
-
+    <>
       <AdminDirectorGraph
         decisions={decisionBundle.decisions}
         storageReady={decisionBundle.storageReady}
@@ -118,9 +114,39 @@ export default async function AdminDirectorBrainPage() {
           },
         }}
       />
-
       <AdminDirectorLearning evaluations={evaluationBundle.evaluations} storageReady={evaluationBundle.storageReady} />
+    </>
+  );
+}
 
+async function ResearchSection() {
+  const { research, researchError } = await loadResearch();
+  return (
+    <>
+      <AdminDirectorResearchArchive initialBundle={research} />
+      <AdminDirectorReviewQueue initialBundle={research} />
+      <AdminDirectorResearch initialBundle={research} initialError={researchError} />
+    </>
+  );
+}
+
+async function OperationsSection() {
+  const { research } = await loadResearch();
+  return (
+    <>
+      <AdminDirectorCampaign initialBundle={research} />
+      <AdminDirectorResearchJobs />
+      <AdminDirectorTimedMedia />
+      <AdminDirectorEvidenceManifests />
+    </>
+  );
+}
+
+async function KnowledgeSection() {
+  const { research } = await loadResearch();
+  const domains = [...new Set(DIRECTOR_PATTERNS.map((pattern) => pattern.domain))];
+  return (
+    <>
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Brain version", DIRECTOR_BRAIN_VERSION],
@@ -148,42 +174,6 @@ export default async function AdminDirectorBrainPage() {
             </li>
           ))}
         </ol>
-      </section>
-
-      <AdminDirectorCampaign initialBundle={research} />
-
-      <AdminDirectorResearchJobs />
-
-      <AdminDirectorTimedMedia />
-
-      <AdminDirectorEvidenceManifests />
-
-      <AdminDirectorResearch initialBundle={research} initialError={researchError} />
-
-      <section className="mb-9">
-        <div className="mb-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Craft retrieval</p>
-          <h2 className="reel-title mt-1 text-3xl">Rules available to Magic Write</h2>
-          <p className="mt-2 text-xs text-grey">Domains: {domains.join(" · ")}</p>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {DIRECTOR_PATTERNS.map((pattern) => (
-            <article key={pattern.id} className="poster-card rounded-md p-5" data-director-pattern={pattern.id}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-accent-secondary">{pattern.domain}</p>
-                  <h3 className="mt-1 text-lg font-semibold text-ink">{pattern.name}</h3>
-                </div>
-                <code className="rounded-full border border-line px-2 py-1 text-[9px] text-grey">{pattern.id}</code>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-ink">{pattern.principle}</p>
-              <ul className="mt-3 space-y-1.5 text-xs leading-5 text-grey">
-                {pattern.application.map((item) => <li key={item}>→ {item}</li>)}
-              </ul>
-              <p className="mt-4 text-[9px] uppercase tracking-[0.14em] text-grey">Evidence: {pattern.sourceIds.join(" · ")}</p>
-            </article>
-          ))}
-        </div>
       </section>
 
       <section className="mb-9">
@@ -219,6 +209,32 @@ export default async function AdminDirectorBrainPage() {
         </div>
       </section>
 
+      <section className="mb-9">
+        <div className="mb-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Craft retrieval</p>
+          <h2 className="reel-title mt-1 text-3xl">Rules available to Magic Write</h2>
+          <p className="mt-2 text-xs text-grey">Domains: {domains.join(" · ")}</p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {DIRECTOR_PATTERNS.map((pattern) => (
+            <article key={pattern.id} className="poster-card rounded-md p-5" data-director-pattern={pattern.id}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-accent-secondary">{pattern.domain}</p>
+                  <h3 className="mt-1 text-lg font-semibold text-ink">{pattern.name}</h3>
+                </div>
+                <code className="rounded-full border border-line px-2 py-1 text-[9px] text-grey">{pattern.id}</code>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-ink">{pattern.principle}</p>
+              <ul className="mt-3 space-y-1.5 text-xs leading-5 text-grey">
+                {pattern.application.map((item) => <li key={item}>→ {item}</li>)}
+              </ul>
+              <p className="mt-4 text-[9px] uppercase tracking-[0.14em] text-grey">Evidence: {pattern.sourceIds.join(" · ")}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section>
         <div className="mb-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Provenance register</p>
@@ -236,6 +252,45 @@ export default async function AdminDirectorBrainPage() {
           ))}
         </div>
       </section>
+    </>
+  );
+}
+
+function SectionContent({ section }: { section: DirectorBrainSection }) {
+  if (section === "proof") return <ProofSection />;
+  if (section === "sprint-one") return <SprintOneSection />;
+  if (section === "sprint-two") return <SprintTwoSection />;
+  if (section === "decisions") return <DecisionsSection />;
+  if (section === "research") return <ResearchSection />;
+  if (section === "operations") return <OperationsSection />;
+  return <KnowledgeSection />;
+}
+
+export default async function AdminDirectorBrainPage({ searchParams }: PageProps) {
+  const section = directorBrainSection((await searchParams).section);
+  const identity = await getServerAuthIdentity();
+  if (identity?.role !== "admin") {
+    const next = `/admin/director-brain?section=${section}`;
+    redirect(`/super-admin?next=${encodeURIComponent(next)}`);
+  }
+
+  return (
+    <main className="app-width min-w-0 px-4 py-6 sm:px-6 sm:py-8" data-director-brain data-director-section={section}>
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">Super Admin · Explainable direction</p>
+          <h1 className="marquee-title mt-1 text-3xl leading-tight sm:text-4xl">DIRECTOR BRAIN</h1>
+        </div>
+        <p className="max-w-xl text-xs leading-5 text-grey">
+          Open one workspace at a time. Research, tests, and traces load only when their tab is selected.
+        </p>
+      </header>
+
+      <AdminSectionNav />
+      <DirectorBrainSectionNav active={section} />
+      <div role="tabpanel" aria-label={`${section.replaceAll("-", " ")} workspace`}>
+        <SectionContent section={section} />
+      </div>
     </main>
   );
 }

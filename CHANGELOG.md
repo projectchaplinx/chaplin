@@ -1,5 +1,17 @@
 # Chaplin Changelog
 
+## v0.3.8 - 2026-08-02 - Split Director Brain into focused workspaces
+
+- Replace the single oversized Director Brain crawl with seven focused tabs for
+  controlled proof, Sprint 1, Sprint 2, decisions, research, operations, and
+  the knowledge base.
+- Load only the selected workspace's server data and rendered interface, while
+  disabling hidden-tab prefetch so expensive archives and traces stay dormant
+  until explicitly opened.
+- Open directly on the six-shot controlled proof, keep the workspace selector
+  visible while scrolling, and preserve the selected tab through Super Admin
+  authentication.
+
 ## v0.3.7 - 2026-08-02 - Generate the exact Sprint 1 comparison
 
 - Add an executable audit for every original Sprint 1 exit criterion, including

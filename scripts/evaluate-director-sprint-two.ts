@@ -6,6 +6,9 @@ import path from "node:path";
 import { promisify } from "node:util";
 import ffmpegPath from "ffmpeg-static";
 import postgres from "postgres";
+import { canonicalAutoEvaluation } from "@/lib/auto-evaluation";
+import { DIRECTOR_EVALUATION_VERSION } from "@/lib/director-evaluation";
+import { estimateDirectorResearchCost } from "@/lib/director-research-cost";
 
 loadEnvConfig(process.cwd());
 const apiKey = process.env.OPENAI_API_KEY;
@@ -67,6 +70,7 @@ async function evaluate(row: Record<string, any>) {
     const composite = Math.round((result.identityContinuity * 0.35 + result.performance * 0.25 + result.shotReadability * 0.2 + result.lightingContinuity * 0.15 + 100 * 0.05) * 100) / 100;
     const nullResult = row.variant_id !== "control" && composite <= Number(row.control_score ?? -1);
     const evidence = { observations: result.evidence, offFaceDuringSpeech: result.offFaceDuringSpeech, voicePath: row.voice_path, automatic: true };
+    const cost = estimateDirectorResearchCost((data.usage ?? {}) as Record<string, unknown>);
     const [evaluation] = await sql`
       insert into director_sprint_two_evaluations (
         run_id,output_id,model,response_id,identity_continuity,performance,shot_readability,
@@ -75,20 +79,34 @@ async function evaluate(row: Record<string, any>) {
       ) values (
         ${row.run_id},${row.id},${model},${data.id ?? null},${result.identityContinuity},${result.performance},${result.shotReadability},
         ${result.lightingContinuity},100,${null},${composite},${identityGate},${audioGate},${lipSyncGate},${nullResult},
-        ${sql.json(evidence)},${sql.json(data.usage ?? {})},0
+        ${sql.json(evidence)},${sql.json(data.usage ?? {})},${cost.costUsd}
       ) returning id
     `;
-    const failures = [identityGate === "fail" ? "identity" : null, lipSyncGate === "fail" ? "lip-sync" : null].filter(Boolean);
+    /*
+      The canonical row goes through the shared 1-5 integer contract. The old
+      raw insert stored 0-100 floats under invented dimension names, which the
+      read-path normalizer silently discarded — every Sprint 2 evaluation read
+      back as an empty scorecard with an unexplained "fail".
+    */
+    const canonical = canonicalAutoEvaluation("video", {
+      identity_wardrobe: result.identityContinuity,
+      performance_believability: result.performance,
+      cinematic_language: result.shotReadability,
+      temporal_progression: result.lightingContinuity,
+      audio_source: result.offFaceDuringSpeech ? 80 : 40,
+    });
     await sql`
       insert into director_evaluations (
         output_asset_id,stage,rubric_version,evaluator_kind,status,scores,evidence,composite_score,
         axis_scores,gate_status,gate_failures,reviewer_notes,reviewed_at
       ) values (
-        ${row.asset_id},'video','director-sprint-two-gpfc-v1','automatic','reviewed',
-        ${sql.json({ identity: result.identityContinuity, performance: result.performance, readability: result.shotReadability, lighting: result.lightingContinuity, audio: 100 })},
-        ${sql.json({ sprintTwoEvaluationId: evaluation.id, ...evidence })},${composite},
-        ${sql.json({ identity: result.identityContinuity, character: result.performance, framing: result.shotReadability, lighting: result.lightingContinuity, audio: 100 })},
-        ${failures.length ? "fail" : "pass"},${failures},'Automatic Sprint 2 gate; human pick remains required.',now()
+        ${row.asset_id},'video',${DIRECTOR_EVALUATION_VERSION},'automatic','draft',
+        ${sql.json(canonical.scores)},
+        ${sql.json({ sprintTwoEvaluationId: evaluation.id, rawPercent: { identity: result.identityContinuity, performance: result.performance, readability: result.shotReadability, lighting: result.lightingContinuity }, ...evidence })},
+        ${canonical.summary.score},
+        ${sql.json(canonical.summary.axisScores)},
+        ${canonical.summary.gateStatus},${canonical.summary.gateFailures},
+        'Automatic Sprint 2 measurement on the canonical scale; partial dimensions, so status stays draft. Human pick remains required.',${null}
       )
     `;
     return { id: row.id, composite, identityGate, lipSyncGate };

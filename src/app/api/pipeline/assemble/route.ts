@@ -215,6 +215,28 @@ export async function POST(request: Request) {
       stemLabels.push(`[${label}]`);
       inputIndex += 1;
     }
+    /*
+      A silent plate contributes nothing to the mix, so a scene whose clip came
+      back without an audio stream played as dead air between ambient scenes.
+      Silent scenes now get a synthesized room-tone bed: band-limited pink
+      noise at a level that reads as "the room is on", generated inside FFmpeg
+      so it costs nothing, needs no network, and renders identically every
+      time. A location-specific generated ambience can replace it later.
+    */
+    const silentScenes = shotPaths.map((_, index) => index).filter((index) => !shotHasAudio[index]);
+    if (silentScenes.length) {
+      const noiseIndex = inputIndex;
+      stemInputs.push("-f", "lavfi", "-t", String(finalDurationSeconds), "-i", "anoisesrc=r=48000:c=pink:a=0.02");
+      inputIndex += 1;
+      const splitLabels = silentScenes.map((sceneIndex) => `[rtsrc${sceneIndex}]`).join("");
+      audioFilters.push(`[${noiseIndex}:a]highpass=f=90,lowpass=f=900,volume=0.5,asplit=${silentScenes.length}${splitLabels}`);
+      for (const sceneIndex of silentScenes) {
+        const label = `artn${sceneIndex}`;
+        const delay = Math.round(sceneOffsetsSeconds[sceneIndex] * 1000);
+        audioFilters.push(`[rtsrc${sceneIndex}]atrim=0:${sceneDurationsSeconds[sceneIndex]},asetpts=PTS-STARTPTS,adelay=${delay}|${delay},apad,atrim=0:${finalDurationSeconds},asetpts=PTS-STARTPTS[${label}]`);
+        stemLabels.push(`[${label}]`);
+      }
+    }
     if (themePath) {
       stemInputs.push("-i", themePath);
       /*
@@ -289,6 +311,7 @@ export async function POST(request: Request) {
           lockedVoice: dialogueFiles.map((source) => ({ sceneIndex: source.sceneIndex, url: source.url })),
           sceneEffects: sfxFiles.map((source) => ({ sceneIndex: source.sceneIndex, url: source.url })),
           themeUrl: themeUrl || null,
+          syntheticRoomToneScenes: silentScenes,
         },
       },
     });
@@ -303,6 +326,7 @@ export async function POST(request: Request) {
         lockedVoiceCount: dialogueFiles.length,
         sceneEffectCount: sfxFiles.length,
         hasTheme: Boolean(themeUrl),
+        syntheticRoomToneSceneCount: silentScenes.length,
         mix: "locked voice + scene effects + character theme",
       },
       renderedAt: new Date().toISOString(),

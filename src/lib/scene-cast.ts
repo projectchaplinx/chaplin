@@ -56,7 +56,7 @@ export function actorStyleSheet(character: Character) {
     identity: [
       `${character.name}: ${card.identity_locks.identity_block}`,
       card.identity_locks.face_anchors.length
-        ? `Face anchors: ${card.identity_locks.face_anchors.join("; ")}.`
+        ? `Face anchors: ${card.identity_locks.face_anchors.map((anchor) => `${anchor.feature} at ${anchor.location}, ${anchor.size}${anchor.always_visible ? ", always visible" : ""}`).join("; ")}.`
         : "",
       wardrobe ? `Wardrobe: ${wardrobe.wardrobe}. Hair: ${wardrobe.hair}. Silhouette: ${wardrobe.silhouette}.` : "",
     ].filter(Boolean).join(" "),

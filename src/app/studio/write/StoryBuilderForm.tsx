@@ -304,10 +304,19 @@ function PunchGenerationModeChooser({
   value,
   onChange,
   compact = false,
+  dialogueLocked = false,
 }: {
   value: PunchGenerationMode;
   onChange: (mode: PunchGenerationMode) => void;
   compact?: boolean;
+  /*
+    Spoken lines are always performed by the character's locked ElevenLabs
+    voice. A single-take render lets Seedance re-perform the words in a voice
+    it invents, so the option is closed whenever any scene has dialogue —
+    until a provider path that accepts the locked recording as reference
+    audio is validated.
+  */
+  dialogueLocked?: boolean;
 }) {
   const options: Array<{
     mode: PunchGenerationMode;
@@ -338,17 +347,22 @@ function PunchGenerationModeChooser({
   return (
     <div className={`grid gap-2.5 ${compact ? "" : "sm:grid-cols-2"}`} data-punch-generation-options>
       {options.map((option) => {
-        const selected = value === option.mode;
+        const locked = dialogueLocked && option.mode === "single-take";
+        const selected = value === option.mode && !locked;
         return (
           <button
             key={option.mode}
             type="button"
-            onClick={() => onChange(option.mode)}
+            onClick={() => { if (!locked) onChange(option.mode); }}
             aria-pressed={selected}
+            aria-disabled={locked}
+            disabled={locked}
             className={`rounded-xl border p-4 text-left transition ${
               selected
                 ? "border-accent bg-accent/[0.08] shadow-[0_0_0_1px_rgba(244,63,105,0.18)]"
-                : "border-white/10 bg-white/[0.025] hover:border-white/25"
+                : locked
+                  ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-55"
+                  : "border-white/10 bg-white/[0.025] hover:border-white/25"
             }`}
             data-generation-mode={option.mode}
           >
@@ -357,7 +371,13 @@ function PunchGenerationModeChooser({
               <span className="shrink-0 font-mono text-[10px] text-accent">{option.source}</span>
             </span>
             <span className="mt-2 block text-[10px] leading-4 text-grey">{option.description}</span>
-            <span className="mt-3 block text-[9px] font-semibold leading-4 text-accent-secondary">{option.bestFor}</span>
+            {locked ? (
+              <span className="mt-3 block text-[9px] font-semibold leading-4 text-amber-300/90">
+                Locked while scenes carry dialogue: spoken lines are always performed by the character&apos;s locked voice, and a single take would let the video model invent one. Remove the lines or use scene clips.
+              </span>
+            ) : (
+              <span className="mt-3 block text-[9px] font-semibold leading-4 text-accent-secondary">{option.bestFor}</span>
+            )}
             {selected && (
               <span className="mt-3 block border-t border-white/10 pt-3 text-[9px] leading-4 text-white/65">
                 <span className="font-semibold uppercase tracking-[0.14em] text-white/45">Judge this output</span><br />
@@ -403,6 +423,15 @@ export default function StoryBuilderForm() {
   });
   const [scenes, setScenes] = useState<DraftScene[]>([emptyScene()]);
   const [sceneProps, setSceneProps] = useState<SceneProp[]>([]);
+  /*
+    Dialogue closes the single-take door: spoken lines belong to the locked
+    ElevenLabs voice, and a native take would let Seedance re-perform them in
+    a voice it invents. The effective mode is what every submission uses, so
+    a stale single-take selection can never reach the pipeline with lines.
+  */
+  const punchDialoguePresent = scenes.some((scene) => scene.lines.some((line) => line.text.trim()));
+  const effectivePunchGenerationMode: PunchGenerationMode =
+    punchDialoguePresent ? "scene-clips" : punchGenerationMode;
   const [error, setError] = useState("");
   const [magicBusy, setMagicBusy] = useState(false);
   const [magicRunKind, setMagicRunKind] = useState<MagicRunKind>("draft");
@@ -1283,7 +1312,7 @@ export default function StoryBuilderForm() {
       logline: logline.trim(),
       format,
       durationSeconds,
-      punchGenerationMode: format === "punch" ? punchGenerationMode : undefined,
+      punchGenerationMode: format === "punch" ? effectivePunchGenerationMode : undefined,
       status: "production",
       creativeDirection: creativeDirection.trim() || undefined,
       sceneProps,
@@ -1312,7 +1341,7 @@ export default function StoryBuilderForm() {
           logline: story.logline,
           format,
           durationSeconds,
-          punchGenerationMode: format === "punch" ? punchGenerationMode : undefined,
+          punchGenerationMode: format === "punch" ? effectivePunchGenerationMode : undefined,
           coverHue: story.coverHue,
           posterUrl: validScenes.find((scene) => scene.previewImageUrl)?.previewImageUrl ?? null,
         }),
@@ -1340,7 +1369,7 @@ export default function StoryBuilderForm() {
         body: [
           `Script locked: ${story.title}`,
           `${validScenes.length} playable scene${validScenes.length === 1 ? "" : "s"} · ${durationSeconds}s ${formatDefinition.label} · ${
-            format === "punch" && punchGenerationMode === "single-take"
+            format === "punch" && effectivePunchGenerationMode === "single-take"
               ? "one native 15-second take"
               : "separate scene clips"
           }`,
@@ -1791,14 +1820,14 @@ export default function StoryBuilderForm() {
                   </div>
                   <span className="rounded-full border border-white/10 px-3 py-1 text-[9px] text-white/55">Editable until production starts</span>
                 </div>
-                <PunchGenerationModeChooser value={punchGenerationMode} onChange={setPunchGenerationMode} />
+                <PunchGenerationModeChooser value={effectivePunchGenerationMode} onChange={setPunchGenerationMode} dialogueLocked={punchDialoguePresent} />
                 <button
                   type="button"
                   onClick={() => confirmOutput("punch")}
                   className="magic-action mt-3 flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold"
                   data-confirm-punch-mode
                 >
-                  <span>Continue with {punchGenerationMode === "single-take" ? "one complete prompt" : "four scene clips"}</span>
+                  <span>Continue with {effectivePunchGenerationMode === "single-take" ? "one complete prompt" : "four scene clips"}</span>
                   <span aria-hidden="true">→</span>
                 </button>
               </div>
@@ -2226,9 +2255,9 @@ export default function StoryBuilderForm() {
                 <button
                   type="button"
                   onClick={() => setPunchGenerationMode("scene-clips")}
-                  aria-pressed={punchGenerationMode === "scene-clips"}
+                  aria-pressed={effectivePunchGenerationMode === "scene-clips"}
                   className={`rounded-xl border p-4 text-left transition ${
-                    punchGenerationMode === "scene-clips"
+                    effectivePunchGenerationMode === "scene-clips"
                       ? "border-accent bg-accent/[0.08]"
                       : "border-white/10 bg-white/[0.025] hover:border-white/25"
                   }`}
@@ -2245,12 +2274,16 @@ export default function StoryBuilderForm() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPunchGenerationMode("single-take")}
-                  aria-pressed={punchGenerationMode === "single-take"}
+                  onClick={() => { if (!punchDialoguePresent) setPunchGenerationMode("single-take"); }}
+                  aria-pressed={effectivePunchGenerationMode === "single-take"}
+                  aria-disabled={punchDialoguePresent}
+                  disabled={punchDialoguePresent}
                   className={`rounded-xl border p-4 text-left transition ${
-                    punchGenerationMode === "single-take"
+                    effectivePunchGenerationMode === "single-take"
                       ? "border-accent bg-accent/[0.08]"
-                      : "border-white/10 bg-white/[0.025] hover:border-white/25"
+                      : punchDialoguePresent
+                        ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-55"
+                        : "border-white/10 bg-white/[0.025] hover:border-white/25"
                   }`}
                   data-generation-mode="single-take"
                 >
@@ -2261,7 +2294,11 @@ export default function StoryBuilderForm() {
                   <span className="mt-2 block text-[10px] leading-4 text-grey">
                     Ask Seedance for one four-shot video with synchronized dialogue, background noise, physical effects, ambience, and score.
                   </span>
-                  <span className="mt-3 block text-[8px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Native audiovisual generation</span>
+                  {punchDialoguePresent ? (
+                    <span className="mt-3 block text-[8px] font-semibold uppercase tracking-[0.16em] text-amber-300/90">Locked: dialogue must use the locked voice</span>
+                  ) : (
+                    <span className="mt-3 block text-[8px] font-semibold uppercase tracking-[0.16em] text-accent-secondary">Native audiovisual generation</span>
+                  )}
                 </button>
               </div>
             </section>

@@ -39,6 +39,27 @@ test("i2v budget preserves the protected style contract and terminal negatives",
   assert.ok(result.prompt.endsWith("No frozen figures. No music. No subtitles."));
 });
 
+test("i2v budget never drops identity anchors or the audio contract", () => {
+  const filler = "WORLD: humid battlefield atmosphere with detailed history and texture. ".repeat(14);
+  const prompt = [
+    "Camera: slow dolly in.",
+    "Subject event: Rhea grips the rope.",
+    filler,
+    "IDENTITY ANCHOR: Keep only Rhea readable and identity-locked. Never blend, duplicate, beautify, age-shift, or substitute her.",
+    "AUDIO: Silent visual plate only. No lip-sync, speech, effects, ambience, or music; audio is generated and mixed separately. --duration 4.000 --camerafixed true",
+    "No frozen figures. No music. No subtitles.",
+  ].join("\n");
+  const result = budgetVideoPrompt(prompt, "image_to_video", true);
+  assert.ok(result.trimmed);
+  // The bug: production trimming kept only the leading words, silently cutting
+  // the identity lock and the silent-plate audio contract — which is how a
+  // post-mix plate ends up with a model-invented voice.
+  assert.match(result.prompt, /IDENTITY ANCHOR: Keep only Rhea readable/);
+  assert.match(result.prompt, /AUDIO: Silent visual plate only/);
+  assert.match(result.prompt, /--duration 4\.000/);
+  assert.ok(result.prompt.endsWith("No frozen figures. No music. No subtitles."));
+});
+
 test("motion grammar requires camera, event, and no frozen figures with split sentences", () => {
   const prompt = enforceMotionGrammar({ camera: "slow lateral track", event: "Rhea sips coffee and looks up" });
   assert.deepEqual(motionGrammarIssues(prompt), []);

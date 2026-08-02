@@ -827,6 +827,37 @@ export function ProductionWorkspace({
     return { url, assetId, measuredDurationMs };
   }
 
+  /*
+    The final mix ducks the character theme under speech, but nothing in the
+    production flow ever created one — the only theme button lived in the actor
+    studio, so a delivered cut without a pre-made theme simply had no score.
+    Ensure the actor has a theme before mixing; a theme failure degrades to a
+    silent score rather than blocking the delivery, and is surfaced as a notice.
+  */
+  async function ensureCharacterTheme(characterId: string): Promise<string | null> {
+    try {
+      const mediaResponse = await fetch(`/api/characters/${encodeURIComponent(characterId)}/media`, { cache: "no-store" });
+      const media = mediaResponse.ok
+        ? await mediaResponse.json() as { media?: { latestThemeUrl?: string | null } }
+        : null;
+      if (media?.media?.latestThemeUrl) return media.media.latestThemeUrl;
+      setRenderProgress("Composing the character theme");
+      const themeResponse = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "theme", characterId, themeKind: "scene_15s", durationSeconds: 15 }),
+      });
+      if (!themeResponse.ok) {
+        const data = await themeResponse.json().catch(() => ({ error: "Theme generation failed." })) as { error?: string };
+        throw new Error(data.error ?? "Theme generation failed.");
+      }
+      return themeResponse.headers.get("X-Asset-Url");
+    } catch (themeError) {
+      setProductionNotice(`The character theme could not be prepared (${themeError instanceof Error ? themeError.message : "unknown error"}). The cut is delivered without a musical score; generate a theme in the actor studio and re-render to add it.`);
+      return null;
+    }
+  }
+
   async function openVoiceCapacityRecovery() {
     if (!cast[0]) return;
     setVoiceRecoveryBusy(true);
@@ -979,6 +1010,9 @@ export function ProductionWorkspace({
               output = { ...output, url: asset.url, prompt };
               outputAssetId = asset.assetId;
             } else if (step.key === "shot-mix") {
+              // The mix reads production.latestThemeUrl server-side; make sure
+              // one exists so a first-time actor's Spark ships with a score.
+              await ensureCharacterTheme(cast[0].id);
               const response = await fetch("/api/pipeline/mix", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1254,9 +1288,6 @@ export function ProductionWorkspace({
       return;
     }
     const lockedReference = referenceImageUrl ?? castPreviewImageUrl;
-    const lockedCastReferences = cast
-      .map((character) => character.imageUrl ?? character.galleryUrls?.[0] ?? character.bannerUrl ?? "")
-      .filter(Boolean);
     if (!lockedReference) {
       setError("Approve or attach one actor identity frame before rendering the Punch.");
       return;
@@ -1345,11 +1376,19 @@ export function ProductionWorkspace({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "image",
-                characterId: cast[0].id,
+                /*
+                  The scene's own lead and cast, mirroring StoryBuilderForm.
+                  Omitting castCharacterIds forced the solo branch server-side:
+                  the API prepended canonical + style sheet while the prompt's
+                  ACTOR LOCK numbering assumed cast order, so every lock pointed
+                  at the wrong reference. The API resolves each present actor's
+                  canonical itself; sending the whole cast's gallery URLs also
+                  injected absent actors' faces into the shot.
+                */
+                characterId: sceneActors[0]?.id ?? cast[0].id,
+                castCharacterIds: sceneActors.map((actor) => actor.id),
                 imagePurpose: "scene",
-                referenceImages: [...lockedCastReferences, story.productImageUrl ?? ""].filter(
-                  (value, referenceIndex, references) => references.indexOf(value) === referenceIndex,
-                ),
+                referenceImages: [story.productImageUrl ?? ""].filter(Boolean),
                 prompt: framePrompt,
               }),
             });
@@ -1656,6 +1695,7 @@ export function ProductionWorkspace({
         throw new Error(`The master assembly is ${assemblyStep.status}, so it cannot run now.`);
       }
       activePipelineStepKey = "assembly";
+      const themeUrl = await ensureCharacterTheme(cast[0].id);
       setRenderProgress(`Assembling the ${contract.duration}-second master`);
       const response = await fetch("/api/pipeline/assemble", {
         method: "POST",
@@ -1669,6 +1709,7 @@ export function ProductionWorkspace({
           sfxUrls: audioResults.map((audio) => audio.sfxUrl),
           sceneDurationsSeconds: authoredScenes.map((_, index) => renderedDurationMs(index) / 1000),
           finalDurationSeconds: contract.duration,
+          themeUrl: themeUrl ?? "",
         }),
       });
       const data = await response.json() as { run?: MediaPipelineRun; url?: string; assetId?: string; error?: string };

@@ -6,6 +6,7 @@ import {
   sceneActorIdentity,
   sceneActorNames,
 } from "@/lib/scene-cast";
+import { AGNI_MAYA_CARD_V2 } from "@/lib/character-card-fixtures";
 import type { Character, Scene } from "@/lib/types";
 
 const actor = (id: string, name: string, personality: string): Character => ({
@@ -57,6 +58,14 @@ test("identity covers only the actors in the shot", () => {
   assert.match(identity, /Sprocket/);
   assert.doesNotMatch(identity, /Ash Reaper/);
   assert.doesNotMatch(identity, /burns betrayers/);
+});
+
+test("card face anchors render as readable geometry, never [object Object]", () => {
+  const carded = { ...actor("c-agni", "Agni Maya", "carded lead"), cardV2: AGNI_MAYA_CARD_V2 } as unknown as Character;
+  const identity = sceneActorIdentity([carded]);
+  assert.doesNotMatch(identity, /\[object Object\]/);
+  // The bug: face_anchors are objects, and join() stringified them into garbage.
+  assert.match(identity, /fine eyebrow scar at right brow interrupting hair growth, short, always visible/);
 });
 
 test("absent cast and their equipment are explicitly excluded", () => {

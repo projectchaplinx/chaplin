@@ -23,6 +23,19 @@ const OPTIONAL_BLOCKS = [
   { key: "lighting" as const, pattern: /(?:^|\n)LIGHTING ADJECTIVES:[^\n]*/gi },
 ];
 
+/*
+  Lines the trim may never sacrifice. Identity locks are what keep the actor
+  the same person shot to shot, and the audio line carries the silent-plate /
+  reference-voice contract plus the --duration flags — truncating it is how a
+  post-mix plate ends up with a model-invented voice.
+*/
+const PROTECTED_LINE_PATTERNS = [
+  /(?:^|\n)ACTOR LOCK:[^\n]*/i,
+  /(?:^|\n)IDENTITY ANCHOR:[^\n]*/i,
+  /(?:^|\n)PERFORMANCE AUDIO:[^\n]*/i,
+  /(?:^|\n)AUDIO:[^\n]*/i,
+];
+
 function trimToWords(value: string, maximum: number) {
   const ending = "No frozen figures. No music. No subtitles.";
   const hasFilm = value.includes(FILM_LOOK_LINE);
@@ -35,15 +48,27 @@ function trimToWords(value: string, maximum: number) {
   const marker = "STYLE CONTRACT — VERBATIM:";
   const markerIndex = withoutEnding.indexOf(marker);
   const protectedStyle = markerIndex >= 0 ? withoutEnding.slice(markerIndex).trim() : "";
-  const authored = markerIndex >= 0 ? withoutEnding.slice(0, markerIndex).trim() : withoutEnding;
+  let authored = markerIndex >= 0 ? withoutEnding.slice(0, markerIndex).trim() : withoutEnding;
+  const protectedLines: string[] = [];
+  for (const pattern of PROTECTED_LINE_PATTERNS) {
+    const match = authored.match(pattern);
+    if (!match) continue;
+    protectedLines.push(match[0].trim());
+    authored = authored.replace(pattern, "\n").trim();
+  }
   const protectedSuffix = [
+    ...protectedLines,
     protectedStyle,
     hasFilm ? FILM_LOOK_LINE : "",
     hasSkin ? SKIN_REALISM_BLOCK : "",
     ending,
   ].filter(Boolean).join(" ");
-  const remaining = maximum - countPromptWords(protectedSuffix);
-  if (remaining < 12) throw new Error("The locked style contract leaves too little room for a valid 80-word motion prompt.");
+  /*
+    The authored body absorbs the whole cut, but never below a 12-word floor:
+    a slight overrun of the provider guideline beats dropping an identity or
+    audio contract, which is a correctness failure rather than a style one.
+  */
+  const remaining = Math.max(12, maximum - countPromptWords(protectedSuffix));
   return `${authored.split(/\s+/).filter(Boolean).slice(0, remaining).join(" ")} ${protectedSuffix}`.trim();
 }
 

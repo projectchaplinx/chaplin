@@ -13,6 +13,7 @@ import {
 } from "@/lib/character-coherence";
 import {
   anthropicFallbackAvailable,
+  anthropicIsPrimaryWriter,
   createAnthropicResponse,
   isOpenAIOutOfService,
 } from "@/lib/server/anthropic-responses";
@@ -480,6 +481,62 @@ export async function POST(request: Request) {
           visualIdentityGuidance: "Return exactly four concise recognition locks spanning the most distinctive face, hair, wardrobe, or signature prop invariants.",
         }),
       }];
+      /*
+        Claude runs the same actor build non-streamed and the result is
+        delivered as a two-event NDJSON stream, so the client's streaming
+        reader completes normally. Used as the primary path when
+        CHAPLIN_WRITING_PROVIDER=anthropic, and as the rescue when OpenAI is
+        out of credits or otherwise refusing everyone.
+      */
+      const completeWithClaude = async (reason: string) => {
+        const fallback = await createAnthropicResponse({
+          instructions: streamInstructions,
+          messages: streamMessages,
+          maxOutputTokens: streamMaxTokens,
+          schema: OUTPUT_SCHEMA,
+          schemaName: "chaplin_character",
+        });
+        const parsedFallback = JSON.parse(fallback.text) as CharacterSuggestion;
+        const finalizedFallback = finalizeCharacterSuggestion(parsedFallback, input, name);
+        const fallbackUsage = {
+          inputTokens: fallback.usage.inputTokens,
+          outputTokens: fallback.usage.outputTokens,
+          providerTokens: fallback.usage.inputTokens + fallback.usage.outputTokens,
+          providerUsage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
+        };
+        await completeGeneration(
+          jobId,
+          undefined,
+          {
+            suggestionTarget: target,
+            generatedName: finalizedFallback.coherentName,
+            generatedArchetypes: finalizedFallback.suggestion.archetypes,
+            streamed: false,
+            fallbackProvider: "anthropic",
+            fallbackReason: reason,
+          },
+          await calculateGenerationBilling({ kind: "openai-prompt", provider: "anthropic", model: fallback.model, usage: fallbackUsage }),
+          fallback.id,
+        );
+        const encoder = new TextEncoder();
+        const events = streamLine({ type: "delta", delta: fallback.text })
+          + streamLine({
+            type: "complete",
+            suggestion: finalizedFallback.suggestion,
+            provider: "anthropic",
+            model: fallback.model,
+            usage: fallbackUsage.providerUsage,
+          });
+        return new Response(encoder.encode(events), {
+          headers: {
+            "content-type": "application/x-ndjson; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        });
+      };
+      if (anthropicIsPrimaryWriter()) {
+        return completeWithClaude("CHAPLIN_WRITING_PROVIDER=anthropic");
+      }
       const providerResponse = await requestOpenAIResponse({
         model,
         maxOutputTokens: streamMaxTokens,
@@ -495,57 +552,8 @@ export async function POST(request: Request) {
         try {
           failureMessage = (JSON.parse(failureText) as { error?: { message?: string } }).error?.message ?? failureMessage;
         } catch { /* not JSON — keep the raw text */ }
-        /*
-          OpenAI is out of credits or otherwise refusing everyone. Claude runs
-          the same actor build non-streamed and the result is delivered as a
-          two-event NDJSON stream, so the client's streaming reader completes
-          normally instead of surfacing "try again" against an empty account.
-        */
         if (isOpenAIOutOfService(providerResponse.status, failureMessage) && anthropicFallbackAvailable()) {
-          const fallback = await createAnthropicResponse({
-            instructions: streamInstructions,
-            messages: streamMessages,
-            maxOutputTokens: streamMaxTokens,
-            schema: OUTPUT_SCHEMA,
-            schemaName: "chaplin_character",
-          });
-          const parsedFallback = JSON.parse(fallback.text) as CharacterSuggestion;
-          const finalizedFallback = finalizeCharacterSuggestion(parsedFallback, input, name);
-          const fallbackUsage = {
-            inputTokens: fallback.usage.inputTokens,
-            outputTokens: fallback.usage.outputTokens,
-            providerTokens: fallback.usage.inputTokens + fallback.usage.outputTokens,
-            providerUsage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
-          };
-          await completeGeneration(
-            jobId,
-            undefined,
-            {
-              suggestionTarget: target,
-              generatedName: finalizedFallback.coherentName,
-              generatedArchetypes: finalizedFallback.suggestion.archetypes,
-              streamed: false,
-              fallbackProvider: "anthropic",
-              fallbackReason: failureMessage,
-            },
-            await calculateGenerationBilling({ kind: "openai-prompt", provider: "anthropic", model: fallback.model, usage: fallbackUsage }),
-            fallback.id,
-          );
-          const encoder = new TextEncoder();
-          const events = streamLine({ type: "delta", delta: fallback.text })
-            + streamLine({
-              type: "complete",
-              suggestion: finalizedFallback.suggestion,
-              provider: "anthropic",
-              model: fallback.model,
-              usage: fallbackUsage.providerUsage,
-            });
-          return new Response(encoder.encode(events), {
-            headers: {
-              "content-type": "application/x-ndjson; charset=utf-8",
-              "cache-control": "no-store",
-            },
-          });
+          return completeWithClaude(failureMessage);
         }
         throw new Error(failureMessage);
       }

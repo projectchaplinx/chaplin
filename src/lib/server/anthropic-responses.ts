@@ -23,6 +23,16 @@ export function anthropicFallbackAvailable() {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+/**
+ * True when Claude should be tried FIRST rather than only after an OpenAI
+ * failure. Set CHAPLIN_WRITING_PROVIDER=anthropic while the OpenAI account
+ * is out of credits to skip the doomed round trip entirely.
+ */
+export function anthropicIsPrimaryWriter() {
+  return process.env.CHAPLIN_WRITING_PROVIDER?.trim().toLowerCase() === "anthropic"
+    && anthropicFallbackAvailable();
+}
+
 /** Provider failures that mean "OpenAI cannot serve anyone right now". */
 export function isOpenAIOutOfService(status: number, message: string) {
   if (/no credits remaining|insufficient_quota|exceeded your current quota|billing/i.test(message)) return true;

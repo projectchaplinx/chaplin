@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   anthropicFallbackAvailable,
+  anthropicIsPrimaryWriter,
   createAnthropicResponse,
   isOpenAIOutOfService,
 } from "@/lib/server/anthropic-responses";
@@ -144,7 +145,34 @@ export async function requestOpenAIResponse(input: Parameters<typeof buildOpenAI
   });
 }
 
+async function claudeWritingResponse(input: Parameters<typeof buildOpenAIResponseBody>[0]) {
+  const fallback = await createAnthropicResponse({
+    instructions: input.instructions,
+    messages: input.messages,
+    maxOutputTokens: input.maxOutputTokens,
+    schema: input.schema,
+    schemaName: input.schemaName,
+  });
+  const fallbackData: OpenAIResponseData = {
+    id: fallback.id,
+    status: "completed",
+    output_text: fallback.text,
+    usage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
+  };
+  return {
+    response: new Response(null, { status: 200 }),
+    data: fallbackData,
+    text: fallback.text,
+    usage: openAIUsage(fallbackData),
+    provider: "anthropic" as const,
+    model: fallback.model,
+  };
+}
+
 export async function createOpenAIResponse(input: Parameters<typeof buildOpenAIResponseBody>[0]) {
+  // Explicit provider switch: skip the doomed OpenAI round trip entirely
+  // while the account is out of credits.
+  if (anthropicIsPrimaryWriter()) return claudeWritingResponse(input);
   const response = await requestOpenAIResponse(input);
   const data = await response.json() as OpenAIResponseData;
   if (!response.ok) {
@@ -156,27 +184,7 @@ export async function createOpenAIResponse(input: Parameters<typeof buildOpenAIR
     */
     const message = data.error?.message || `OpenAI returned ${response.status}.`;
     if (isOpenAIOutOfService(response.status, message) && anthropicFallbackAvailable()) {
-      const fallback = await createAnthropicResponse({
-        instructions: input.instructions,
-        messages: input.messages,
-        maxOutputTokens: input.maxOutputTokens,
-        schema: input.schema,
-        schemaName: input.schemaName,
-      });
-      const fallbackData: OpenAIResponseData = {
-        id: fallback.id,
-        status: "completed",
-        output_text: fallback.text,
-        usage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
-      };
-      return {
-        response: new Response(null, { status: 200 }),
-        data: fallbackData,
-        text: fallback.text,
-        usage: openAIUsage(fallbackData),
-        provider: "anthropic" as const,
-        model: fallback.model,
-      };
+      return claudeWritingResponse(input);
     }
     throw new Error(message);
   }

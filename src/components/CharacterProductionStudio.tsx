@@ -1161,81 +1161,55 @@ export default function CharacterProductionStudio({
       setImageCandidates([]);
       setImageProviderErrors({});
       setSelectedImageAssetId("");
-      const requests: Array<{ provider: ImageProviderKey; result: Promise<ImageCandidate> }> = [];
+      const requests: Array<{ provider: ImageProviderKey; request: ReturnType<typeof imageRequest> }> = [];
       if (gptImageReady) {
-        requests.push({
-          provider: "openai",
-          result: jsonAction("image", imageRequest("gpt-image-2")) as Promise<ImageCandidate>,
-        });
+        requests.push({ provider: "openai", request: imageRequest("gpt-image-2") });
       }
       if (nanoBananaReady) {
-        requests.push({
-          provider: "openrouter",
-          result: jsonAction("image", imageRequest("nano-banana-2")) as Promise<ImageCandidate>,
-        });
+        requests.push({ provider: "openrouter", request: imageRequest("nano-banana-2") });
       }
       if (dolaImageReady) {
-        requests.push({
-          provider: "byteplus",
-          result: jsonAction("image", imageRequest("dola-seedream-5")) as Promise<ImageCandidate>,
-        });
+        requests.push({ provider: "byteplus", request: imageRequest("dola-seedream-5") });
       }
       if (!requests.length) throw new Error("Connect an image provider before generating a still.");
       /*
-        Show each still the moment its provider returns.
-
-        Waiting on Promise.allSettled meant nothing appeared until the slowest
-        provider finished: an image that existed after eight seconds stayed
-        hidden for as long as the other took, and the feed - which reads the
-        saved asset - was showing it while the studio still displayed a
-        placeholder. Each result is now published to the canvas as it lands; the
-        settled pass below still decides the final message and error state.
+        Sequential fallback chain, first success wins: GPT → Nano Banana →
+        Dola Seedream. Firing all three in parallel burned three rate-limit
+        slots per casting attempt and stalled the studio on the slowest or
+        broken lane. One provider is tried at a time and the first still that
+        lands is the result; the remaining lanes are never called.
       */
-      requests.forEach((request) => {
-        void request.result
-          .then((candidate) => {
-            setImageCandidates((current) => (
-              current.some((existing) => existing.assetId === candidate.assetId)
-                ? current
-                : [...current, candidate]
-            ));
-            addCharacterImage(character.id, candidate.url);
-          })
-          .catch(() => {
-            // The settled pass reports this provider's failure.
-          });
-      });
-      const settled = await Promise.allSettled(requests.map((request) => request.result));
       const results: ImageCandidate[] = [];
       const failures: Partial<Record<ImageProviderKey, string>> = {};
-      settled.forEach((result, index) => {
-        const provider = requests[index].provider;
-        if (result.status === "fulfilled") {
-          results.push(result.value);
-          return;
+      for (const lane of requests) {
+        try {
+          const candidate = await (jsonAction("image", lane.request) as Promise<ImageCandidate>);
+          results.push(candidate);
+          setImageCandidates((current) => (
+            current.some((existing) => existing.assetId === candidate.assetId)
+              ? current
+              : [...current, candidate]
+          ));
+          addCharacterImage(character.id, candidate.url);
+          break;
+        } catch (laneError) {
+          failures[lane.provider] = laneError instanceof Error
+            ? laneError.message
+            : "This provider did not return an image.";
         }
-        failures[provider] = result.reason instanceof Error
-          ? result.reason.message
-          : "This provider did not return an image.";
-      });
+      }
       setImageProviderErrors(failures);
       if (!results.length) {
-        throw new Error(Object.values(failures).join(" ") || "Neither image provider returned a still.");
+        throw new Error(Object.values(failures).join(" ") || "No image provider returned a still.");
       }
-      // Candidates were already streamed in above; merge rather than replace so
-      // a still that arrived early is not dropped and never duplicated.
-      setImageCandidates((current) => {
-        const seen = new Set(current.map((candidate) => candidate.assetId));
-        return [...current, ...results.filter((candidate) => !seen.has(candidate.assetId))];
-      });
       await refreshHistory();
       const providers = results.map((candidate) => imageProviderLabel(candidate.provider)).join(", ");
-      const comparisonStatus = Object.keys(failures).length
-        ? " One provider needs attention; its error is shown in the comparison."
-        : " Compare the interpretations before choosing.";
+      const fallbackStatus = Object.keys(failures).length
+        ? ` ${Object.keys(failures).length} earlier lane${Object.keys(failures).length === 1 ? "" : "s"} failed and ${providers} answered instead.`
+        : "";
       setMessage((requestedPurpose === "identity"
-        ? `${providers} ${results.length === 1 ? "is" : "are"} ready from a clean casting pass. The previous face was not sent to any image model. Choose one only if you want to replace the actor's canonical identity.`
-        : `${providers} ${results.length === 1 ? "is" : "are"} ready. Choose one as Seedance's exact first frame.`) + comparisonStatus);
+        ? `${providers} is ready from a clean casting pass. The previous face was not sent to any image model. Choose it only if you want to replace the actor's canonical identity.`
+        : `${providers} is ready. Choose it as Seedance's exact first frame.`) + fallbackStatus);
     });
   }
 
@@ -1654,56 +1628,38 @@ export default function CharacterProductionStudio({
           identityVariationKey,
           imagePreset,
         });
-        const requests: Array<{ provider: ImageProviderKey; result: Promise<ImageCandidate> }> = [];
-        if (gptImageReady) {
-          requests.push({ provider: "openai", result: jsonAction("image", imageRequest("gpt-image-2")) as Promise<ImageCandidate> });
-        }
-        if (nanoBananaReady) {
-          requests.push({ provider: "openrouter", result: jsonAction("image", imageRequest("nano-banana-2")) as Promise<ImageCandidate> });
-        }
-        if (dolaImageReady) {
-          requests.push({ provider: "byteplus", result: jsonAction("image", imageRequest("dola-seedream-5")) as Promise<ImageCandidate> });
-        }
-        // Same streaming as the manual path: a still reaches the canvas when its
-        // provider returns, not when the slowest one does.
-        requests.forEach((request) => {
-          void request.result
-            .then((candidate) => {
-              setImageCandidates((current) => (
-                current.some((existing) => existing.assetId === candidate.assetId)
-                  ? current
-                  : [...current, candidate]
-              ));
-              addCharacterImage(character.id, candidate.url);
-            })
-            .catch(() => {
-              // The settled pass below reports provider failures.
-            });
-        });
-        const settled = await Promise.allSettled(requests.map((request) => request.result));
-        const candidates = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-        if (!candidates.length) {
-          const failures = settled.flatMap((result) =>
-            result.status === "rejected"
-              ? [result.reason instanceof Error ? result.reason.message : "An image provider failed."]
-              : [],
-          );
-          throw new Error(failures.join(" ") || "No image provider returned a visual.");
-        }
-        setImageCandidates((current) => {
-          const seen = new Set(current.map((candidate) => candidate.assetId));
-          return [...current, ...candidates.filter((candidate) => !seen.has(candidate.assetId))];
-        });
         /*
-          Prefer the BytePlus still when more than one provider returns.
-
-          Seedance rejects a foreign photoreal face as a possible real person,
-          so a still from another provider fails video generation and quietly
-          falls back to the older model - no lip-sync, weaker motion. A still
-          generated on the same ModelArk account is a trusted output and goes
-          straight to video, which is what an unattended run needs.
+          Sequential chain, Dola Seedream FIRST: this still feeds Seedance
+          video directly, and Seedance rejects a foreign photoreal face as a
+          possible real person - a same-ModelArk still is trusted and goes
+          straight to video with full lip-sync and motion. GPT and Nano are
+          fallbacks only. One request at a time; the first still that lands
+          wins and no further lane is called.
         */
-        const selected = candidates.find((candidate) => candidate.provider === "byteplus") ?? candidates[0];
+        const lanes: Array<{ provider: ImageProviderKey; request: ReturnType<typeof imageRequest> }> = [];
+        if (dolaImageReady) lanes.push({ provider: "byteplus", request: imageRequest("dola-seedream-5") });
+        if (gptImageReady) lanes.push({ provider: "openai", request: imageRequest("gpt-image-2") });
+        if (nanoBananaReady) lanes.push({ provider: "openrouter", request: imageRequest("nano-banana-2") });
+        if (!lanes.length) throw new Error("Connect an image provider before generating a still.");
+        let selected: ImageCandidate | null = null;
+        const laneFailures: string[] = [];
+        for (const lane of lanes) {
+          try {
+            selected = await (jsonAction("image", lane.request) as Promise<ImageCandidate>);
+            break;
+          } catch (laneError) {
+            laneFailures.push(laneError instanceof Error ? laneError.message : "An image provider failed.");
+          }
+        }
+        if (!selected) {
+          throw new Error(laneFailures.join(" ") || "No image provider returned a visual.");
+        }
+        setImageCandidates((current) => (
+          current.some((existing) => existing.assetId === selected.assetId)
+            ? current
+            : [...current, selected]
+        ));
+        addCharacterImage(character.id, selected.url);
         const selectResponse = await fetch("/api/characters/profile-media", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

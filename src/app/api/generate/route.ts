@@ -826,17 +826,25 @@ export async function POST(request: Request) {
     const characterId = text(input, "characterId", 1, 100);
     await requireOwnedCharacter(identity, characterId);
     if (identity.role !== "admin") {
+      /*
+        Sized for a working day, not a smoke test. The old caps (20 images,
+        6 videos, 100 total) locked a creator out mid-demo: identity casting
+        burned three images per attempt and one 4-shot Punch used most of the
+        video budget. Images now cost one slot per attempt (sequential
+        provider chain), a Punch is 4 videos, and a day of real production
+        fits inside these numbers.
+      */
       await enforceRateLimit({
         request,
         bucket: "generation-total",
-        limit: 100,
+        limit: 300,
         windowSeconds: 24 * 60 * 60,
         identityId: identity.id,
       });
       await enforceRateLimit({
         request,
         bucket: `generation-${action}`,
-        limit: action === "video" ? 6 : action === "image" ? 20 : 30,
+        limit: action === "video" ? 24 : action === "image" ? 60 : 90,
         windowSeconds: 24 * 60 * 60,
         identityId: identity.id,
       });

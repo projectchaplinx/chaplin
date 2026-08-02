@@ -2,6 +2,11 @@ import "server-only";
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  anthropicFallbackAvailable,
+  createAnthropicResponse,
+  isOpenAIOutOfService,
+} from "@/lib/server/anthropic-responses";
 
 export const DEFAULT_OPENAI_WRITING_MODEL = "gpt-5.6-terra";
 
@@ -142,7 +147,39 @@ export async function requestOpenAIResponse(input: Parameters<typeof buildOpenAI
 export async function createOpenAIResponse(input: Parameters<typeof buildOpenAIResponseBody>[0]) {
   const response = await requestOpenAIResponse(input);
   const data = await response.json() as OpenAIResponseData;
-  if (!response.ok) throw new Error(data.error?.message || `OpenAI returned ${response.status}.`);
+  if (!response.ok) {
+    /*
+      When OpenAI cannot serve anyone — out of credits, revoked key, hard rate
+      limit — the writing brain falls back to Claude rather than failing every
+      Magic Write and measurement. Routing configuration still names OpenAI;
+      this only catches the requests OpenAI has already turned away.
+    */
+    const message = data.error?.message || `OpenAI returned ${response.status}.`;
+    if (isOpenAIOutOfService(response.status, message) && anthropicFallbackAvailable()) {
+      const fallback = await createAnthropicResponse({
+        instructions: input.instructions,
+        messages: input.messages,
+        maxOutputTokens: input.maxOutputTokens,
+        schema: input.schema,
+        schemaName: input.schemaName,
+      });
+      const fallbackData: OpenAIResponseData = {
+        id: fallback.id,
+        status: "completed",
+        output_text: fallback.text,
+        usage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
+      };
+      return {
+        response: new Response(null, { status: 200 }),
+        data: fallbackData,
+        text: fallback.text,
+        usage: openAIUsage(fallbackData),
+        provider: "anthropic" as const,
+        model: fallback.model,
+      };
+    }
+    throw new Error(message);
+  }
   if (data.status === "incomplete") {
     throw new Error(data.incomplete_details?.reason === "max_output_tokens"
       ? "OpenAI reached the output-token limit."
@@ -150,7 +187,7 @@ export async function createOpenAIResponse(input: Parameters<typeof buildOpenAIR
   }
   const text = openAIOutputText(data);
   if (!text) throw new Error("OpenAI returned no writing output.");
-  return { response, data, text, usage: openAIUsage(data) };
+  return { response, data, text, usage: openAIUsage(data), provider: "openai" as const, model: input.model };
 }
 
 type LegacyContent =

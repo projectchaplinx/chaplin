@@ -11,6 +11,11 @@ import {
   explicitVoiceGender,
   suggestedCharacterName,
 } from "@/lib/character-coherence";
+import {
+  anthropicFallbackAvailable,
+  createAnthropicResponse,
+  isOpenAIOutOfService,
+} from "@/lib/server/anthropic-responses";
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
 import { calculateGenerationBilling } from "@/lib/server/billing";
 import { beginGeneration, completeGeneration, failGeneration } from "@/lib/server/supabase-admin";
@@ -459,31 +464,90 @@ export async function POST(request: Request) {
       },
     });
     if (body.stream === true && target === "all") {
+      const streamMaxTokens = Math.max(4000, writingConfig.maxTokens ?? 8000);
+      const streamInstructions = `${writingConfig.promptPrelude} You are Chaplin's casting director and production designer. Build one original, production-ready fictional actor from the maker's brief. Return every schema field. Choose one to three role archetypes from the allowed schema values; put the dominant role first and derive the choice from the actual character brief rather than defaulting to hero. Preserve a creator-supplied name exactly, otherwise invent one plausible culturally grounded name. Make every dramatic, performance, visual, cinematography, voice, sound, music, and story value concrete and usable in production. Keep explicit creator direction binding. Never imitate a celebrity, public figure, copyrighted character, existing composition, or generic archetype costume. Voice language and accent must come from explicit canon; otherwise use neutral international English. Visual face anchors, hair, wardrobe, silhouette, light, and recognition locks must be specific and repeatable.`;
+      const streamMessages: Array<{ role: "user"; content: string }> = [{
+        role: "user",
+        content: JSON.stringify({
+          target,
+          instruction: "Write the complete actor now. Emit name and archetypes first, followed by the remaining identity fields.",
+          archetypeGuidance: input.archetypeMix.length
+            ? `The creator selected ${input.archetypeMix.join(", ")}. Preserve the dominant choice first and add only genuinely supported secondary roles.`
+            : "No role was selected. Infer one to three archetypes from the character brief and never silently default to hero.",
+          briefGuidance: "The characterBrief is binding creator canon.",
+          nameCoherenceGuidance: "Infer presentation from explicit words in the brief. Keep name, pronouns, voice, and appearance coherent.",
+          currentCharacter: input,
+          visualIdentityGuidance: "Return exactly four concise recognition locks spanning the most distinctive face, hair, wardrobe, or signature prop invariants.",
+        }),
+      }];
       const providerResponse = await requestOpenAIResponse({
         model,
-        maxOutputTokens: Math.max(4000, writingConfig.maxTokens ?? 8000),
+        maxOutputTokens: streamMaxTokens,
         stream: true,
         schema: OUTPUT_SCHEMA,
         schemaName: "chaplin_character",
-        instructions: `${writingConfig.promptPrelude} You are Chaplin's casting director and production designer. Build one original, production-ready fictional actor from the maker's brief. Return every schema field. Choose one to three role archetypes from the allowed schema values; put the dominant role first and derive the choice from the actual character brief rather than defaulting to hero. Preserve a creator-supplied name exactly, otherwise invent one plausible culturally grounded name. Make every dramatic, performance, visual, cinematography, voice, sound, music, and story value concrete and usable in production. Keep explicit creator direction binding. Never imitate a celebrity, public figure, copyrighted character, existing composition, or generic archetype costume. Voice language and accent must come from explicit canon; otherwise use neutral international English. Visual face anchors, hair, wardrobe, silhouette, light, and recognition locks must be specific and repeatable.`,
-        messages: [{
-          role: "user",
-          content: JSON.stringify({
-            target,
-            instruction: "Write the complete actor now. Emit name and archetypes first, followed by the remaining identity fields.",
-            archetypeGuidance: input.archetypeMix.length
-              ? `The creator selected ${input.archetypeMix.join(", ")}. Preserve the dominant choice first and add only genuinely supported secondary roles.`
-              : "No role was selected. Infer one to three archetypes from the character brief and never silently default to hero.",
-            briefGuidance: "The characterBrief is binding creator canon.",
-            nameCoherenceGuidance: "Infer presentation from explicit words in the brief. Keep name, pronouns, voice, and appearance coherent.",
-            currentCharacter: input,
-            visualIdentityGuidance: "Return exactly four concise recognition locks spanning the most distinctive face, hair, wardrobe, or signature prop invariants.",
-          }),
-        }],
+        instructions: streamInstructions,
+        messages: streamMessages,
       });
       if (!providerResponse.ok || !providerResponse.body) {
-        const failure = await providerResponse.text();
-        throw new Error(failure || `OpenAI returned ${providerResponse.status}.`);
+        const failureText = await providerResponse.text();
+        let failureMessage = failureText || `OpenAI returned ${providerResponse.status}.`;
+        try {
+          failureMessage = (JSON.parse(failureText) as { error?: { message?: string } }).error?.message ?? failureMessage;
+        } catch { /* not JSON — keep the raw text */ }
+        /*
+          OpenAI is out of credits or otherwise refusing everyone. Claude runs
+          the same actor build non-streamed and the result is delivered as a
+          two-event NDJSON stream, so the client's streaming reader completes
+          normally instead of surfacing "try again" against an empty account.
+        */
+        if (isOpenAIOutOfService(providerResponse.status, failureMessage) && anthropicFallbackAvailable()) {
+          const fallback = await createAnthropicResponse({
+            instructions: streamInstructions,
+            messages: streamMessages,
+            maxOutputTokens: streamMaxTokens,
+            schema: OUTPUT_SCHEMA,
+            schemaName: "chaplin_character",
+          });
+          const parsedFallback = JSON.parse(fallback.text) as CharacterSuggestion;
+          const finalizedFallback = finalizeCharacterSuggestion(parsedFallback, input, name);
+          const fallbackUsage = {
+            inputTokens: fallback.usage.inputTokens,
+            outputTokens: fallback.usage.outputTokens,
+            providerTokens: fallback.usage.inputTokens + fallback.usage.outputTokens,
+            providerUsage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
+          };
+          await completeGeneration(
+            jobId,
+            undefined,
+            {
+              suggestionTarget: target,
+              generatedName: finalizedFallback.coherentName,
+              generatedArchetypes: finalizedFallback.suggestion.archetypes,
+              streamed: false,
+              fallbackProvider: "anthropic",
+              fallbackReason: failureMessage,
+            },
+            await calculateGenerationBilling({ kind: "openai-prompt", provider: "anthropic", model: fallback.model, usage: fallbackUsage }),
+            fallback.id,
+          );
+          const encoder = new TextEncoder();
+          const events = streamLine({ type: "delta", delta: fallback.text })
+            + streamLine({
+              type: "complete",
+              suggestion: finalizedFallback.suggestion,
+              provider: "anthropic",
+              model: fallback.model,
+              usage: fallbackUsage.providerUsage,
+            });
+          return new Response(encoder.encode(events), {
+            headers: {
+              "content-type": "application/x-ndjson; charset=utf-8",
+              "cache-control": "no-store",
+            },
+          });
+        }
+        throw new Error(failureMessage);
       }
       const generationJobId = jobId;
       const providerRequestId = providerResponse.headers.get("request-id");

@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -71,6 +71,7 @@
     "version:install-hooks": "node scripts/install-version-hook.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@elevenlabs/client": "^1.15.2",
     "@supabase/supabase-js": "^2.110.7",
     "clsx": "^2.1.1",

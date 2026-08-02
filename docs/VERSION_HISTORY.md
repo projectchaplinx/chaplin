@@ -325,3 +325,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.17 | `b089b97` | 2026-08-02T17:28:52+05:30 | v0.3.17: Cap Claude thinking effort so Magic Write returns in seconds |
 | v0.3.18 | `52e5b72` | 2026-08-02T17:37:31+05:30 | v0.3.18: Chain image providers sequentially and size rate limits for a real day |
 | v0.3.19 | `91d74bf` | 2026-08-02T17:49:19+05:30 | v0.3.19: Strip slop-inducing prompt words instead of rejecting the generation |
+| v0.3.20 | `441b9d0` | 2026-08-02T18:38:23+05:30 | v0.3.20: redeploy: pick up new ModelArk SEEDANCE_API_KEY |

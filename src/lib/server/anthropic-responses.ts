@@ -127,6 +127,14 @@ function anthropicRequestBody(input: AnthropicWritingRequest) {
   // claude-sonnet-5 shares max_tokens with the response text, so give the
   // caller's budget headroom rather than passing it through exactly.
   const maxTokens = Math.min(16000, Math.max(4096, input.maxOutputTokens + 6000));
+  /*
+    Default effort thinks for ~a minute even on a one-line tagline, because
+    every request carries the full casting-director prompt. Structured
+    creative writing does not need that depth: low for single fields, medium
+    for full builds keeps quality at prior-generation-high while returning
+    in seconds instead of a minute.
+  */
+  const effort = input.maxOutputTokens <= 3000 ? "low" as const : "medium" as const;
   return {
     model: anthropicModel(),
     max_tokens: maxTokens,
@@ -135,16 +143,17 @@ function anthropicRequestBody(input: AnthropicWritingRequest) {
       role: message.role === "assistant" ? "assistant" as const : "user" as const,
       content: anthropicContent(message),
     })),
-    ...(input.schema
-      ? {
-          output_config: {
+    output_config: {
+      effort,
+      ...(input.schema
+        ? {
             format: {
               type: "json_schema" as const,
               schema: sanitizeSchemaForAnthropic(input.schema),
             },
-          },
-        }
-      : {}),
+          }
+        : {}),
+    },
   };
 }
 

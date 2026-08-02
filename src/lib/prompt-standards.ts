@@ -41,6 +41,24 @@ export function bannedPromptWord(prompt: string) {
   return prompt.match(BANNED_PATTERN)?.[0] ?? null;
 }
 
+const BANNED_PATTERN_ALL = new RegExp(BANNED_PATTERN.source, "gi");
+
+/**
+ * Removes slop-inducing terms instead of rejecting the request. The writing
+ * model itself produces phrases like "crisp tailoring" — a legitimate
+ * wardrobe adjective that shares a word with the oversharpening trigger.
+ * Failing the generation punished our own writer's vocabulary; stripping the
+ * word keeps the guard's effect (the term never reaches the image model)
+ * without turning it into a dead end.
+ */
+export function stripBannedPromptWords(prompt: string) {
+  return prompt
+    .replace(BANNED_PATTERN_ALL, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ ([,.;])/g, "$1")
+    .trim();
+}
+
 export function hasUnpairedGearToken(prompt: string) {
   const authored = prompt.replace(FILM_LOOK_LINE, "").replace(SKIN_REALISM_BLOCK, "");
   return GEAR_TOKEN.test(authored) && !VISIBLE_LENS_EFFECT.test(authored);

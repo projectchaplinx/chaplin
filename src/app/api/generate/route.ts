@@ -75,7 +75,7 @@ import {
   type ThemePlanKind,
 } from "@/lib/theme-composition-plan";
 import { compactVisualDirection, requestsStylizedImage } from "@/lib/prompt-compaction";
-import { bannedPromptWord, finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
+import { finalizeVideoPrompt, stripBannedPromptWords, withStandingInjections } from "@/lib/prompt-standards";
 import { budgetVideoPrompt, motionGrammarIssues } from "@/lib/video-prompt-budget";
 import { injectStyleContract } from "@/lib/style-contract";
 import { providerScheduler } from "@/lib/provider-scheduler";
@@ -1635,14 +1635,12 @@ export async function POST(request: Request) {
           : prompt
         : `${prompt}\n\nEXCLUDE: ${exclusions}`;
       const styleContractText = await resolveStyleContractText();
-      const effectivePrompt = injectStyleContract(
+      // Slop-inducing terms are stripped, not rejected: the writing model's
+      // own vocabulary ("crisp tailoring") kept tripping a hard failure.
+      const effectivePrompt = stripBannedPromptWords(injectStyleContract(
         withStandingInjections(providerReadyPrompt, Boolean(requestCharacter)),
         styleContractText ? { contract_text: styleContractText } : null,
-      );
-      const bannedImagePhrase = bannedPromptWord(effectivePrompt);
-      if (bannedImagePhrase) {
-        throw new RequestValidationError(`Image prompt contains banned phrase "${bannedImagePhrase}".`);
-      }
+      ));
       const consistencyWarnings = mediaPromptWarnings(requestCharacter, effectivePrompt, "image");
       jobId = await startGeneration({
         characterId,
@@ -2043,11 +2041,7 @@ export async function POST(request: Request) {
         reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
         true,
       );
-      const prompt = promptBudget.prompt;
-      const bannedVideoPhrase = bannedPromptWord(prompt);
-      if (bannedVideoPhrase) {
-        throw new RequestValidationError(`Video prompt contains banned phrase "${bannedVideoPhrase}".`);
-      }
+      const prompt = stripBannedPromptWords(promptBudget.prompt);
       if (resolvedAudioPlan && boardSlot) {
         const audioFailures = lintAudioPlan({
           slot: boardSlot,

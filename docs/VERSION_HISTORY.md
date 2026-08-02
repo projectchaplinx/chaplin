@@ -323,3 +323,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.15 | `ccdd628` | 2026-08-02T17:13:10+05:30 | Surface real Magic Write errors and fix Claude schema rejections |
 | v0.3.16 | `3ab478f` | 2026-08-02T17:25:46+05:30 | v0.3.16: Stream Claude actor builds so fields fill live again |
 | v0.3.17 | `b089b97` | 2026-08-02T17:28:52+05:30 | v0.3.17: Cap Claude thinking effort so Magic Write returns in seconds |
+| v0.3.18 | `52e5b72` | 2026-08-02T17:37:31+05:30 | v0.3.18: Chain image providers sequentially and size rate limits for a real day |

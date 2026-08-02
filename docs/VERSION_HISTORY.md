@@ -330,3 +330,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.22 | `92860f4` | 2026-08-02T19:59:06+05:30 | v0.3.22: diagnostic: expose Seedance key fingerprint (length + last 4) in build-info |
 | v0.3.23 | `0a4013f` | 2026-08-02T20:02:40+05:30 | v0.3.23: honest progress: no fake floor, failed shows X, remaining labeled as estimate |
 | v0.3.24 | `49e9e90` | 2026-08-02T20:10:25+05:30 | v0.3.24: dialogue on eleven_v3: render locked voices with the engine that designed them |
+| v0.3.25 | `c42f62a` | 2026-08-02T20:15:22+05:30 | v0.3.25: redeploy: pick up new ModelArk account key after model activation |

@@ -106,8 +106,8 @@ export function budgetVideoPrompt(
   };
 }
 
-const CAMERA = /\b(?:camera locked|locked camera|dolly|push in|pull back|pan|tilt|track|crane|orbit|whip|crash|handheld)\b/i;
-const EVENT = /\b(?:walks?|runs?|turns?|looks?|lifts?|drops?|opens?|closes?|sips?|blinks?|limps?|reaches?|grips?|descends?|crosses?|falls?|rises?)\b/i;
+const CAMERA = /\b(?:camera locked|locked camera|static camera|camera holds|dolly|push[ -]in|pull[ -]back|pan|tilt|track|crane|orbit|whip|crash|handheld|zooms?)\b/i;
+const EVENT = /\b(?:walks?|runs?|turns?|looks?|lifts?|drops?|opens?|closes?|sips?|blinks?|limps?|reaches?|grips?|descends?|crosses?|falls?|rises?|tightens?|settles?|shifts?|clasps?|clenches?|flexes?|trembles?|widens?|narrows?|curls?|presses?|squeezes?|nods?|shakes?|leans?|sways?|breathes?|exhales?|inhales?|smiles?|grins?|frowns?|laughs?|raises?|lowers?|extends?|steps?|strides?|spins?|twists?|bends?|straightens?|adjusts?|taps?|waves?|points?|gestures?|glances?|stares?|gazes?|catches?|twitch(?:es)?|stirs?|flutters?|tugs?|pulls?|throws?|holds?|releases?|folds?|unfolds?)\b/i;
 const CAMERA_VERB = /\b(?:camera|dolly|pan|tilt|track|crane|orbit|whip|crash)\b/i;
 const SUBJECT_VERB = /\b(?:subject|actor|character|he|she|they|figure)\b.{0,60}\b(?:walks?|runs?|turns?|looks?|lifts?|drops?|opens?|blinks?|reaches?|grips?)\b/i;
 

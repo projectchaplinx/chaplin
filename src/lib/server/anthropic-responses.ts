@@ -114,44 +114,41 @@ export function sanitizeSchemaForAnthropic(schema: Record<string, unknown>): Rec
  * Failures are rethrown with a [CLAUDE-...] code so the UI can show exactly
  * what went wrong instead of a generic retry message.
  */
-export async function createAnthropicResponse(input: {
+type AnthropicWritingRequest = {
   instructions: string;
   messages: OpenAIInputMessage[];
   maxOutputTokens: number;
   schema?: Record<string, unknown>;
   schemaName?: string;
-}) {
+};
+
+function anthropicRequestBody(input: AnthropicWritingRequest) {
   // Non-streaming stays under SDK HTTP timeouts at ~16K; adaptive thinking on
   // claude-sonnet-5 shares max_tokens with the response text, so give the
   // caller's budget headroom rather than passing it through exactly.
   const maxTokens = Math.min(16000, Math.max(4096, input.maxOutputTokens + 6000));
-  let response: Anthropic.Message;
-  try {
-    response = await client().messages.create({
-      model: anthropicModel(),
-      max_tokens: maxTokens,
-      system: input.instructions,
-      messages: input.messages.map((message) => ({
-        role: message.role === "assistant" ? "assistant" as const : "user" as const,
-        content: anthropicContent(message),
-      })),
-      ...(input.schema
-        ? {
-            output_config: {
-              format: {
-                type: "json_schema" as const,
-                schema: sanitizeSchemaForAnthropic(input.schema),
-              },
+  return {
+    model: anthropicModel(),
+    max_tokens: maxTokens,
+    system: input.instructions,
+    messages: input.messages.map((message) => ({
+      role: message.role === "assistant" ? "assistant" as const : "user" as const,
+      content: anthropicContent(message),
+    })),
+    ...(input.schema
+      ? {
+          output_config: {
+            format: {
+              type: "json_schema" as const,
+              schema: sanitizeSchemaForAnthropic(input.schema),
             },
-          }
-        : {}),
-    });
-  } catch (error) {
-    if (error instanceof Anthropic.APIError) {
-      throw new Error(`[CLAUDE-${error.status ?? "NET"}] ${error.message}`);
-    }
-    throw new Error(`[CLAUDE-UNKNOWN] ${error instanceof Error ? error.message : "Claude request failed."}`);
-  }
+          },
+        }
+      : {}),
+  };
+}
+
+function finishAnthropicResponse(response: Anthropic.Message) {
   if (response.stop_reason === "refusal") {
     throw new Error("[CLAUDE-REFUSAL] Claude declined this request for safety reasons.");
   }
@@ -172,4 +169,39 @@ export async function createAnthropicResponse(input: {
       outputTokens: response.usage.output_tokens ?? 0,
     },
   };
+}
+
+function codedAnthropicError(error: unknown): Error {
+  if (error instanceof Anthropic.APIError) {
+    return new Error(`[CLAUDE-${error.status ?? "NET"}] ${error.message}`);
+  }
+  if (error instanceof Error && /^\[CLAUDE-/.test(error.message)) return error;
+  return new Error(`[CLAUDE-UNKNOWN] ${error instanceof Error ? error.message : "Claude request failed."}`);
+}
+
+/**
+ * Streaming variant: text deltas reach the caller as they generate, so the
+ * studio's progressive field reveal works exactly as it did on OpenAI.
+ */
+export async function streamAnthropicResponse(
+  input: AnthropicWritingRequest,
+  onDelta: (delta: string) => void,
+) {
+  try {
+    const stream = client().messages.stream(anthropicRequestBody(input));
+    stream.on("text", (delta) => onDelta(delta));
+    const response = await stream.finalMessage();
+    return finishAnthropicResponse(response);
+  } catch (error) {
+    throw codedAnthropicError(error);
+  }
+}
+
+export async function createAnthropicResponse(input: AnthropicWritingRequest) {
+  try {
+    const response = await client().messages.create(anthropicRequestBody(input));
+    return finishAnthropicResponse(response);
+  } catch (error) {
+    throw codedAnthropicError(error);
+  }
 }

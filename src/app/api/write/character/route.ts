@@ -14,8 +14,8 @@ import {
 import {
   anthropicFallbackAvailable,
   anthropicIsPrimaryWriter,
-  createAnthropicResponse,
   isOpenAIOutOfService,
+  streamAnthropicResponse,
 } from "@/lib/server/anthropic-responses";
 import { getPipelineConfig } from "@/lib/server/pipeline-config";
 import { calculateGenerationBilling } from "@/lib/server/billing";
@@ -491,46 +491,60 @@ export async function POST(request: Request) {
       // Capture the narrowed job id — inside the closure the mutable `jobId`
       // widens back to string | null and fails the completeGeneration call.
       const streamJobId = jobId;
-      const completeWithClaude = async (reason: string) => {
-        const fallback = await createAnthropicResponse({
-          instructions: streamInstructions,
-          messages: streamMessages,
-          maxOutputTokens: streamMaxTokens,
-          schema: OUTPUT_SCHEMA,
-          schemaName: "chaplin_character",
-        });
-        const parsedFallback = JSON.parse(fallback.text) as CharacterSuggestion;
-        const finalizedFallback = finalizeCharacterSuggestion(parsedFallback, input, name);
-        const fallbackUsage = {
-          inputTokens: fallback.usage.inputTokens,
-          outputTokens: fallback.usage.outputTokens,
-          providerTokens: fallback.usage.inputTokens + fallback.usage.outputTokens,
-          providerUsage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
-        };
-        await completeGeneration(
-          streamJobId,
-          undefined,
-          {
-            suggestionTarget: target,
-            generatedName: finalizedFallback.coherentName,
-            generatedArchetypes: finalizedFallback.suggestion.archetypes,
-            streamed: false,
-            fallbackProvider: "anthropic",
-            fallbackReason: reason,
-          },
-          await calculateGenerationBilling({ kind: "openai-prompt", provider: "anthropic", model: fallback.model, usage: fallbackUsage }),
-          fallback.id,
-        );
+      const completeWithClaude = (reason: string) => {
         const encoder = new TextEncoder();
-        const events = streamLine({ type: "delta", delta: fallback.text })
-          + streamLine({
-            type: "complete",
-            suggestion: finalizedFallback.suggestion,
-            provider: "anthropic",
-            model: fallback.model,
-            usage: fallbackUsage.providerUsage,
-          });
-        return new Response(encoder.encode(events), {
+        const stream = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            try {
+              const fallback = await streamAnthropicResponse(
+                {
+                  instructions: streamInstructions,
+                  messages: streamMessages,
+                  maxOutputTokens: streamMaxTokens,
+                  schema: OUTPUT_SCHEMA,
+                  schemaName: "chaplin_character",
+                },
+                (delta) => controller.enqueue(encoder.encode(streamLine({ type: "delta", delta }))),
+              );
+              const parsedFallback = JSON.parse(fallback.text) as CharacterSuggestion;
+              const finalizedFallback = finalizeCharacterSuggestion(parsedFallback, input, name);
+              const fallbackUsage = {
+                inputTokens: fallback.usage.inputTokens,
+                outputTokens: fallback.usage.outputTokens,
+                providerTokens: fallback.usage.inputTokens + fallback.usage.outputTokens,
+                providerUsage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
+              };
+              await completeGeneration(
+                streamJobId,
+                undefined,
+                {
+                  suggestionTarget: target,
+                  generatedName: finalizedFallback.coherentName,
+                  generatedArchetypes: finalizedFallback.suggestion.archetypes,
+                  streamed: true,
+                  fallbackProvider: "anthropic",
+                  fallbackReason: reason,
+                },
+                await calculateGenerationBilling({ kind: "openai-prompt", provider: "anthropic", model: fallback.model, usage: fallbackUsage }),
+                fallback.id,
+              );
+              controller.enqueue(encoder.encode(streamLine({
+                type: "complete",
+                suggestion: finalizedFallback.suggestion,
+                provider: "anthropic",
+                model: fallback.model,
+                usage: fallbackUsage.providerUsage,
+              })));
+            } catch (claudeError) {
+              const message = claudeError instanceof Error ? claudeError.message : "Claude character build failed.";
+              await failGeneration(streamJobId, message);
+              controller.enqueue(encoder.encode(streamLine({ type: "error", error: message })));
+            } finally {
+              controller.close();
+            }
+          },
+        });
+        return new Response(stream, {
           headers: {
             "content-type": "application/x-ndjson; charset=utf-8",
             "cache-control": "no-store",

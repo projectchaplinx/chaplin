@@ -320,3 +320,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.12 | `5d951b1` | 2026-08-02T16:46:13+05:30 | Fall back to Claude when OpenAI cannot serve the writing brain |
 | v0.3.13 | `fde12cc` | 2026-08-02T17:05:59+05:30 | Add CHAPLIN_WRITING_PROVIDER=anthropic to run Claude as the primary writer |
 | v0.3.14 | `a9a7979` | 2026-08-02T17:06:46+05:30 | Fix jobId narrowing inside the Claude actor-build closure |
+| v0.3.15 | `ccdd628` | 2026-08-02T17:13:10+05:30 | Surface real Magic Write errors and fix Claude schema rejections |

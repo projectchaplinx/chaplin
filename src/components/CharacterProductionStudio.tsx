@@ -307,10 +307,10 @@ const QUICK_WRITE_TO_STEP: Record<string, number> = {
 function estimatedGenerationProgress(run: GenerationRun) {
   const timeline = GENERATION_TIMELINES[run.key];
   if (run.status === "complete") return 100;
-  if (run.status === "failed") {
-    return Math.min(99, Math.max(8, Math.round((run.elapsedSeconds / timeline.expectedSeconds) * 88)));
-  }
-  return Math.min(94, Math.max(6, Math.round(6 + (run.elapsedSeconds / timeline.expectedSeconds) * 86)));
+  // Elapsed-time estimate only — the provider gives no interim progress, so the
+  // bar must never imply more than time passed. No artificial floor: a run that
+  // dies at 1s shows a bar frozen at ~1%, not a fabricated 8%.
+  return Math.min(94, Math.max(0, Math.round((run.elapsedSeconds / timeline.expectedSeconds) * 90)));
 }
 
 const THEME_DURATION_PRESETS = [5, 8, 15] as const;
@@ -423,14 +423,14 @@ function GenerationTimeline({
                 {run.status === "running" ? ` · ${run.elapsedSeconds}s elapsed` : ""}
               </p>
             </div>
-            <span className={`shrink-0 text-lg font-semibold tabular-nums ${run.status === "failed" ? "text-red-400" : run.status === "complete" ? "text-emerald-400" : "text-accent"}`}>{estimatedProgress}%</span>
+            <span className={`shrink-0 text-lg font-semibold tabular-nums ${run.status === "failed" ? "text-red-400" : run.status === "complete" ? "text-emerald-400" : "text-accent"}`}>{run.status === "failed" ? "✕" : `${estimatedProgress}%`}</span>
           </div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10" aria-label={`${estimatedProgress}% complete`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={estimatedProgress}>
             <div className={`h-full rounded-full transition-[width] duration-700 ease-out ${run.status === "failed" ? "bg-red-400" : run.status === "complete" ? "bg-emerald-400" : "bg-accent"}`} style={{ width: `${estimatedProgress}%` }} />
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px]">
             <span className="font-medium text-ink">{timeline.stages[activeStage]}</span>
-            {run.status === "running" && <span className="text-grey">{remainingSeconds > 0 ? `About ${remainingSeconds}s remaining` : "Still rendering—this can take a little longer"}</span>}
+            {run.status === "running" && <span className="text-grey">{remainingSeconds > 0 ? `~${remainingSeconds}s left (typical, not live progress)` : "Taking longer than typical—still waiting on the provider"}</span>}
             {run.error && <span className="text-red-400">See message above</span>}
           </div>
           <div className="mt-3 grid grid-cols-4 gap-1" aria-hidden="true">

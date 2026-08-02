@@ -327,3 +327,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.19 | `91d74bf` | 2026-08-02T17:49:19+05:30 | v0.3.19: Strip slop-inducing prompt words instead of rejecting the generation |
 | v0.3.20 | `441b9d0` | 2026-08-02T18:38:23+05:30 | v0.3.20: redeploy: pick up new ModelArk SEEDANCE_API_KEY |
 | v0.3.21 | `6e819e6` | 2026-08-02T18:50:31+05:30 | v0.3.21: redeploy: apply updated ModelArk credentials |
+| v0.3.22 | `92860f4` | 2026-08-02T19:59:06+05:30 | v0.3.22: diagnostic: expose Seedance key fingerprint (length + last 4) in build-info |

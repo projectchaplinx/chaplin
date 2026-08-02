@@ -488,6 +488,9 @@ export async function POST(request: Request) {
         CHAPLIN_WRITING_PROVIDER=anthropic, and as the rescue when OpenAI is
         out of credits or otherwise refusing everyone.
       */
+      // Capture the narrowed job id — inside the closure the mutable `jobId`
+      // widens back to string | null and fails the completeGeneration call.
+      const streamJobId = jobId;
       const completeWithClaude = async (reason: string) => {
         const fallback = await createAnthropicResponse({
           instructions: streamInstructions,
@@ -505,7 +508,7 @@ export async function POST(request: Request) {
           providerUsage: { input_tokens: fallback.usage.inputTokens, output_tokens: fallback.usage.outputTokens },
         };
         await completeGeneration(
-          jobId,
+          streamJobId,
           undefined,
           {
             suggestionTarget: target,

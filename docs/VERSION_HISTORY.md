@@ -318,3 +318,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.10 | `77f4377` | 2026-08-02T15:12:48+05:30 | v0.4.0: make the brain's knowledge visible and every render count |
 | v0.3.11 | `689999d` | 2026-08-02T16:28:14+05:30 | Restore account control inside studio workspaces |
 | v0.3.12 | `5d951b1` | 2026-08-02T16:46:13+05:30 | Fall back to Claude when OpenAI cannot serve the writing brain |
+| v0.3.13 | `fde12cc` | 2026-08-02T17:05:59+05:30 | Add CHAPLIN_WRITING_PROVIDER=anthropic to run Claude as the primary writer |

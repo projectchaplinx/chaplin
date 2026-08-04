@@ -173,10 +173,9 @@ async function revealTextProgressively(text: string, update: (value: string) => 
 const WORKFLOW_STEPS = [
   { id: 1, stage: "voice", label: "Audition", title: "Create the performance reference" },
   { id: 2, stage: "dialogue", label: "Dialogue", title: "Build the dialogue" },
-  { id: 3, stage: "sfx", label: "SFX", title: "Add signature SFX" },
-  { id: 4, stage: "theme", label: "Theme", title: "Create the music score" },
-  { id: 5, stage: "image", label: "Still", title: "Finalize the scene still" },
-  { id: 6, stage: "video", label: "Video", title: "Assemble the scene" },
+  { id: 3, stage: "image", label: "Still", title: "Finalize the scene still" },
+  { id: 4, stage: "video", label: "Video", title: "Assemble the scene" },
+  { id: 5, stage: "soundtrack", label: "Soundtrack", title: "Score the finished scene" },
 ] as const;
 
 const VOICE_BUILD_STAGES = [
@@ -229,9 +228,9 @@ const GENERATION_TIMELINES = {
     stages: ["Read sound identity", "Direct four takes", "Render variations", "Attach takes"],
   },
   theme: {
-    title: "Composing the character theme",
+    title: "Composing the scene soundtrack",
     expectedSeconds: 30,
-    stages: ["Shape motif", "Build the cue", "Mix the ending", "Save theme"],
+    stages: ["Read final motion", "Shape the score", "Weave scene sound", "Save soundtrack"],
   },
   image: {
     title: "Creating the visual",
@@ -284,24 +283,24 @@ const PRODUCTION_TASK_TO_STEP: Record<string, number> = {
   "voice-build": 1,
   "voice-save": 1,
   speech: 2,
-  sfx: 3,
-  "sfx-select": 3,
-  theme: 4,
-  image: 5,
-  "image-select": 5,
-  upload: 5,
-  video: 6,
+  sfx: 5,
+  "sfx-select": 5,
+  theme: 5,
+  image: 3,
+  "image-select": 3,
+  upload: 3,
+  video: 4,
 };
 
 const QUICK_WRITE_TO_STEP: Record<string, number> = {
   "voice-description": 1,
   "voice-preview": 1,
   dialogue: 2,
-  sfx: 3,
-  theme: 4,
-  "identity-image": 5,
-  image: 5,
-  video: 6,
+  sfx: 5,
+  theme: 5,
+  "identity-image": 3,
+  image: 3,
+  video: 4,
 };
 
 function estimatedGenerationProgress(run: GenerationRun) {
@@ -321,6 +320,10 @@ function themeDurationPreset(value: unknown): ThemeDurationPreset {
   return THEME_DURATION_PRESETS.includes(duration as ThemeDurationPreset)
     ? duration as ThemeDurationPreset
     : 8;
+}
+
+function themePlanDurationSeconds(kind: ThemePlanKind): ThemeDurationPreset {
+  return kind === "scene_15s" ? 15 : kind === "scene_5s" ? 5 : 8;
 }
 
 function characterSignatureSfxEventCount(character: Character) {
@@ -570,7 +573,7 @@ export default function CharacterProductionStudio({
   );
   const [themeDurationSeconds, setThemeDurationSeconds] = useState<ThemeDurationPreset>(8);
   const [themePlanEnabled, setThemePlanEnabled] = useState(true);
-  const [themeKind, setThemeKind] = useState<ThemePlanKind>("ident_8s");
+  const [themeKind, setThemeKind] = useState<ThemePlanKind>("scene_5s");
   const [themeUrl, setThemeUrl] = useState("");
   const [imagePurpose, setImagePurpose] = useState<ImagePurpose>("identity");
   const [imagePrompt, setImagePrompt] = useState(composeIdentityImagePrompt(character));
@@ -588,9 +591,16 @@ export default function CharacterProductionStudio({
   const [assetHistory, setAssetHistory] = useState<ProductionAsset[]>([]);
   const [magicSceneIndex, setMagicSceneIndex] = useState(0);
   const [magicSceneBrief, setMagicSceneBrief] = useState("");
+  const soundtrackSceneBrief = useMemo(() => [
+    initialScene.blueprint.musicalArc,
+    initialScene.blueprint.setting,
+    initialScene.blueprint.actionTimeline.join("; "),
+    initialScene.blueprint.soundTexture,
+    scenePrompt,
+  ].filter(Boolean).join(". "), [initialScene, scenePrompt]);
   const themePlan = useMemo(
-    () => buildThemePlan(character, themeKind, initialScene.blueprint.musicalArc),
-    [character, initialScene.blueprint.musicalArc, themeKind],
+    () => buildThemePlan(character, themeKind, soundtrackSceneBrief),
+    [character, soundtrackSceneBrief, themeKind],
   );
   const [activeStep, setActiveStep] = useState<number>(1);
   const [sceneBlueprint, setSceneBlueprint] = useState<ShotBlueprint>(initialScene.blueprint);
@@ -1126,17 +1136,17 @@ export default function CharacterProductionStudio({
       setThemeUrl(await audioAction("theme", {
         prompt: themePrompt,
         durationSeconds: themePlanEnabled
-          ? (themeKind === "scene_15s" ? 15 : 8)
+          ? themePlanDurationSeconds(themeKind)
           : themeDurationSeconds,
         themeKind,
-        sceneBrief: initialScene.blueprint.musicalArc,
+        sceneBrief: soundtrackSceneBrief,
         grammarVersion: themePlanEnabled ? "plan-v2" : "v3-legacy",
       }));
       await refreshHistory();
       setMessage(
         themeUrl
-          ? "A new theme was generated with the modern v3 production brief and Eleven Music v2. The earlier theme remains in the asset history."
-          : "The actor theme was generated with the modern v3 production brief and Eleven Music v2, archived to the CDN, and added to the public Sound Profile."
+          ? "A new scene soundtrack was generated from the actor identity and current motion brief. The earlier cue remains in the asset history."
+          : "The scene soundtrack was generated with integrated score and sound design, then archived to the actor library."
       );
       advanceAfterCompletion(5);
     });
@@ -1236,7 +1246,7 @@ export default function CharacterProductionStudio({
       setMessage(imagePurpose === "identity"
         ? `${imageProviderLabel(candidate.provider)} is now the actor’s canonical identity cover. You can move on to video when ready.`
         : `${imageProviderLabel(candidate.provider)} is now Seedance’s exact first frame.`);
-      advanceAfterCompletion(6);
+      advanceAfterCompletion(4);
     });
   }
 
@@ -1293,8 +1303,8 @@ export default function CharacterProductionStudio({
       if (!character.galleryUrls?.includes(data.url)) addCharacterImage(character.id, data.url);
       await refreshHistory();
       setMessage("Reference image uploaded. It is now the actor’s canonical visual seed and Seedance’s exact first frame.");
-      advanceAfterCompletion(6);
-      jumpToStep(6);
+      advanceAfterCompletion(4);
+      jumpToStep(4);
     });
   }
 
@@ -1312,6 +1322,7 @@ export default function CharacterProductionStudio({
       setSeedanceRetryArmed(false);
       await refreshHistory();
       setMessage("Five-second Seedance clip generated and attached to the actor profile.");
+      advanceAfterCompletion(5);
     });
   }
 
@@ -1424,19 +1435,22 @@ export default function CharacterProductionStudio({
   const configuredVideoModel = status?.pipeline?.stages?.video?.model ?? "dreamina-seedance-2-0-260128";
   const signatureSfxEventCount = characterSignatureSfxEventCount(character);
   const activeStepMeta = WORKFLOW_STEPS.find((step) => step.id === activeStep) ?? WORKFLOW_STEPS[0];
+  const soundtrackReady = Boolean(themeUrl && assetHistory.some((asset) =>
+    asset.kind === "theme"
+    && asset.metadata?.grammarVersion === "soundtrack-plan-v3"
+    && asset.metadata?.themeKind === themeKind
+  ));
   const completedSteps = new Set<number>([
     ...(lockedVoiceId ? [1] : []),
     ...(speechUrl ? [2] : []),
-    ...(sfxUrl ? [3] : []),
-    ...(themeUrl ? [4] : []),
-    ...(generatedImage || identityReferenceImage ? [5] : []),
-    ...(generatedVideo || character.videoUrl ? [6] : []),
+    ...(generatedImage || identityReferenceImage ? [3] : []),
+    ...(generatedVideo || character.videoUrl ? [4] : []),
+    ...(soundtrackReady ? [5] : []),
   ]);
   const activeStepComplete = completedSteps.has(activeStep);
   const reviewSteps = new Set<number>([
     ...(previews.length > 0 && !lockedVoiceId ? [1] : []),
-    ...(sfxCandidates.length > 0 && !sfxUrl ? [3] : []),
-    ...(imageCandidates.length > 0 && !selectedImageAssetId ? [5] : []),
+    ...(imageCandidates.length > 0 && !selectedImageAssetId ? [3] : []),
   ]);
   const autoRunningSteps = new Set(
     Object.entries(autoStudioRun?.steps ?? {})
@@ -1480,7 +1494,7 @@ export default function CharacterProductionStudio({
       if (!automaticVoiceId) {
         updateAutoStudioStep(1, "writing", "Writing voice direction");
         try {
-          if (!elevenReady) throw new Error("ElevenLabs is not ready for voice, dialogue, SFX, or theme generation.");
+          if (!elevenReady) throw new Error("ElevenLabs is not ready for voice, dialogue, or soundtrack generation.");
           const [descriptionResult, auditionResult] = await Promise.all([
             writeField("voice-description", voiceDescription),
             writeField("voice-preview", previewText),
@@ -1539,72 +1553,47 @@ export default function CharacterProductionStudio({
       }
     };
 
-    const runSignatureSound = async () => {
-      if (sfxUrl) {
-        updateAutoStudioStep(3, "complete", "Existing signature sound reused");
+    const runThemeScore = async (motionBrief: string) => {
+      if (soundtrackReady) {
+        updateAutoStudioStep(5, "complete", "Existing soundtrack reused");
         return;
       }
-      updateAutoStudioStep(3, "writing", "Writing distinct sound events");
+      updateAutoStudioStep(5, "writing", "Connecting score and scene sound");
       try {
-        if (!elevenReady) throw new Error("ElevenLabs is not ready for signature sound generation.");
-        const sfxResult = await writeField("sfx", sfxPrompt);
-        setSfxPrompt((sfxResult.text ?? sfxPrompt).trim());
-        updateAutoStudioStep(3, "generating", "Rendering and mixing signature sound");
-        const signature = await jsonAction("signature-sfx", {}) as {
-          url?: string;
-          events?: unknown[];
-        };
-        if (!signature.url) throw new Error("The signature sound returned no playable asset.");
-        setSfxUrl(signature.url);
-        await refreshHistory();
-        updateAutoStudioStep(3, "complete", `${signature.events?.length ?? signatureSfxEventCount} sound events mixed`);
-      } catch (error) {
-        updateAutoStudioStep(3, "failed", error instanceof Error ? error.message : "Signature sound generation failed");
-        throw error;
-      }
-    };
-
-    const runThemeScore = async () => {
-      if (themeUrl) {
-        updateAutoStudioStep(4, "complete", "Existing theme reused");
-        return;
-      }
-      updateAutoStudioStep(4, "writing", "Writing the score direction");
-      try {
-        if (!elevenReady) throw new Error("ElevenLabs is not ready for theme generation.");
+        if (!elevenReady) throw new Error("ElevenLabs is not ready for soundtrack generation.");
         const writtenTheme = themePlanEnabled
           ? themePrompt
           : (await writeField("theme", themePrompt)).text?.trim() ?? themePrompt;
         if (!themePlanEnabled) setThemePrompt(writtenTheme);
         const automaticDuration = themePlanEnabled
-          ? (themeKind === "scene_15s" ? 15 : 8)
+          ? themePlanDurationSeconds(themeKind)
           : themeDurationSeconds;
-        updateAutoStudioStep(4, "generating", `Composing ${automaticDuration}s theme`);
+        updateAutoStudioStep(5, "generating", `Composing ${automaticDuration}s scene soundtrack`);
         const automaticThemeUrl = await audioAction("theme", {
           prompt: writtenTheme,
           durationSeconds: automaticDuration,
           themeKind,
-          sceneBrief: initialScene.blueprint.musicalArc,
-          grammarVersion: themePlanEnabled ? "plan-v2" : "v3-legacy",
+          sceneBrief: `${soundtrackSceneBrief}. Final motion: ${motionBrief}`,
+          grammarVersion: themePlanEnabled ? "soundtrack-plan-v3" : "v3-legacy",
         });
         setThemeUrl(automaticThemeUrl);
         await refreshHistory();
-        updateAutoStudioStep(4, "complete", "Theme ready");
+        updateAutoStudioStep(5, "complete", "Scene soundtrack ready");
       } catch (error) {
-        updateAutoStudioStep(4, "failed", error instanceof Error ? error.message : "Theme generation failed");
+        updateAutoStudioStep(5, "failed", error instanceof Error ? error.message : "Soundtrack generation failed");
         throw error;
       }
     };
 
     const runVisualSeed = async () => {
       if (automaticFrame) {
-        updateAutoStudioStep(5, "complete", "Existing visual seed reused");
+        updateAutoStudioStep(3, "complete", "Existing visual seed reused");
         return automaticFrame;
       }
 
       const automaticPurpose: ImagePurpose = identityReferenceImage ? "scene" : "identity";
       setImagePurpose(automaticPurpose);
-      updateAutoStudioStep(5, "writing", automaticPurpose === "identity" ? "Writing the identity frame" : "Writing the scene frame");
+      updateAutoStudioStep(3, "writing", automaticPurpose === "identity" ? "Writing the identity frame" : "Writing the scene frame");
       try {
         if (!imageGenerationReady) throw new Error(imageUnavailableReason ?? "No image provider is ready.");
         const imageField: QuickWriteField = automaticPurpose === "identity" ? "identity-image" : "image";
@@ -1618,7 +1607,7 @@ export default function CharacterProductionStudio({
         );
         const writtenImagePrompt = (imageResult.text ?? automaticImagePrompt).trim();
         setImagePrompt(writtenImagePrompt);
-        updateAutoStudioStep(5, "generating", `Rendering with ${imageProviderRunLabel}`);
+        updateAutoStudioStep(3, "generating", `Rendering with ${imageProviderRunLabel}`);
 
         const identityVariationKey = automaticPurpose === "identity" ? crypto.randomUUID() : undefined;
         const imageRequest = (imagePreset: string) => ({
@@ -1680,10 +1669,10 @@ export default function CharacterProductionStudio({
           setGeneratedImage(selected.url);
         }
         await refreshHistory();
-        updateAutoStudioStep(5, "complete", `${imageProviderLabel(selected.provider)} frame selected`);
+        updateAutoStudioStep(3, "complete", `${imageProviderLabel(selected.provider)} frame selected`);
         return selected.url;
       } catch (error) {
-        updateAutoStudioStep(5, "failed", error instanceof Error ? error.message : "Image generation failed");
+        updateAutoStudioStep(3, "failed", error instanceof Error ? error.message : "Image generation failed");
         throw error;
       }
     };
@@ -1692,8 +1681,6 @@ export default function CharacterProductionStudio({
       await ensureCharacterIsSaved();
       const parallelResults = await Promise.allSettled([
         runVoiceAndDialogue(),
-        runSignatureSound(),
-        runThemeScore(),
         runVisualSeed(),
       ]);
       const failures = parallelResults.flatMap((result) =>
@@ -1703,17 +1690,19 @@ export default function CharacterProductionStudio({
       );
       if (failures.length) throw new Error([...new Set(failures)].join(" "));
 
+      let finalMotionBrief = scenePrompt;
       if (generatedVideo || character.videoUrl) {
-        updateAutoStudioStep(6, "complete", "Existing video reused");
+        updateAutoStudioStep(4, "complete", "Existing video reused");
       } else {
         try {
-          updateAutoStudioStep(6, "writing", "Writing motion for the selected frame");
+          updateAutoStudioStep(4, "writing", "Writing motion for the selected frame");
           if (!seedModelsReady) throw new Error(videoUnavailableReason ?? "Seedance is not ready.");
           if (!automaticFrame) throw new Error("Studio Auto could not find a first frame for video.");
           const videoResult = await writeField("video", scenePrompt, automaticFrame);
           const writtenVideoPrompt = (videoResult.text ?? scenePrompt).trim();
+          finalMotionBrief = writtenVideoPrompt;
           setScenePrompt(writtenVideoPrompt);
-          updateAutoStudioStep(6, "generating", "Rendering the five-second scene");
+          updateAutoStudioStep(4, "generating", "Rendering the five-second scene");
           const videoData = await jsonAction("video", {
             prompt: writtenVideoPrompt,
             referenceImage: automaticFrame,
@@ -1721,15 +1710,16 @@ export default function CharacterProductionStudio({
           if (!videoData.url) throw new Error("Seedance returned no playable video.");
           setGeneratedVideo(videoData.url);
           setCharacterVideo(character.id, videoData.url);
-          updateAutoStudioStep(6, "complete", "Video ready");
+          updateAutoStudioStep(4, "complete", "Video ready");
         } catch (error) {
-          updateAutoStudioStep(6, "failed", error instanceof Error ? error.message : "Video generation failed");
+          updateAutoStudioStep(4, "failed", error instanceof Error ? error.message : "Video generation failed");
           throw error;
         }
       }
 
+      await runThemeScore(finalMotionBrief);
       await refreshHistory();
-      jumpToStep(6);
+      jumpToStep(5);
       setAutoStudioRun((current) => current
         ? { ...current, status: "complete" }
         : current);
@@ -1802,14 +1792,12 @@ export default function CharacterProductionStudio({
     : activeStep === 2
       ? Boolean(speechUrl)
       : activeStep === 3
-        ? sfxCandidates.length > 0 || Boolean(sfxUrl)
+        ? imagePurpose === "identity"
+          ? imageCandidates.length > 0 || Boolean(identityReferenceImage)
+          : imageCandidates.length > 0 || Boolean(generatedImage || identityReferenceImage)
         : activeStep === 4
-          ? Boolean(themeUrl)
-          : activeStep === 5
-            ? imagePurpose === "identity"
-              ? imageCandidates.length > 0
-              : imageCandidates.length > 0 || Boolean(generatedImage || identityReferenceImage)
-            : Boolean(generatedVideo || character.videoUrl);
+          ? Boolean(generatedVideo || character.videoUrl)
+          : soundtrackReady;
 
   function renderActiveAssetPreview() {
     if (activeStep === 1) {
@@ -1887,7 +1875,7 @@ export default function CharacterProductionStudio({
       return speechUrl ? <MediaPlayer src={speechUrl} label={`${character.name} dialogue`} compact /> : null;
     }
 
-    if (activeStep === 3) {
+    if (activeStep === -1) {
       if (sfxCandidates.length > 0) {
         return (
           <div className="space-y-2">
@@ -1912,11 +1900,11 @@ export default function CharacterProductionStudio({
       return sfxUrl ? <MediaPlayer src={sfxUrl} label={`${character.name} signature SFX`} compact /> : null;
     }
 
-    if (activeStep === 4) {
-      return themeUrl ? <MediaPlayer src={themeUrl} label={`${character.name} theme`} compact /> : null;
+    if (activeStep === 5) {
+      return themeUrl ? <MediaPlayer src={themeUrl} label={`${character.name} scene soundtrack`} compact /> : null;
     }
 
-    if (activeStep === 5) {
+    if (activeStep === 3) {
       if (imageCandidates.length > 0) {
         return (
           <div className="space-y-3">
@@ -2545,7 +2533,7 @@ export default function CharacterProductionStudio({
           </div>
         </div>
 
-        <div data-production-stage="sfx" className={`border border-line rounded-md p-4 flex flex-col gap-3 ${activeStep === 3 ? "" : "hidden"}`}>
+        <div data-production-stage="sfx" className="hidden">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold text-sm">3. Signature SFX</h3>
             <QuickWriteButton
@@ -2570,9 +2558,9 @@ export default function CharacterProductionStudio({
           {(sfxCandidates.length > 0 || sfxUrl) && <p className="text-[10px] text-emerald-300">Signature sound ready on the Asset Canvas.</p>}
         </div>
 
-        <div data-production-stage="theme" className={`border border-line rounded-md p-4 flex flex-col gap-3 ${activeStep === 4 ? "" : "hidden"}`}>
+        <div data-production-stage="soundtrack" className={`border border-line rounded-md p-4 flex flex-col gap-3 ${activeStep === 5 ? "" : "hidden"}`}>
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-semibold text-sm">4. Theme score</h3>
+            <h3 className="font-semibold text-sm">5. Scene soundtrack</h3>
             {!themePlanEnabled && (
               <QuickWriteButton
                 field="theme"
@@ -2582,19 +2570,22 @@ export default function CharacterProductionStudio({
               />
             )}
           </div>
+          <p className="text-[11px] leading-5 text-grey">
+            One scene-aware cue combines the actor&apos;s score, atmosphere, and tactile sound identity. It follows the selected frame and motion direction; Chaplin no longer asks you to approve a disconnected signature-SFX stage.
+          </p>
           {themePlanEnabled ? (
             <>
               <div className="grid gap-2 sm:grid-cols-2">
                 {([
-                  ["ident_8s", "8s ident", "Hook + identity hit"],
-                  ["scene_15s", "15s scene cue", "Establish + turn + payoff"],
+                  ["scene_5s", "5s scene soundtrack", "Complete score + sound-design arc"],
+                  ["scene_15s", "15s scene soundtrack", "Establish + turn + payoff"],
                 ] as const).map(([kind, label, description]) => (
                   <button
                     key={kind}
                     type="button"
                     onClick={() => {
                       setThemeKind(kind);
-                      setThemeDurationSeconds(kind === "scene_15s" ? 15 : 8);
+                      setThemeDurationSeconds(themePlanDurationSeconds(kind));
                     }}
                     disabled={Boolean(busy)}
                     className={`rounded-sm border p-3 text-left transition disabled:opacity-40 ${
@@ -2642,11 +2633,11 @@ export default function CharacterProductionStudio({
             )}
             <button onClick={() => generateTheme()} disabled={!elevenReady || Boolean(busy)} className="magic-action rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-40" data-intelligence-action aria-busy={busy === "theme"}>
               {busy === "theme"
-                ? "Composing theme..."
+                ? "Composing soundtrack..."
                 : themePlanEnabled
                   ? themeUrl
-                    ? "Regenerate with plan v2"
-                    : `Generate ${themeKind === "scene_15s" ? 15 : 8}-second plan`
+                    ? "Regenerate scene soundtrack"
+                    : `Generate ${themePlanDurationSeconds(themeKind)}-second soundtrack`
                   : themeUrl
                     ? "Regenerate legacy prompt"
                     : `Generate ${themeDurationSeconds}-second theme`}
@@ -2661,9 +2652,9 @@ export default function CharacterProductionStudio({
         </div>
 
         <div className="grid gap-5">
-          <div data-production-stage="image" className={`border border-line rounded-md p-4 flex flex-col gap-3 ${activeStep === 5 ? "" : "hidden"}`}>
+          <div data-production-stage="image" className={`border border-line rounded-md p-4 flex flex-col gap-3 ${activeStep === 3 ? "" : "hidden"}`}>
             <div className="flex items-center justify-between gap-2">
-              <h3 className="font-semibold text-sm">5. Define the actor on screen</h3>
+              <h3 className="font-semibold text-sm">3. Define the actor on screen</h3>
               <QuickWriteButton
                 field={imagePurpose === "identity" ? "identity-image" : "image"}
                 busy={Boolean(busy) || Boolean(quickWriting)}
@@ -2792,10 +2783,10 @@ export default function CharacterProductionStudio({
 
           <div
             data-production-stage="video"
-            className={`border border-line rounded-md p-3 sm:p-4 ${activeStep === 6 ? "video-production-workspace" : "hidden"}`}
+            className={`border border-line rounded-md p-3 sm:p-4 ${activeStep === 4 ? "video-production-workspace" : "hidden"}`}
           >
             <div className="flex items-center justify-between gap-2 xl:col-span-2">
-              <h3 className="font-semibold text-sm">6. Animate a five-second scene</h3>
+              <h3 className="font-semibold text-sm">4. Animate a five-second scene</h3>
               <span className="text-[9px] uppercase tracking-[0.12em] text-grey">Seed + motion</span>
             </div>
             <section className="min-w-0 rounded-md border border-line bg-black/15 p-3" data-video-seed-picker>
@@ -3026,7 +3017,7 @@ export default function CharacterProductionStudio({
           </div>
           <div className="p-3">
             {(activeStepRunning || !activeStepHasOutput) && (
-              activeStep === 5 && imagePurpose === "identity" && !activeStepRunning
+              activeStep === 3 && imagePurpose === "identity" && !activeStepRunning
                 ? <FreshIdentityCanvasEmpty />
                 : <AssetCanvasSkeleton stepId={activeStep} running={activeStepRunning} progress={activeStepProgress} />
             )}
@@ -3035,7 +3026,7 @@ export default function CharacterProductionStudio({
                 {renderActiveAssetPreview()}
               </div>
             )}
-            {activeStep === 5 && Object.keys(imageProviderErrors).length > 0 && (
+            {activeStep === 3 && Object.keys(imageProviderErrors).length > 0 && (
               <div className="mt-3 space-y-2">
                 {Object.entries(imageProviderErrors).map(([provider, error]) => error ? (
                   <div key={provider} className="rounded-sm border border-red-400/35 bg-red-500/[0.05] px-3 py-2">
@@ -3100,7 +3091,7 @@ export default function CharacterProductionStudio({
               </span>
             </div>
             {(activeStepRunning || !activeStepHasOutput) && (
-              activeStep === 5 && imagePurpose === "identity" && !activeStepRunning
+              activeStep === 3 && imagePurpose === "identity" && !activeStepRunning
                 ? <FreshIdentityCanvasEmpty />
                 : <AssetCanvasSkeleton stepId={activeStep} running={activeStepRunning} progress={activeStepProgress} />
             )}
@@ -3109,7 +3100,7 @@ export default function CharacterProductionStudio({
                 {renderActiveAssetPreview()}
               </div>
             )}
-            {activeStep === 5 && Object.keys(imageProviderErrors).length > 0 && (
+            {activeStep === 3 && Object.keys(imageProviderErrors).length > 0 && (
               <div className="mt-3 space-y-2">
                 {Object.entries(imageProviderErrors).map(([provider, error]) => error ? (
                   <div key={provider} className="rounded-sm border border-red-400/35 bg-red-500/[0.05] px-3 py-2">

@@ -1,5 +1,15 @@
 # Chaplin Changelog
 
+## v0.3.34 - 2026-08-04 - Build scene-aware soundtracks
+
+- Make the saved actor authoritative during generation so stale browser drafts
+  cannot contaminate another actor's music or sound identity.
+- Route astronaut and orbital characters through a rising dark-space score and
+  preserve the actor's authored genre, mood, instruments, and acoustic texture.
+- Replace separate Theme and SFX approvals with one motion-aware Soundtrack
+  stage that combines score, atmosphere, and synchronized action sound after
+  the video's final motion direction is known.
+
 ## v0.3.33 - 2026-08-04 - Keep actor writing progress alive
 
 - Show bounded, explicitly estimated startup progress while the writing model

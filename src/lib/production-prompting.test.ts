@@ -221,6 +221,21 @@ test("modern theme routing covers horror and intimate drama without collapsing t
   assert.notEqual(horrorPrompt, dramaPrompt);
 });
 
+test("space identity outranks incidental words such as loves", () => {
+  const astronaut: CharacterIdentityInput = {
+    ...actor,
+    name: "Dmitri Volkov",
+    archetype: "hero",
+    personality: "A Russian astronaut and station engineer who loves what he does.",
+    themeDesc: "A rising dark space score for isolation, duty, and quiet wonder.",
+    sfxDesc: "One atomic physical event: station machinery hum and one wrench contact.",
+  };
+  assert.equal(resolveModernThemePalette(astronaut).family, "space");
+  const events = composeCharacterSignatureSfxEvents(astronaut);
+  assert.match(events[0].prompt, /station machinery hum/i);
+  assert.doesNotMatch(events.map((event) => event.prompt).join(" "), /personal clasp|textured glass/i);
+});
+
 test("legacy characters receive a layered five-second SFX plan", () => {
   const events = composeCharacterSignatureSfxEvents({
     ...actor,

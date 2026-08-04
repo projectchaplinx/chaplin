@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.3.33",
+  "version": "0.3.34",
   "private": true,
   "scripts": {
     "dev": "next dev",

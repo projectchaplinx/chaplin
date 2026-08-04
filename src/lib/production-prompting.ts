@@ -389,11 +389,6 @@ function localFaceBlueprint(name: string) {
   return LOCAL_FACE_BLUEPRINTS[hash % LOCAL_FACE_BLUEPRINTS.length];
 }
 
-function sentence(value: string) {
-  const cleaned = value.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "");
-  return cleaned ? `${cleaned}.` : "";
-}
-
 function compact(value: string, max = 420) {
   const cleaned = value.trim().replace(/\s+/g, " ");
   return cleaned.length <= max ? cleaned : `${cleaned.slice(0, max).replace(/\s+\S*$/, "")}...`;
@@ -793,6 +788,7 @@ export function composeSignatureSfxEventPrompt(event: SignatureSfxEvent) {
 }
 
 type AudioIdentityFamily =
+  | "space"
   | "cyber"
   | "horror"
   | "villain"
@@ -823,6 +819,7 @@ export type ModernThemePalette = {
   each family: short, affective, and playable.
 */
 const THEME_MOODS: Record<AudioIdentityFamily, string> = {
+  space: "dark orbital isolation rising into hard-won resolve",
   cyber: "cold precision with buried momentum",
   horror: "held breath and creeping dread",
   villain: "controlled menace with unhurried certainty",
@@ -879,6 +876,17 @@ function playableDescription(
 }
 
 const MODERN_THEME_PALETTES: Record<AudioIdentityFamily, ModernThemePalette> = {
+  space: {
+    family: "space",
+    genres: "dark space score, orbital ambient tension, and cinematic electronica",
+    instruments: ["processed cello", "granular metal texture", "deep analog pulse", "restrained low brass"],
+    groove: "a slow pressure pulse that gathers mass and rises once without becoming a repetitive ostinato",
+    production: "vast controlled low end, tactile spacecraft resonance, cold stereo depth, evolving harmonic pressure, and one memorable motif that resolves with human warmth",
+    sfxLayers: [
+      { label: "Station pressure", prompt: "one spacecraft ventilation system settles into a deep mechanical hum with precise pressurized air detail" },
+      { label: "Engineer contact", prompt: "one steel hand tool makes a compact controlled contact against an orbital station panel, close tactile metal detail" },
+    ],
+  },
   cyber: {
     family: "cyber",
     genres: "2020s future garage, cyber-industrial bass, and cinematic electronica",
@@ -994,11 +1002,18 @@ function audioIdentityText(character: CharacterIdentityInput) {
     bible.dramatic.contradiction,
     bible.cinematography.worldTexture,
     bible.story.recurringMotifs.join(" "),
+    bible.creationInputs?.characterBrief,
+    bible.creationInputs?.worldBrief,
+    bible.creationInputs?.themeDirection,
+    bible.creationInputs?.signatureSfxDirection,
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
 export function resolveModernThemePalette(character: CharacterIdentityInput): ModernThemePalette {
   const text = audioIdentityText(character);
+  if (/\b(?:astronaut|cosmonaut|space station|orbital|orbit|zero gravity|spacecraft|international space station)\b/i.test(text)) {
+    return MODERN_THEME_PALETTES.space;
+  }
   if (/\b(?:transformer|autobot|robot|android|mech|cyber|synthetic|machine|exosuit|powered armor|powered armour|artificial intelligence|future tech|energy core)\b/i.test(text)) {
     return MODERN_THEME_PALETTES.cyber;
   }
@@ -1008,7 +1023,7 @@ export function resolveModernThemePalette(character: CharacterIdentityInput): Mo
   if (character.archetype === "villain") return MODERN_THEME_PALETTES.villain;
   if (character.archetype === "rebel") return MODERN_THEME_PALETTES.rebel;
   if (character.archetype === "comic-relief" || /\b(?:comic|comedy|funny|playful|mischief)\b/i.test(text)) return MODERN_THEME_PALETTES.comic;
-  if (character.archetype === "love-interest" || /\b(?:romance|romantic|intimacy|tender|longing|love)\b/i.test(text)) return MODERN_THEME_PALETTES.romance;
+  if (character.archetype === "love-interest" || /\b(?:romance|romantic|tender longing|love interest)\b/i.test(text)) return MODERN_THEME_PALETTES.romance;
   if (/\b(?:drama|dramatic|grief|family|memory|loss|regret|melancholy|domestic)\b/i.test(text)) return MODERN_THEME_PALETTES.drama;
   if (character.archetype === "hero" || character.archetype === "superhero") return MODERN_THEME_PALETTES.hero;
   return MODERN_THEME_PALETTES.grounded;
@@ -1020,6 +1035,7 @@ function atomicSfxSource(value: string | undefined) {
   const unwrapped = value
     .replace(/^.*?signature sound for [^:]+:\s*/i, "")
     .replace(/^.*?signature sfx for [^:]+:\s*/i, "")
+    .replace(/^.*?one atomic physical event:\s*/i, "")
     .trim();
   const atomic = unwrapped
     .split(/\bthen\b|\bfollowed by\b|\bafter (?:that|it)\b|[.;\n]/i)[0]

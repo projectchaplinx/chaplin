@@ -5,7 +5,7 @@ import {
   type CharacterIdentityInput,
 } from "@/lib/production-prompting";
 
-export const THEME_PLAN_KINDS = ["ident_8s", "scene_15s"] as const;
+export const THEME_PLAN_KINDS = ["ident_8s", "scene_5s", "scene_15s"] as const;
 export type ThemePlanKind = (typeof THEME_PLAN_KINDS)[number];
 
 const STYLE_WORD_LIMIT = 8;
@@ -71,7 +71,7 @@ export const ThemeCompositionPlanSchema = z.object({
 export type ThemeCompositionPlan = z.infer<typeof ThemeCompositionPlanSchema>;
 
 export function themePlanTargetMilliseconds(kind: ThemePlanKind) {
-  return kind === "scene_15s" ? 15000 : 8000;
+  return kind === "scene_15s" ? 15000 : kind === "scene_5s" ? 5000 : 8000;
 }
 
 export function themeCompositionPlanSchemaFor(kind: ThemePlanKind) {
@@ -188,6 +188,51 @@ function looksLikeTagList(value: string | undefined) {
   return text.split(",").every((part) => part.trim().split(/\s+/).length <= 5);
 }
 
+function composedBriefField(value: string | undefined, label: string) {
+  if (!value) return "";
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.match(new RegExp(
+    `${escaped}:\\s*([\\s\\S]*?)(?=\\s+(?:Genre|Mood|Character|Energy Arc|Production Style|Musical Characteristics|Core palette|Character-specific acoustic color|Avoid|Overall Feel):|$)`,
+    "i",
+  ))?.[1]?.trim() ?? "";
+}
+
+function authoredThemeStyles(value: string | undefined) {
+  if (!value) return [];
+  if (looksLikeTagList(value) && value.length <= 240) return [value];
+  return [
+    composedBriefField(value, "Genre"),
+    composedBriefField(value, "Mood"),
+    composedBriefField(value, "Core palette"),
+  ].filter(Boolean);
+}
+
+function integratedSoundStyles(value: string | undefined) {
+  if (!value) return [];
+  const event = value.match(/one atomic physical event:\s*([^.]+)/i)?.[1]
+    ?? value.split(/[.\n]/)[0]
+    ?? "";
+  return uniqueStyles([
+    "integrated cinematic sound design",
+    ...event.split(/,|;|\bunderlaid with\b|\band the\b|\bwith the\b/i),
+  ]).slice(0, 5);
+}
+
+function sceneSoundStyles(value: string | undefined) {
+  const text = value?.toLowerCase() ?? "";
+  const tags = [
+    /\b(?:machine|machinery|mechanical|servo|motor|engine)\b/.test(text) ? "scene machinery texture" : "",
+    /\b(?:vent|airlock|hiss|pressure|steam)\b/.test(text) ? "pressurized air detail" : "",
+    /\b(?:tool|wrench|metal|panel|bolt)\b/.test(text) ? "timed metal tool foley" : "",
+    /\b(?:alarm|siren|warning|beep)\b/.test(text) ? "restrained warning signal" : "",
+    /\b(?:footstep|walk|run|boot|heel)\b/.test(text) ? "synchronized footstep foley" : "",
+    /\b(?:wind|rain|storm|snow)\b/.test(text) ? "location weather atmosphere" : "",
+    /\b(?:crowd|traffic|street|market)\b/.test(text) ? "location crowd atmosphere" : "",
+    /\b(?:door|glass|cloth|fabric|paper)\b/.test(text) ? "tactile action foley" : "",
+  ].filter(Boolean);
+  return uniqueStyles(tags).slice(0, 4);
+}
+
 export function buildThemePlan(
   character: CharacterIdentityInput,
   kind: ThemePlanKind,
@@ -196,6 +241,11 @@ export function buildThemePlan(
   const card = readCharacterCardV2(character.cardV2);
   const profile = card?.theme_profile;
   const palette = resolveModernThemePalette(character);
+  const creatorStyles = authoredThemeStyles(character.themeDesc);
+  const soundStyles = uniqueStyles([
+    ...integratedSoundStyles(character.sfxDesc),
+    ...sceneSoundStyles(sceneBrief),
+  ]).slice(0, 7);
   const source = [
     profile?.style_anchor,
     profile?.mood,
@@ -204,14 +254,18 @@ export function buildThemePlan(
   ].filter(Boolean).join(" ");
   const positiveGlobal = uniqueStyles([
     profile?.style_anchor,
-    looksLikeTagList(character.themeDesc) && (character.themeDesc?.length ?? 0) <= 240
-      ? character.themeDesc
-      : undefined,
     palette.genres,
+    ...creatorStyles,
+    ...soundStyles,
     ...(profile?.instruments ?? palette.instruments.slice(0, 3)),
     profile?.mood,
     ...theoryTags(source),
-  ], character.name).slice(0, 10);
+  ], character.name)
+    .filter((style) => !/\btrailer\b/i.test(style))
+    // Keep the authored score palette and the concrete scene/character sound
+    // texture. Ten tags allowed a rich theme brief to crowd out the station
+    // hum and action Foley that make this a soundtrack rather than bare music.
+    .slice(0, 16);
   const negativeGlobal = uniqueStyles([
     ...(profile?.avoid ?? []),
     "vocals",
@@ -250,6 +304,7 @@ export function buildThemePlan(
     positive_local_styles: uniqueStyles([
       ...positiveLocalStyles,
       ...palette.instruments.slice(0, 3),
+      ...soundStyles,
       "full arrangement",
       "sustained low end",
     ]).slice(0, 50),
@@ -261,6 +316,15 @@ export function buildThemePlan(
         chunk("hook", 5000, ["dry close identity motif", "rhythmic development"], ["sparse demo"]),
         chunk("ident hit", 3000, ["core motif reduction", "hard clean final hit"], ["fade-out"]),
       ]
+    : kind === "scene_5s"
+      ? [
+          chunk(
+            "complete scene arc",
+            5000,
+            uniqueStyles([...moods, "immediate identity motif", "rising harmonic pressure", "clean payoff"]).slice(0, 5),
+            ["static harmony", "empty intro", "fade-out"],
+          ),
+        ]
     : [
         chunk(
           "establish",

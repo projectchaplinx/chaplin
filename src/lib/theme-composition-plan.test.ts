@@ -169,3 +169,35 @@ test("every section names what actually plays in it", () => {
   assert.match(negatives, /sparse arrangement/);
   assert.match(negatives, /isolated single hits/);
 });
+
+test("a Russian astronaut keeps the authored space score and integrated sound identity", () => {
+  const dmitri: CharacterIdentityInput = {
+    name: "Dmitri Volkov",
+    archetype: "hero",
+    tagline: "Six hundred days in orbit.",
+    personality: "A Russian astronaut and station engineer who loves his work.",
+    voiceGender: "masculine",
+    themeDesc: `Create a cinematic character theme for Dmitri Volkov. Genre: ambient neoclassical blended with organic electronica. Mood: guarded stillness with buried warmth.\nCore palette: felt piano, processed cello, granular tape texture, and low electronic pulse.`,
+    sfxDesc: "Premium cinematic Foley one-shot for Dmitri Volkov. One atomic physical event: Low mechanical hum of station systems underlaid with the soft clink of a wrench against metal, and the faint hiss of recycled air through vents.",
+  };
+  const plan = buildThemePlan(dmitri, "ident_8s");
+  const styles = plan.positive_global_styles.join(" | ");
+  assert.match(styles, /dark space score/i);
+  assert.match(styles, /ambient neoclassical/i);
+  assert.match(styles, /processed cello/i);
+  assert.match(styles, /low electronic pulse/i);
+  assert.match(styles, /integrated cinematic sound design/i);
+  assert.match(styles, /mechanical hum/i);
+  assert.doesNotMatch(styles, /future-soul|processed sarangi|romance/i);
+  assert.doesNotMatch(styles, /trailer/i);
+
+  const scenePlan = buildThemePlan(
+    dmitri,
+    "scene_5s",
+    "Dmitri turns a wrench against the station panel as a restrained warning alarm begins.",
+  );
+  assert.deepEqual(scenePlan.sections.map((section) => section.duration_ms), [5000]);
+  const sceneStyles = scenePlan.sections[0].positive_local_styles.join(" | ");
+  assert.match(sceneStyles, /timed metal tool foley/i);
+  assert.match(sceneStyles, /restrained warning signal/i);
+});

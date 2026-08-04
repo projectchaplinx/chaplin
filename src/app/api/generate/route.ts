@@ -884,9 +884,14 @@ export async function POST(request: Request) {
     if (input.character && typeof input.character === "object") {
       const character = input.character as Character;
       if (character.id !== characterId) throw new RequestValidationError("AI actor identity does not match this generation request.");
-      const exists = (await listCharacters()).some((candidate) => candidate.id === character.id);
-      if (!exists) throw new RequestValidationError("Create and save this AI actor before generating media.");
-      requestCharacter = character;
+      const savedCharacter = (await listCharacters()).find((candidate) => candidate.id === character.id);
+      if (!savedCharacter) throw new RequestValidationError("Create and save this AI actor before generating media.");
+      // The saved actor is canonical. A client can still be rendering an older
+      // name or pre-refinement draft while auto-production starts; trusting that
+      // payload is how Dmitri's sound assets were generated for "Dev Rao" and
+      // routed through a romance palette. Media generation must never use a
+      // stale browser snapshot once the actor exists in the shared catalogue.
+      requestCharacter = savedCharacter;
     }
 
     if (action === "sfx-select") {
@@ -1399,7 +1404,9 @@ export async function POST(request: Request) {
       const compositionPlanEnabled = settingBoolean(themeConfig, "compositionPlanEnabled", true);
       const themeKind: ThemePlanKind = input.themeKind === "scene_15s" || requestedDuration === 15
         ? "scene_15s"
-        : "ident_8s";
+        : input.themeKind === "scene_5s" || requestedDuration === 5
+          ? "scene_5s"
+          : "ident_8s";
       const durationSeconds = compositionPlanEnabled
         ? themePlanTargetMilliseconds(themeKind) / 1000
         : requestedDuration;
@@ -1422,9 +1429,13 @@ export async function POST(request: Request) {
       const themeModel = compositionPlanEnabled ? "music_v1" : themeConfig.model;
       const outputFormat = themeModel === "music_v2" ? "mp3_48000_192" : "mp3_44100_128";
       const generationMetadata = {
-        grammarVersion: compositionPlanEnabled ? "plan-v2" : "v3-legacy",
+        grammarVersion: compositionPlanEnabled
+          ? themeKind === "ident_8s" ? "plan-v3" : "soundtrack-plan-v3"
+          : "v3-legacy",
         generationMode: compositionPlanEnabled ? "composition-plan" : "legacy-prompt",
         themeKind,
+        integratedSoundDesign: compositionPlanEnabled && themeKind !== "ident_8s",
+        sceneBrief,
         requestedDurationSeconds: durationSeconds,
         providerDurationParameter: compositionPlanEnabled
           ? "composition_plan.chunks.duration_ms"

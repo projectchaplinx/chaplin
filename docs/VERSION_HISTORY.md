@@ -343,3 +343,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.35 | `ad83e94` | 2026-08-04T16:48:45+05:30 | v0.3.35: make Sparks prove the character |
 | v0.3.36 | `b180dc9` | 2026-08-04T16:53:37+05:30 | v0.3.36: use every actor's derived world |
 | v0.3.37 | `22cbbf3` | 2026-08-04T17:15:51+05:30 | v0.3.37: give every Spark a spoken identity |
+| v0.3.38 | `afec94c` | 2026-08-04T17:49:59+05:30 | v0.3.38: feat(v0.3.38): gate Seedance 2.5 on verified capability |

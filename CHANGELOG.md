@@ -1,5 +1,15 @@
 # Chaplin Changelog
 
+## v0.3.39 - 2026-08-04 - Freeze approved Spark scripts at render
+
+- Stop “Generate dialogue” from secretly rewriting the visible actor line
+  before sending it to ElevenLabs.
+- Stop “Generate 5-second video” from secretly rewriting the visible motion
+  script before sending it to Seedance.
+- Snapshot the approved scene frame, motion direction, spoken line, and locked
+  performance at the render boundary, and visibly lock the relevant editor
+  while its generation request is running.
+
 ## v0.3.38 - 2026-08-04 - Gate Seedance 2.5 on verified capability
 
 - Probe the authenticated ModelArk catalogue and confirm that Seedance 2.5 is

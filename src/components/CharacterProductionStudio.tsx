@@ -1083,9 +1083,12 @@ export default function CharacterProductionStudio({
       return;
     }
     void run("speech", async () => {
-      const dialogueResult = await writeField("intro-dialogue", speechText);
-      const introLine = (dialogueResult.text ?? speechText).trim();
-      setSpeechText(introLine);
+      // Generation is an execution boundary, not another writing pass. The
+      // creator may have used Magic Write and then edited the result; silently
+      // rewriting here made the visible line change while it was being
+      // performed. Snapshot and speak exactly what is on screen.
+      const introLine = speechText.trim();
+      if (!introLine) throw new Error("Write the actor's spoken introduction before generating dialogue.");
       setSpeechUrl(await audioAction("speech", { speechText: introLine, dialoguePurpose: "character-intro-v3-dialogue" }));
       await refreshHistory();
       setMessage("The actor's spoken introduction is locked and ready to perform inside the five-second scene.");
@@ -1310,20 +1313,24 @@ export default function CharacterProductionStudio({
 
   function generateVideo() {
     void run("video", async () => {
-      if (!videoReferenceImage) {
+      // Freeze every creator-approved input before the first await. Rendering
+      // must never invoke the writer or absorb a later state update.
+      const renderReferenceImage = videoReferenceImage;
+      const renderPrompt = scenePrompt.trim();
+      const renderDialogue = speechText.trim();
+      const renderSpeechUrl = speechUrl;
+      if (!renderReferenceImage) {
         throw new Error("Create and choose a playable scene frame first. A neutral identity portrait cannot become a character introduction.");
       }
-      if (!characterIntroDialogueReady || !speechText.trim()) {
+      if (!characterIntroDialogueReady || !renderDialogue) {
         throw new Error("Create the actor's spoken introduction in Dialogue before rendering the video.");
       }
-      const grounded = await writeField("video", scenePrompt, videoReferenceImage);
-      const groundedPrompt = grounded.text ?? scenePrompt;
-      setScenePrompt(groundedPrompt);
+      if (!renderPrompt) throw new Error("Write the five-second motion script before rendering the video.");
       const data = (await jsonAction("video", {
-        prompt: groundedPrompt,
-        referenceImage: videoReferenceImage,
-        referenceAudio: speechUrl,
-        dialogueText: speechText,
+        prompt: renderPrompt,
+        referenceImage: renderReferenceImage,
+        referenceAudio: renderSpeechUrl,
+        dialogueText: renderDialogue,
         audioPlan: { ambience: character.brollScene || character.productionBible || character.tagline, sfxMoments: [] },
         grammarVersion: "character-intro-v3-dialogue",
       })) as { url: string };
@@ -2541,7 +2548,7 @@ export default function CharacterProductionStudio({
                 onClick={() => void quickWrite("intro-dialogue", speechText, setSpeechText)}
               />
             </div>
-            <textarea aria-label={`${character.name} spoken dialogue`} data-scene-field="dialogue" value={speechText} onChange={(event) => setSpeechText(event.target.value)} rows={5} className="bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
+            <textarea aria-label={`${character.name} spoken dialogue`} data-scene-field="dialogue" value={speechText} onChange={(event) => setSpeechText(event.target.value)} disabled={busy === "speech"} rows={5} className="bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70" />
             <button onClick={generateSpeech} disabled={Boolean(dialogueUnavailableReason) || Boolean(busy)} className="magic-action rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-40" data-intelligence-action aria-busy={busy === "speech"}>
               {busy === "speech" ? "Performing line..." : "Generate dialogue"}
             </button>
@@ -2900,7 +2907,12 @@ export default function CharacterProductionStudio({
                 label={characterIntroVideoReady ? "Rewrite" : "Quick Write"}
               />
             </div>
-            <textarea data-scene-field="video" value={scenePrompt} onChange={(event) => setScenePrompt(event.target.value)} rows={8} className="min-h-32 bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
+            <textarea data-scene-field="video" value={scenePrompt} onChange={(event) => setScenePrompt(event.target.value)} disabled={busy === "video"} rows={8} className="min-h-32 bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70" />
+            {busy === "video" && (
+              <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-teal-300" data-render-script-lock>
+                Script locked for this render
+              </p>
+            )}
             <div className="rounded-sm border border-teal-400/25 bg-teal-400/[0.04] px-3 py-2">
               <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-teal-300">Spoken introduction</span>
               <p className="mt-1 text-[11px] leading-relaxed text-ink">{speechText || "Create the actor's line in Dialogue first."}</p>

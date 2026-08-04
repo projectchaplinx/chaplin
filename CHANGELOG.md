@@ -1,5 +1,14 @@
 # Chaplin Changelog
 
+## v0.3.36 - 2026-08-04 - Use every actor's derived world
+
+- Apply the character-introduction contract to every actor with a specific
+  canonical world, not only actors whose creator filled the separate world box.
+- Reuse worlds derived by Magic Write from the character brief while rejecting
+  generic archetype texture as false specificity.
+- Verify a non-space actor opens inside their own working world instead of a
+  random scene template.
+
 ## v0.3.35 - 2026-08-04 - Make Sparks prove the character
 
 - Build the first five-second Spark from the actor's canonical world and

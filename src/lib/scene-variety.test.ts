@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildScenePackage, characterSceneOffset } from "@/lib/production-prompting";
+import { buildProductionBible, buildScenePackage, characterSceneOffset } from "@/lib/production-prompting";
 
 const actor = (name: string, archetype: string, tagline: string) => ({
   name,
@@ -140,4 +140,30 @@ test("an actor with a canonical world opens with a character-defining introducti
   assert.match(scene.image, /International Space Station/i);
   assert.match(scene.video, /warning changes to green|wrench/i);
   assert.doesNotMatch(scene.image, /neutral seamless backdrop|no performance beat/i);
+});
+
+test("a non-space actor uses a derived canonical world instead of a random template", () => {
+  const medic = actor("Asha Rao", "mentor", "The pulse tells the truth first.");
+  const baseBible = buildProductionBible(medic);
+  const character = {
+    ...medic,
+    personality: "A veteran emergency physician who stays gentle when the room becomes chaotic.",
+    productionBible: {
+      ...baseBible,
+      cinematography: {
+        ...baseBible.cinematography,
+        worldTexture: "a working Mumbai emergency ward during monsoon night shift, rain on wired glass, practical monitors, worn steel, and crowded supply bays",
+      },
+      performance: {
+        ...baseBible.performance,
+        signatureGesture: "checks a patient's wrist pulse before looking at the monitor",
+      },
+    },
+  } as Parameters<typeof buildScenePackage>[0];
+
+  const scene = buildScenePackage(character, 0);
+  assert.match(scene.blueprint.setting, /Mumbai emergency ward/i);
+  assert.match(scene.blueprint.subjectStart, /already at work/i);
+  assert.match(scene.blueprint.actionTimeline.join(" "), /wrist pulse|task changes the state/i);
+  assert.doesNotMatch(scene.blueprint.setting, /museum|railway|rooftop|projection corridor/i);
 });

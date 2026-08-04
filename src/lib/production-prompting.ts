@@ -1576,9 +1576,16 @@ export function characterSceneOffset(character: CharacterIdentityInput) {
 function characterIntroBlueprint(character: CharacterIdentityInput): ShotBlueprint | null {
   const bible = buildProductionBible(character);
   const creator = bible.creationInputs;
-  const world = character.brollScene?.trim()
+  const explicitWorld = character.brollScene?.trim()
     || creator?.worldBrief?.trim()
     || character.worldBrief?.trim();
+  const archetypeTexture = (DIRECTIONS[character.archetype] ?? DIRECTIONS.hero).texture;
+  const derivedWorld = bible.cinematography.worldTexture?.trim();
+  // Magic Write may derive a precise world from the creator's character brief
+  // even when the separate world box was left blank. Keep that authored world,
+  // but do not pretend the generic archetype texture is specific canon.
+  const world = explicitWorld
+    || (derivedWorld && derivedWorld !== archetypeTexture ? derivedWorld : "");
   if (!world) return null;
 
   const identityBrief = concise(

@@ -22,11 +22,13 @@ export function isCharacterStyleSheetAsset(asset: VideoSeedAssetLike) {
 }
 
 /**
- * The animation seed shelf may show identity images and scene stills, but never
- * a composite/reference board or any asset explicitly marked unsafe for video.
+ * The animation seed shelf accepts authored scene frames only. An identity
+ * portrait proves the face but carries no playable world or action; animating
+ * it directly is how five-second Sparks became lifeless moving headshots.
  */
 export function isSelectableVideoSeedAsset(asset: VideoSeedAssetLike) {
   if (asset.kind !== "gallery" || isCharacterStyleSheetAsset(asset)) return false;
   const metadata = metadataRecord(asset.metadata);
-  return metadata.videoReferenceSafe !== false;
+  return metadata.imagePurpose === "scene"
+    && metadata.videoReferenceSafe !== false;
 }

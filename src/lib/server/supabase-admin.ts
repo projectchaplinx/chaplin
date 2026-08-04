@@ -849,7 +849,7 @@ export async function selectCharacterSceneImageAsset(input: { characterId: strin
   const selected = (assets.data ?? []).find((asset) => asset.id === input.assetId);
   if (!selected) throw new Error("Select scene image: candidate not found.");
   if (!isSelectableVideoSeedAsset(selected)) {
-    throw new Error("Style-sheet and reference-board assets stay in Style Sheet and cannot be animation seeds.");
+    throw new Error("Only authored scene frames can be animation seeds. Identity portraits and style-sheet references must first be composed into the actor's world.");
   }
   const updates = await Promise.all((assets.data ?? []).map((asset) => {
     const metadata = asset.metadata && typeof asset.metadata === "object"

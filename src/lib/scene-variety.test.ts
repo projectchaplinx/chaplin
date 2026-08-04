@@ -70,3 +70,74 @@ test("the offset is stable for identical identities", () => {
   assert.equal(characterSceneOffset(CAST[0]), characterSceneOffset(CAST[0]));
   assert.notEqual(characterSceneOffset(CAST[0]), characterSceneOffset(CAST[1]));
 });
+
+test("an actor with a canonical world opens with a character-defining introduction", () => {
+  const dmitri = {
+    ...actor("Dmitri Volkov", "hero", "Six hundred days up here, and I still fix things like it's the first."),
+    personality: "A Russian astronaut and station engineer, methodical and warm under pressure.",
+    productionBible: {
+      version: 1 as const,
+      creationInputs: {
+        characterBrief: "A Russian astronaut and station engineer representing his country aboard the International Space Station.",
+        appearanceBrief: "Weathered Russian astronaut in a practical blue flight suit.",
+        worldBrief: "Inside the International Space Station in low Earth orbit, with equipment racks, handholds, tethered tools, and Earth beyond the cupola.",
+        archetypes: ["hero" as const],
+        voiceDirection: "Russian",
+        signatureSfxDirection: "station ventilation and tethered tools",
+        themeDirection: "rising dark space music",
+        licenseType: "paid" as const,
+        royaltyRate: 0,
+      },
+      dramatic: {
+        externalWant: "keep the station and crew safe",
+        innerNeed: "accept that duty cannot replace home",
+        contradiction: "methodical competence and buried homesickness",
+        stakes: "one missed repair risks the crew",
+        vulnerability: "the sight of Earth",
+        moralBoundary: "never risks a crewmate for pride",
+      },
+      performance: {
+        restingExpression: "quiet concentration",
+        underPressure: "becomes more precise",
+        signatureGesture: "checks a tether before touching a tool",
+        movementStyle: "economical zero-gravity movement",
+        eyeline: "reads equipment before people",
+        tempo: "measured then decisive",
+      },
+      visual: {
+        perceivedAge: "late 40s",
+        faceAnchors: ["weathered face"],
+        hair: "dark hair",
+        wardrobe: "blue flight suit",
+        silhouette: "braced in zero gravity",
+        palette: ["station white", "steel blue"],
+        continuityRules: ["same face"],
+      },
+      cinematography: {
+        heroFraming: "environmental medium-wide",
+        cameraHeight: "eye level",
+        lens: "32mm",
+        keyLight: "station practical",
+        fillLight: "Earth bounce",
+        edgeLight: "panel light",
+        worldTexture: "ISS equipment racks and tethered tools",
+      },
+      story: {
+        hookPattern: "open on a repair already going wrong",
+        escalationPattern: "make the repair reveal personal cost",
+        cliffhangerPattern: "end on a second warning",
+        payoffPattern: "competence saves the crew",
+        recurringMotifs: ["tethered tools"],
+        avoid: ["empty pose"],
+      },
+    },
+  } as Parameters<typeof buildScenePackage>[0];
+
+  const scene = buildScenePackage(dmitri, 0);
+  assert.match(scene.blueprint.setting, /International Space Station/i);
+  assert.match(scene.blueprint.subjectStart, /service module|systems panel/i);
+  assert.match(scene.blueprint.actionTimeline.join(" "), /warning changes to green|wrench/i);
+  assert.match(scene.image, /International Space Station/i);
+  assert.match(scene.video, /warning changes to green|wrench/i);
+  assert.doesNotMatch(scene.image, /neutral seamless backdrop|no performance beat/i);
+});

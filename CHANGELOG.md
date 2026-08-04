@@ -1,5 +1,16 @@
 # Chaplin Changelog
 
+## v0.3.35 - 2026-08-04 - Make Sparks prove the character
+
+- Build the first five-second Spark from the actor's canonical world and
+  production bible instead of assigning a random scene or neutral pose.
+- Give orbital actors a complete ISS introduction with a practical task,
+  pressure, environmental state change, and character-revealing final image.
+- Keep identity portraits out of the animation seed shelf; Studio now requires
+  an authored scene frame and rejects old moving-portrait output as incomplete.
+- Strengthen motion writing so facial gestures and camera drift cannot stand in
+  for a playable action, consequence, and ending.
+
 ## v0.3.34 - 2026-08-04 - Build scene-aware soundtracks
 
 - Make the saved actor authoritative during generation so stale browser drafts

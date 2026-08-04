@@ -552,6 +552,7 @@ export default function CharacterProductionStudio({
   // A profile b-roll line can be a marketing hook rather than a scene line.
   // Start dialogue from a dedicated, spoken scene beat instead of reusing it.
   const initialScene = useMemo(() => buildScenePackage({ ...character, brollLine: undefined }, 0), [character]);
+  const initialIdentityReference = character.imageUrl || character.galleryUrls?.[0] || character.bannerUrl || "";
   const brollLine = character.brollLine ?? initialScene.dialogue;
   const [status, setStatus] = useState<ProviderStatus | null>(null);
   const [voiceDescription, setVoiceDescription] = useState(
@@ -575,8 +576,10 @@ export default function CharacterProductionStudio({
   const [themePlanEnabled, setThemePlanEnabled] = useState(true);
   const [themeKind, setThemeKind] = useState<ThemePlanKind>("scene_5s");
   const [themeUrl, setThemeUrl] = useState("");
-  const [imagePurpose, setImagePurpose] = useState<ImagePurpose>("identity");
-  const [imagePrompt, setImagePrompt] = useState(composeIdentityImagePrompt(character));
+  const [imagePurpose, setImagePurpose] = useState<ImagePurpose>(initialIdentityReference ? "scene" : "identity");
+  const [imagePrompt, setImagePrompt] = useState(
+    initialIdentityReference ? initialScene.image : composeIdentityImagePrompt(character),
+  );
   const [scenePrompt, setScenePrompt] = useState(
     initialScene.video
   );
@@ -615,48 +618,31 @@ export default function CharacterProductionStudio({
   const [seedanceRetryArmed, setSeedanceRetryArmed] = useState(false);
   const workflowContentRef = useRef<HTMLDivElement | null>(null);
   const quickWriteRevisionRef = useRef(0);
-  const identityReferenceImage = canonicalReferenceImage || character.imageUrl || character.galleryUrls?.[0] || character.bannerUrl || "";
+  const identityReferenceImage = canonicalReferenceImage || initialIdentityReference;
   const videoSeedOptions = useMemo(() => {
     const seeds = new Map<string, VideoSeedOption>();
     const addSeed = (seed: VideoSeedOption) => {
       if (!seed.url || seeds.has(seed.url)) return;
       seeds.set(seed.url, seed);
     };
-    imageCandidates.forEach((candidate) => addSeed({
-      id: candidate.assetId,
-      assetId: candidate.assetId,
-      url: candidate.url,
-      label: imageProviderLabel(candidate.provider),
-    }));
+    if (imagePurpose === "scene") {
+      imageCandidates.forEach((candidate) => addSeed({
+        id: candidate.assetId,
+        assetId: candidate.assetId,
+        url: candidate.url,
+        label: imageProviderLabel(candidate.provider),
+      }));
+    }
     assetHistory
       .filter(isSelectableVideoSeedAsset)
       .forEach((asset, index) => addSeed({
         id: asset.id,
         assetId: asset.id,
         url: asset.url,
-        label: asset.metadata?.imagePurpose === "identity"
-          ? "Identity image"
-          : `Scene still ${index + 1}`,
+        label: `Scene still ${index + 1}`,
       }));
-    const visualReference = status?.production?.visualReference;
-    if (visualReference?.url) {
-      addSeed({
-        id: visualReference.assetId ?? "profile-reference",
-        assetId: visualReference.assetId,
-        url: visualReference.url,
-        label: "Profile reference",
-      });
-    }
-    if (identityReferenceImage) {
-      addSeed({
-        id: "identity-reference",
-        assetId: null,
-        url: identityReferenceImage,
-        label: "Identity reference",
-      });
-    }
     return [...seeds.values()];
-  }, [assetHistory, identityReferenceImage, imageCandidates, status?.production?.visualReference]);
+  }, [assetHistory, imageCandidates, imagePurpose]);
 
   const activeGenerationKey = generationRun?.key ?? null;
   const activeGenerationStatus = generationRun?.status ?? null;
@@ -669,10 +655,9 @@ export default function CharacterProductionStudio({
     }, 1000);
     return () => window.clearInterval(timer);
   }, [activeGenerationKey, activeGenerationStatus]);
-  // A newly composed scene frame takes priority, but an actor with an approved
-  // canonical image is already ready for image-to-video. Requiring another
-  // still here left the video action disabled for otherwise complete actors.
-  const videoReferenceImage = selectedVideoSeedUrl || generatedImage || identityReferenceImage;
+  // A profile portrait proves identity; it does not contain a playable world
+  // or consequential action. Only an authored scene frame may enter Seedance.
+  const videoReferenceImage = selectedVideoSeedUrl || generatedImage;
   function jumpToStep(stepId: number) {
     setActiveStep(stepId);
     window.requestAnimationFrame(() => {
@@ -736,6 +721,10 @@ export default function CharacterProductionStudio({
           setSelectedVideoSeedUrl(selectedVideoSeed.url);
         }
         setCanonicalReferenceImage(production.visualReference?.url ?? "");
+        if (production.visualReference?.url && !selectedVideoSeed) {
+          setImagePurpose("scene");
+          setImagePrompt(initialScene.image);
+        }
         if (production.voiceId) setLockedVoiceId(production.voiceId);
         if (production.voiceId && production.voiceId !== character.voiceId) {
           setCharacterVoice(character.id, production.voiceId);
@@ -755,21 +744,19 @@ export default function CharacterProductionStudio({
             setCharacterVideo(character.id, production.latestVideoUrl);
           }
         }
-        const resumeAt = production.latestImageUrl
-          ? 6
-          : production.latestThemeUrl
-            ? 5
-            : production.latestSfxUrl
-              ? 4
-              : production.latestDialogueUrl
-                ? 3
-                : production.voiceId
-                  ? 2
-                  : 1;
+        const resumeAt = production.latestVideoUrl
+          ? 5
+          : selectedVideoSeed
+            ? 4
+            : production.latestDialogueUrl
+              ? 3
+              : production.voiceId
+                ? 2
+                : 1;
         setActiveStep((current) => current === 1 ? Math.max(current, resumeAt) : current);
       })
       .catch(() => setStatus({ elevenLabs: false, seedModels: false, openRouter: false, openAI: false, database: false, production: null, providers: null }));
-  }, [addCharacterImage, character.galleryUrls, character.id, character.videoUrl, character.voiceId, setCharacterVideo, setCharacterVoice]);
+  }, [addCharacterImage, character.galleryUrls, character.id, character.videoUrl, character.voiceId, initialScene.image, setCharacterVideo, setCharacterVoice]);
 
   async function refreshHistory() {
     const response = await fetch(`/api/generate?characterId=${encodeURIComponent(character.id)}`, { cache: "no-store" });
@@ -1234,19 +1221,24 @@ export default function CharacterProductionStudio({
       });
       if (!response.ok) throw new Error(await errorFrom(response));
       setSelectedImageAssetId(candidate.assetId);
-      setSelectedVideoSeedId(candidate.assetId);
-      setSelectedVideoSeedUrl(candidate.url);
       if (imagePurpose === "identity") {
         setCanonicalReferenceImage(candidate.url);
         setGeneratedImage("");
+        setSelectedVideoSeedId("");
+        setSelectedVideoSeedUrl("");
+        setImagePurpose("scene");
+        setImagePrompt(initialScene.image);
+        setImageCandidates([]);
       } else {
+        setSelectedVideoSeedId(candidate.assetId);
+        setSelectedVideoSeedUrl(candidate.url);
         setGeneratedImage(candidate.url);
       }
       await refreshHistory();
       setMessage(imagePurpose === "identity"
-        ? `${imageProviderLabel(candidate.provider)} is now the actor’s canonical identity cover. You can move on to video when ready.`
+        ? `${imageProviderLabel(candidate.provider)} is now the actor’s canonical identity. Next, create a playable frame inside their real world before animation.`
         : `${imageProviderLabel(candidate.provider)} is now Seedance’s exact first frame.`);
-      advanceAfterCompletion(4);
+      advanceAfterCompletion(imagePurpose === "identity" ? 3 : 4);
     });
   }
 
@@ -1297,26 +1289,33 @@ export default function CharacterProductionStudio({
       if (!selectResponse.ok) throw new Error(await errorFrom(selectResponse));
 
       setCanonicalReferenceImage(data.url);
-      setGeneratedImage(data.url);
-      setSelectedVideoSeedId(data.id);
-      setSelectedVideoSeedUrl(data.url);
+      setGeneratedImage("");
+      setSelectedVideoSeedId("");
+      setSelectedVideoSeedUrl("");
+      setImagePurpose("scene");
+      setImagePrompt(initialScene.image);
+      setImageCandidates([]);
       if (!character.galleryUrls?.includes(data.url)) addCharacterImage(character.id, data.url);
       await refreshHistory();
-      setMessage("Reference image uploaded. It is now the actor’s canonical visual seed and Seedance’s exact first frame.");
-      advanceAfterCompletion(4);
-      jumpToStep(4);
+      setMessage("Reference image uploaded as the actor identity. Now create a world-specific scene frame; identity portraits no longer go directly to video.");
+      advanceAfterCompletion(3);
+      jumpToStep(3);
     });
   }
 
   function generateVideo() {
     void run("video", async () => {
       if (!videoReferenceImage) {
-        throw new Error("Add or lock a reference image first. Chaplin will animate that exact image.");
+        throw new Error("Create and choose a playable scene frame first. A neutral identity portrait cannot become a character introduction.");
       }
       const grounded = await writeField("video", scenePrompt, videoReferenceImage);
       const groundedPrompt = grounded.text ?? scenePrompt;
       setScenePrompt(groundedPrompt);
-      const data = (await jsonAction("video", { prompt: groundedPrompt, referenceImage: videoReferenceImage })) as { url: string };
+      const data = (await jsonAction("video", {
+        prompt: groundedPrompt,
+        referenceImage: videoReferenceImage,
+        grammarVersion: "character-intro-v2",
+      })) as { url: string };
       setGeneratedVideo(data.url);
       setCharacterVideo(character.id, data.url);
       setSeedanceRetryArmed(false);
@@ -1440,11 +1439,16 @@ export default function CharacterProductionStudio({
     && asset.metadata?.grammarVersion === "soundtrack-plan-v3"
     && asset.metadata?.themeKind === themeKind
   ));
+  const characterIntroVideoReady = Boolean(generatedVideo && assetHistory.some((asset) =>
+    asset.kind === "video"
+    && asset.url === generatedVideo
+    && asset.metadata?.visualGrammarVersion === "character-intro-v2"
+  ));
   const completedSteps = new Set<number>([
     ...(lockedVoiceId ? [1] : []),
     ...(speechUrl ? [2] : []),
-    ...(generatedImage || identityReferenceImage ? [3] : []),
-    ...(generatedVideo || character.videoUrl ? [4] : []),
+    ...(videoReferenceImage ? [3] : []),
+    ...(characterIntroVideoReady ? [4] : []),
     ...(soundtrackReady ? [5] : []),
   ]);
   const activeStepComplete = completedSteps.has(activeStep);
@@ -1482,12 +1486,10 @@ export default function CharacterProductionStudio({
     setMessage("Studio Auto is writing prompts and running every missing production lane. It will stop at final review.");
     jumpToStep(1);
 
-    // An identity portrait is the seed, not the finished scene. For a new
-    // automatic run, create a dedicated scene frame from that identity before
-    // asking Seedance to animate it. Reuse the identity directly only when a
-    // finished video already exists and no new render is required.
-    let automaticFrame = generatedImage ||
-      ((generatedVideo || character.videoUrl) ? identityReferenceImage : "");
+    // An identity portrait is reference evidence, not the finished scene.
+    // Automatic production must create or reuse a dedicated scene frame before
+    // asking Seedance to animate it.
+    let automaticFrame = videoReferenceImage;
 
     const runVoiceAndDialogue = async () => {
       let automaticVoiceId = lockedVoiceId;
@@ -1691,7 +1693,7 @@ export default function CharacterProductionStudio({
       if (failures.length) throw new Error([...new Set(failures)].join(" "));
 
       let finalMotionBrief = scenePrompt;
-      if (generatedVideo || character.videoUrl) {
+      if (characterIntroVideoReady) {
         updateAutoStudioStep(4, "complete", "Existing video reused");
       } else {
         try {
@@ -1706,6 +1708,7 @@ export default function CharacterProductionStudio({
           const videoData = await jsonAction("video", {
             prompt: writtenVideoPrompt,
             referenceImage: automaticFrame,
+            grammarVersion: "character-intro-v2",
           }) as { url?: string };
           if (!videoData.url) throw new Error("Seedance returned no playable video.");
           setGeneratedVideo(videoData.url);
@@ -1794,9 +1797,9 @@ export default function CharacterProductionStudio({
       : activeStep === 3
         ? imagePurpose === "identity"
           ? imageCandidates.length > 0 || Boolean(identityReferenceImage)
-          : imageCandidates.length > 0 || Boolean(generatedImage || identityReferenceImage)
+          : imageCandidates.length > 0 || Boolean(videoReferenceImage)
         : activeStep === 4
-          ? Boolean(generatedVideo || character.videoUrl)
+          ? characterIntroVideoReady
           : soundtrackReady;
 
   function renderActiveAssetPreview() {
@@ -1935,7 +1938,7 @@ export default function CharacterProductionStudio({
       // Fresh casting is deliberately prompt-only. Never present an older
       // profile image or scene still as the current generation result.
       if (imagePurpose === "identity") return null;
-      const still = generatedImage || identityReferenceImage;
+      const still = generatedImage;
       return still ? (
         <article className="overflow-hidden rounded-md border border-line bg-black/15" data-asset-canvas-ready="image">
           {/* eslint-disable-next-line @next/next/no-img-element -- generated and uploaded provider URLs are dynamic */}
@@ -1947,7 +1950,7 @@ export default function CharacterProductionStudio({
       ) : null;
     }
 
-    const video = generatedVideo || character.videoUrl;
+    const video = characterIntroVideoReady ? generatedVideo : "";
     return video ? <MediaPlayer src={video} label={`${character.name} scene`} kind="video" compact /> : null;
   }
 
@@ -2793,14 +2796,14 @@ export default function CharacterProductionStudio({
                 <div className="mb-2.5 flex items-end justify-between gap-3">
                   <span>
                     <span className="block text-xs font-semibold">Choose the seed image</span>
-                    <span className="mt-0.5 block text-[10px] text-grey">Choose a small reference, then inspect the exact first frame beside it.</span>
+                    <span className="mt-0.5 block text-[10px] text-grey">Only world-specific scene frames appear here. Identity portraits cannot be animated directly.</span>
                   </span>
                   <button
                     type="button"
-                    onClick={() => jumpToStep(5)}
+                    onClick={() => jumpToStep(3)}
                     className="shrink-0 text-[10px] font-semibold text-accent hover:underline"
                   >
-                    Create another still →
+                    Create another scene frame →
                   </button>
                 </div>
                 <div className="video-seed-workspace">
@@ -2865,7 +2868,7 @@ export default function CharacterProductionStudio({
                 busy={Boolean(busy) || Boolean(quickWriting)}
                 writing={quickWriting === "video"}
                 onClick={() => void quickWrite("video", scenePrompt, setScenePrompt)}
-                label={generatedVideo || character.videoUrl ? "Rewrite" : "Quick Write"}
+                label={characterIntroVideoReady ? "Rewrite" : "Quick Write"}
               />
             </div>
             <textarea data-scene-field="video" value={scenePrompt} onChange={(event) => setScenePrompt(event.target.value)} rows={8} className="min-h-32 bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
@@ -2876,8 +2879,8 @@ export default function CharacterProductionStudio({
               <div role="status" className="rounded-sm border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
                 <p>{videoUnavailableReason}</p>
                 {!videoReferenceImage && (
-                  <button type="button" onClick={() => jumpToStep(5)} className="mt-2 rounded-full border border-amber-300/50 px-3 py-1.5 text-[10px] font-semibold text-amber-100 hover:bg-amber-300/10">
-                    Go to still generation →
+                  <button type="button" onClick={() => jumpToStep(3)} className="mt-2 rounded-full border border-amber-300/50 px-3 py-1.5 text-[10px] font-semibold text-amber-100 hover:bg-amber-300/10">
+                    Create the scene frame →
                   </button>
                 )}
                 {seedanceAccountPaused && (
@@ -2893,7 +2896,7 @@ export default function CharacterProductionStudio({
               </div>
             )}
             <GenerationTimeline generationKey="video" run={generationRun} />
-            {(generatedVideo || character.videoUrl) && <p className="text-[10px] text-emerald-300">Video ready on the Asset Canvas.</p>}
+            {characterIntroVideoReady && <p className="text-[10px] text-emerald-300">Character introduction ready on the Asset Canvas.</p>}
             </aside>
           </div>
         </div>

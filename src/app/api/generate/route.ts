@@ -1881,6 +1881,9 @@ export async function POST(request: Request) {
         actually reaches the provider.
       */
       const requestedPrompt = text(input, "prompt", 10, 12000);
+      const visualGrammarVersion = typeof input.grammarVersion === "string"
+        ? input.grammarVersion.trim().slice(0, 80)
+        : null;
       const styleContractText = await resolveStyleContractText();
       let boardSlot: AdSlot | null = null;
       let adBoard: import("@/lib/ad-board").AdBoard | null = null;
@@ -2082,6 +2085,7 @@ export async function POST(request: Request) {
         // prompt.
         metadata: {
           ...referenceMetadata,
+          visualGrammarVersion,
           promptBudget: {
             originalWords: promptBudget.originalWords,
             finalWords: promptBudget.finalWords,

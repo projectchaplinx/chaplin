@@ -339,3 +339,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.31 | `a7cf6f0` | 2026-08-04T15:01:04+05:30 | v0.3.31: honor selected Punch render mode |
 | v0.3.32 | `dca01a7` | 2026-08-04T15:07:48+05:30 | v0.3.32: show single-take Punch as one output |
 | v0.3.33 | `cdf2b03` | 2026-08-04T15:19:52+05:30 | v0.3.33: keep actor writing progress alive |
+| v0.3.34 | `fe07f20` | 2026-08-04T15:57:06+05:30 | v0.3.34: build scene-aware soundtracks |

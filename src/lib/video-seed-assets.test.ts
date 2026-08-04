@@ -30,7 +30,7 @@ test("style-sheet composites and panels stay out of the animation seed shelf", (
   assert.equal(isSelectableVideoSeedAsset(panel), false);
 });
 
-test("scene and identity gallery images remain valid animation seeds", () => {
+test("only authored scene frames remain valid animation seeds", () => {
   assert.equal(isSelectableVideoSeedAsset({
     kind: "gallery",
     metadata: { imagePurpose: "scene", selectedForVideo: true },
@@ -38,7 +38,11 @@ test("scene and identity gallery images remain valid animation seeds", () => {
   assert.equal(isSelectableVideoSeedAsset({
     kind: "gallery",
     metadata: { imagePurpose: "identity" },
-  }), true);
+  }), false);
+  assert.equal(isSelectableVideoSeedAsset({
+    kind: "gallery",
+    metadata: {},
+  }), false);
 });
 
 test("explicitly unsafe and non-gallery assets cannot become animation seeds", () => {

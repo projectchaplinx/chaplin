@@ -1567,15 +1567,96 @@ export function characterSceneOffset(character: CharacterIdentityInput) {
   return Math.abs(hash);
 }
 
+/**
+ * A profile Spark is an actor's introduction, not a random scene-template
+ * audition. When the creator supplied a canonical world, make the first five
+ * seconds prove who the actor is inside that world before cycling into the
+ * broader scene library for later takes.
+ */
+function characterIntroBlueprint(character: CharacterIdentityInput): ShotBlueprint | null {
+  const bible = buildProductionBible(character);
+  const creator = bible.creationInputs;
+  const world = character.brollScene?.trim()
+    || creator?.worldBrief?.trim()
+    || character.worldBrief?.trim();
+  if (!world) return null;
+
+  const identityBrief = concise(
+    creator?.characterBrief || character.personality || character.tagline,
+    220,
+  );
+  const isOrbital = /\b(?:astronaut|cosmonaut|space station|international space station|orbital|orbit|spacecraft|zero gravity)\b/i
+    .test(`${identityBrief} ${world}`);
+  const motif = bible.story.recurringMotifs[0] ?? "one practical object from the actor's work";
+
+  if (isOrbital) {
+    return {
+      sceneName: `${character.name}: Orbit Under Pressure`,
+      dramaticBeat: `${character.name} is introduced through competence under pressure, not a pose: ${identityBrief}`,
+      hook: "Open in unmistakable zero gravity with a small station failure already in progress.",
+      setting: world,
+      subjectStart: "braced inside a cramped International Space Station service module beside an open systems panel, one tethered wrench and a drifting checklist clearly visible",
+      actionTimeline: [
+        "A loose checklist drifts toward the open panel while the actor catches it against one forearm without looking away from the warning readout",
+        "one hand turns the tethered wrench through a precise quarter-turn; the amber warning changes to green and the ventilation vibration steadies",
+        "the actor releases the handhold into a controlled float, catches the wrench by its tether, and looks through the cupola toward Earth with private relief",
+      ],
+      facialBeat: "methodical concentration gives way to one restrained flash of wonder without becoming a smile-for-camera",
+      framing: "environmental medium-wide showing the actor, open service panel, floating objects, and unmistakable ISS structure",
+      cameraAngle: "eye level within the module, horizonless zero-gravity composition",
+      lens: "32mm environmental perspective with readable face and working hands",
+      cameraMovement: "slow controlled lateral float that reveals Earth through the cupola after the repair lands",
+      keyLight: "cold motivated station practical across the working side of the face",
+      fillAndEdge: "soft blue Earth bounce with a restrained amber panel edge",
+      environmentalMotion: "checklist, tether, and one loose fabric edge drift continuously in zero gravity; the warning indicator changes once",
+      soundTexture: "ISS ventilation hum, restrained warning pulse, tactile wrench contact, and pressurized cabin detail",
+      musicalArc: "dark orbital tension rises through the repair, then opens into a brief human warmth at Earth reveal",
+      finalFrame: "the actor floating in the working module with the panel stable, wrench secured, and Earth newly visible beyond",
+      dialogue: character.brollLine?.trim() || character.tagline,
+    };
+  }
+
+  return {
+    sceneName: `${character.name}: First Proof`,
+    dramaticBeat: `${character.name} is introduced by making one consequential choice inside the canonical world: ${identityBrief}`,
+    hook: bible.story.hookPattern,
+    setting: world,
+    subjectStart: `already at work in the environment, physically engaged with ${motif}; never seated for a neutral portrait and never posing for camera`,
+    actionTimeline: [
+      `The actor performs one precise task tied to ${motif} while tracking a change elsewhere in the space`,
+      `${bible.performance.underPressure}; the signature behavior becomes visible: ${bible.performance.signatureGesture}`,
+      `The task changes the state of the environment and the actor commits to ${bible.dramatic.externalWant}`,
+    ],
+    facialBeat: `${bible.performance.restingExpression}, interrupted by ${bible.dramatic.vulnerability}`,
+    framing: bible.cinematography.heroFraming,
+    cameraAngle: bible.cinematography.cameraHeight,
+    lens: bible.cinematography.lens,
+    cameraMovement: "one controlled reveal from the practical task to the actor's decision",
+    keyLight: bible.cinematography.keyLight,
+    fillAndEdge: `${bible.cinematography.fillLight}; ${bible.cinematography.edgeLight}`,
+    environmentalMotion: "one motivated environmental response confirms that the actor's action changed the situation",
+    soundTexture: character.sfxDesc || `close tactile detail from ${motif} over the canonical room tone`,
+    musicalArc: character.themeDesc || "build from character tension to one decisive identity motif and stop cleanly",
+    finalFrame: "the practical task visibly resolved or transformed, with the actor already facing its consequence",
+    dialogue: character.brollLine?.trim() || character.tagline,
+  };
+}
+
 export function buildScenePackage(character: CharacterIdentityInput, index = 0): ScenePackage {
   const slot = characterSceneOffset(character) + index;
-  const shotTemplate = SCENE_BLUEPRINTS[((slot % SCENE_BLUEPRINTS.length) + SCENE_BLUEPRINTS.length) % SCENE_BLUEPRINTS.length];
+  const shotTemplate = index === 0
+    ? characterIntroBlueprint(character)
+      ?? SCENE_BLUEPRINTS[((slot % SCENE_BLUEPRINTS.length) + SCENE_BLUEPRINTS.length) % SCENE_BLUEPRINTS.length]
+    : SCENE_BLUEPRINTS[((slot % SCENE_BLUEPRINTS.length) + SCENE_BLUEPRINTS.length) % SCENE_BLUEPRINTS.length];
+  const authoredDialogue = typeof shotTemplate.dialogue === "function"
+    ? shotTemplate.dialogue(character.name)
+    : shotTemplate.dialogue;
   const shot: ShotBlueprint = {
     ...shotTemplate,
     setting: character.brollScene?.trim() || shotTemplate.setting,
     dialogue: index === 0 && character.brollLine?.trim()
       ? character.brollLine.trim()
-      : shotTemplate.dialogue(character.name),
+      : authoredDialogue,
   };
   const dialoguePrefix = `${character.name}: `;
   const dialogue = shot.dialogue.startsWith(dialoguePrefix)

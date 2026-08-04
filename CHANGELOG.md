@@ -1,5 +1,12 @@
 # Chaplin Changelog
 
+## v0.3.28 - 2026-08-04 - Keep five-second render progress moving
+
+- Keep one stable timer alive for the active character-video generation instead
+  of restarting it after every elapsed-time update and freezing at one second.
+- Advance the visible elapsed time, estimated remaining time, stage label, and
+  honest progress bar once per second until Seedance succeeds or fails.
+
 ## v0.3.8 - 2026-08-02 - Split Director Brain into focused workspaces
 
 - Replace the single oversized Director Brain crawl with seven focused tabs for

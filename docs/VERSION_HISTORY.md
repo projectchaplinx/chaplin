@@ -332,3 +332,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.24 | `49e9e90` | 2026-08-02T20:10:25+05:30 | v0.3.24: dialogue on eleven_v3: render locked voices with the engine that designed them |
 | v0.3.25 | `c42f62a` | 2026-08-02T20:15:22+05:30 | v0.3.25: redeploy: pick up new ModelArk account key after model activation |
 | v0.3.26 | `8fe4572` | 2026-08-02T20:17:50+05:30 | v0.3.26: motion lint: accept real performance verbs and hyphenated camera moves |
+| v0.3.27 | `c9c85eb` | 2026-08-02T20:20:38+05:30 | v0.3.27: redeploy: pick up SEEDANCE_API_KEY from projectchaplinx Vercel env |

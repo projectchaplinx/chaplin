@@ -648,16 +648,17 @@ export default function CharacterProductionStudio({
     return [...seeds.values()];
   }, [assetHistory, identityReferenceImage, imageCandidates, status?.production?.visualReference]);
 
+  const activeGenerationKey = generationRun?.key ?? null;
+  const activeGenerationStatus = generationRun?.status ?? null;
   useEffect(() => {
-    if (!generationRun || generationRun.status !== "running") return;
-    const startedAt = Date.now() - generationRun.elapsedSeconds * 1000;
+    if (!activeGenerationKey || activeGenerationStatus !== "running") return;
     const timer = window.setInterval(() => {
-      setGenerationRun((current) => current?.status === "running"
-        ? { ...current, elapsedSeconds: Math.max(1, Math.floor((Date.now() - startedAt) / 1000)) }
+      setGenerationRun((current) => current?.status === "running" && current.key === activeGenerationKey
+        ? { ...current, elapsedSeconds: current.elapsedSeconds + 1 }
         : current);
-    }, 500);
+    }, 1000);
     return () => window.clearInterval(timer);
-  }, [generationRun]);
+  }, [activeGenerationKey, activeGenerationStatus]);
   // A newly composed scene frame takes priority, but an actor with an approved
   // canonical image is already ready for image-to-video. Requiring another
   // still here left the video action disabled for otherwise complete actors.

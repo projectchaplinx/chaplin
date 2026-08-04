@@ -335,3 +335,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.27 | `c9c85eb` | 2026-08-02T20:20:38+05:30 | v0.3.27: redeploy: pick up SEEDANCE_API_KEY from projectchaplinx Vercel env |
 | v0.3.28 | `29876a3` | 2026-08-04T14:26:52+05:30 | v0.3.28: keep five-second render progress moving |
 | v0.3.29 | `29f95d2` | 2026-08-04T14:36:43+05:30 | v0.3.29: show available credits in account menu |
+| v0.3.30 | `0a095c1` | 2026-08-04T14:47:30+05:30 | v0.3.30: keep streamed actor names canonical |

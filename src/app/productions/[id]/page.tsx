@@ -431,7 +431,9 @@ export function ProductionWorkspace({
         ? "episode"
         : "spot";
     const scopeId = scopeType === "actor" ? cast[0]?.id : story.id;
-    const punchGenerationMode = normalizePunchGenerationMode(story.punchGenerationMode);
+    const punchGenerationMode = normalizePunchGenerationMode(
+      run?.spec.punchGenerationMode ?? story.punchGenerationMode,
+    );
     return {
       format,
       definition,
@@ -443,7 +445,7 @@ export function ProductionWorkspace({
       scopeId,
       punchGenerationMode,
     };
-  }, [cast, story]);
+  }, [cast, run?.spec.punchGenerationMode, story]);
 
   const shotTimeline = useMemo(() => {
     if (!contract || !story) return [];

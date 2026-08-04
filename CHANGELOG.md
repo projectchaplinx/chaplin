@@ -1,5 +1,14 @@
 # Chaplin Changelog
 
+## v0.3.31 - 2026-08-04 - Honor the selected Punch render method
+
+- Stop silently converting a selected native 15-second take into four scene
+  clips when Magic Write adds dialogue to the authored beats.
+- Keep dialogue in the native take while clearly warning that this mode uses
+  the video provider's audiovisual voice rather than the locked ElevenLabs one.
+- Let Render Studio follow the initialized run contract so repaired productions
+  and retries use the render method the creator actually selected.
+
 ## v0.3.30 - 2026-08-04 - Keep the streamed actor name canonical
 
 - Preserve the culturally grounded name shown during Magic Write when the

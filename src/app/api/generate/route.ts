@@ -57,6 +57,7 @@ import { measureStoredAudioMs, muxVideoWithStoredDialogue } from "@/lib/server/a
 import { enforceThemeDuration } from "@/lib/server/audio-postprocess";
 import {
   prepareSeedanceAudioPrompt,
+  prepareSeedancePostMixDialoguePrompt,
   seedanceAudioCapability,
   seedanceSupportsAudioReference,
 } from "@/lib/seedance-audio";
@@ -2302,13 +2303,22 @@ export async function POST(request: Request) {
                 adBoard.audio_mode,
               )
             : null;
+          const attemptReferenceAudio = attemptPlan
+            ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""
+            : referenceAudio;
+          const attemptCanLipSync = Boolean(dialogueText)
+            && Boolean(attemptReferenceAudio)
+            && attempt.provider === "byteplus"
+            && seedanceSupportsAudioReference(attempt.model);
           const rawAttemptPrompt = attemptPlan && boardSlot
             ? `${basePrompt}\n${buildAudioSceneBlock({
                 plan: attemptPlan,
                 durationMs: boardSlot.duration_ms,
                 delivery: boardSlot.slot_no <= 3 ? voiceSlot?.pressure_delivery : voiceSlot?.pacing,
               })}`
-            : prompt;
+            : dialogueText && !attemptCanLipSync
+              ? prepareSeedancePostMixDialoguePrompt(composedPrompt)
+              : prompt;
           const attemptGrammarPrompt = [
             motionGrammarIssues(rawAttemptPrompt).some((issue) => /camera move/i.test(issue.message))
               ? "Camera: slow push in."
@@ -2330,9 +2340,20 @@ export async function POST(request: Request) {
             true,
             attempt.model,
           ).prompt;
-          const attemptReferenceAudio = attemptPlan
-            ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""
-            : referenceAudio;
+          const postMixAttemptPrompt = dialogueText
+            ? budgetVideoPrompt(
+                finalizeVideoPrompt(
+                  injectStyleContract(
+                    prepareSeedancePostMixDialoguePrompt(composedPrompt),
+                    styleContractText ? { contract_text: styleContractText } : null,
+                  ),
+                  Boolean(requestCharacter),
+                ),
+                reference ? "image_to_video" : "text_to_video",
+                true,
+                attempt.model,
+              ).prompt
+            : attemptPrompt;
           /*
             A model that cannot receive the locked recording must not get an
             opportunity to invent the actor's line. Seedance 1.5 can emit
@@ -2342,7 +2363,7 @@ export async function POST(request: Request) {
           */
           const attemptGenerateAudio = attemptPlan
             ? audioPlanUsesNative(attemptPlan)
-            : dialogueText && !seedanceSupportsAudioReference(attempt.model)
+            : dialogueText && !attemptCanLipSync
               ? false
             : audioScene?.postMix
               ? false
@@ -2352,7 +2373,7 @@ export async function POST(request: Request) {
               && Boolean(attemptReferenceAudio)
               && attempt.provider === "byteplus"
               && seedanceSupportsAudioReference(attempt.model)
-            : wantsLipSync && attempt.provider === "byteplus" && seedanceSupportsAudioReference(attempt.model);
+            : wantsLipSync && attemptCanLipSync;
           const result = await providerScheduler(
             attempt.provider,
             settingNumber(videoConfig, "concurrencyCap", 3),
@@ -2380,19 +2401,20 @@ export async function POST(request: Request) {
                   render must still happen: the line is mixed in afterwards
                   rather than the whole shot failing.
                 */
-                if (wantsLipSync && attempt.provider === "byteplus" && seedanceSupportsAudioReference(attempt.model)) {
+                if (attemptLipSync) {
                   try {
                     return await runVideoTask(attempt.model, true, scheduledPrompt);
                   } catch (lipSyncError) {
                     const detail = lipSyncError instanceof Error ? lipSyncError.message : "";
                     if (!/content|reference|not valid|invalid/i.test(detail)) throw lipSyncError;
+                    return runVideoTask(attempt.model, false, postMixAttemptPrompt, false, "");
                   }
                 }
                 return runVideoTask(
                   attempt.model,
                   false,
                   scheduledPrompt,
-                  audioScene?.postMix ? false : wantsSceneAudio,
+                  attemptGenerateAudio,
                   "",
                 );
               })());

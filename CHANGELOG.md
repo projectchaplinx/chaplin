@@ -1,5 +1,19 @@
 # Chaplin Changelog
 
+## v0.3.43 - 2026-08-04 - Make ElevenLabs the only dialogue authority
+
+- Rebuild every fallback-model prompt from the silent visual direction instead
+  of leaking Seedance 2.0's stale audio-reference and Russian dialogue text
+  into Seedance 1.5.
+- Disable generated audio and visible improvised lip-sync whenever the active
+  video model cannot receive the locked ElevenLabs recording; keep those shots
+  naturally off-face and add the approved voice once in post-production.
+- Preserve the post-mix completion flag after FFmpeg assembly so downstream
+  production cannot mistakenly overlay the ElevenLabs performance a second
+  time.
+- Repair Dimitri Volkov's existing FFmpeg asset metadata to record that its
+  locked Russian voice is already integrated.
+
 ## v0.3.42 - 2026-08-04 - Stop reference poses from propagating
 
 - Treat historical reference images as identity evidence only, preventing a

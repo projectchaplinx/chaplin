@@ -1,5 +1,7 @@
 import "server-only";
 
+import { postMixedDialogueMetadata } from "@/lib/dialogue-integration";
+
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -133,7 +135,7 @@ export async function muxVideoWithStoredDialogue(input: {
       contentType: "video/mp4",
       durationSeconds: input.durationSeconds,
       prompt: input.prompt,
-      metadata: { dialogueIntegrated: true, voicePath: "B-post-mix", ...input.metadata },
+      metadata: postMixedDialogueMetadata(input.metadata),
     });
   } finally {
     await rm(workDirectory, { recursive: true, force: true }).catch(() => undefined);

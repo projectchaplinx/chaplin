@@ -47,6 +47,16 @@ function withoutSilentPlateDirection(prompt: string) {
   return prompt.replace(SILENT_PLATE_LINE, "").replace(SILENT_PLATE_CLAUSE, "").trim();
 }
 
+/**
+ * A fallback model that cannot receive the locked ElevenLabs recording must
+ * never see the line or a stale lip-sync instruction. Its plate is deliberately
+ * silent and visually non-speaking; the authoritative voice is added once in
+ * post-production.
+ */
+export function prepareSeedancePostMixDialoguePrompt(prompt: string) {
+  return `${prompt.trim()}\nDIALOGUE AUTHORITY: The actor's locked voice is added exactly once after this render. Generate no speech, narration, vocal sound, improvised words, or lip-sync. Do not animate the mouth forming words or infer dialogue from the scene. Keep the mouth naturally at rest, or frame the performance off-face through profile, visor reflection, hands, rear three-quarter, or listener coverage. AUDIO: Silent visual plate only; no generated audio.`;
+}
+
 export function seedanceSupportsAudioReference(model: string) {
   // 2.5 declares audio input in the authenticated catalogue, but the model is
   // not activated on this account, so the locked-voice route remains gated.

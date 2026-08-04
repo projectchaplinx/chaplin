@@ -1,5 +1,12 @@
 # Chaplin Changelog
 
+## v0.3.29 - 2026-08-04 - Show available credits in the account menu
+
+- Turn the signed-in creator's credit balance into a clearly labelled account
+  panel instead of a small, easy-to-miss pill.
+- Keep the displayed balance connected to the authenticated account and refresh
+  it after credit grants or generation spending.
+
 ## v0.3.28 - 2026-08-04 - Keep five-second render progress moving
 
 - Keep one stable timer alive for the active character-video generation instead

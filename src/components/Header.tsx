@@ -164,14 +164,25 @@ export default function Header() {
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-accent font-semibold">{authIdentity ? "Signed-in account" : "Chaplin account"}</p>
                     <p className="text-xs text-grey mt-1">{authIdentity ? authIdentity.email : "Sign in once and start creating."}</p>
-                    {authIdentity?.role === "creator" && (
-                      <p className="mt-2 inline-flex rounded-full border border-accent/35 bg-accent/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-accent">
-                        {authIdentity.creditBalance ?? 0} credits
-                      </p>
-                    )}
                   </div>
                   <button onClick={() => setOpen(false)} className="text-grey hover:text-ink text-lg leading-none" aria-label="Close account menu">×</button>
                 </div>
+
+                {authIdentity?.role === "creator" && (
+                  <div
+                    data-account-credit-balance
+                    aria-live="polite"
+                    className="mb-3 flex items-center justify-between gap-4 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Available credits</p>
+                      <p className="mt-1 text-[10px] leading-snug text-grey">Your current balance, ready to create.</p>
+                    </div>
+                    <p className="shrink-0 font-mono text-2xl font-semibold leading-none text-ink">
+                      {(authIdentity.creditBalance ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                )}
 
                 {authIdentity?.role === "creator" ? (
                   <div className="grid grid-cols-2 gap-2">

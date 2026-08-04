@@ -1,5 +1,13 @@
 # Chaplin Changelog
 
+## v0.3.30 - 2026-08-04 - Keep the streamed actor name canonical
+
+- Preserve the culturally grounded name shown during Magic Write when the
+  completed production bible is finalized and saved.
+- Use Chaplin's small local name list only when neither the creator nor the
+  writing model supplied a name, instead of replacing names based on pronouns.
+- Keep an explicitly typed creator name immutable throughout the write.
+
 ## v0.3.29 - 2026-08-04 - Show available credits in the account menu
 
 - Turn the signed-in creator's credit balance into a clearly labelled account

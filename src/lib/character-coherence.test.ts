@@ -19,17 +19,28 @@ test("explicit feminine pronouns produce a feminine progressive-draft name", () 
   assert.doesNotMatch(name, /^(Veer|Dev) /);
 });
 
-test("a conflicting model name is repaired when the creator supplied only a brief", () => {
+test("the streamed model name remains canonical when the creator supplied only a brief", () => {
   const name = coherentGeneratedCharacterName({
     creatorName: "",
-    modelName: "Dave Malhotra",
+    modelName: "Dmitri Volkov",
+    archetype: "hero",
+    characterBrief: "He is a Russian engineer who has represented his country aboard the space station for six hundred days.",
+    voiceGender: "androgynous",
+  });
+
+  assert.equal(name, "Dmitri Volkov");
+});
+
+test("the local name list is used only when neither creator nor model supplied a name", () => {
+  const name = coherentGeneratedCharacterName({
+    creatorName: "",
+    modelName: "",
     archetype: "hero",
     characterBrief: "She keeps a death ledger and has never forgiven anyone in her life.",
     voiceGender: "androgynous",
   });
 
   assert.match(name, /^(Anaya|Ira) /);
-  assert.notEqual(name, "Dave Malhotra");
 });
 
 test("an explicitly supplied creator name is never rewritten", () => {

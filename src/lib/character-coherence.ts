@@ -76,10 +76,18 @@ export function coherentGeneratedCharacterName(input: {
   voiceGender: VoiceGender;
 }) {
   if (input.creatorName.trim()) return input.creatorName.trim();
-  const requiredGender = explicitVoiceGender(input.characterBrief);
   const modelName = input.modelName.trim();
-  if (!requiredGender) return modelName || suggestedCharacterName(input);
-  return suggestedCharacterName({ ...input, voiceGender: requiredGender });
+  // The streamed model name is already visible to the creator while the actor
+  // is being written. Treat that first complete name as canon instead of
+  // replacing it during finalization with the small local fallback list.
+  // Besides making the modal and saved actor disagree, that replacement erased
+  // cultural context (for example, a Russian cosmonaut became Dev Rao).
+  if (modelName) return modelName;
+  const requiredGender = explicitVoiceGender(input.characterBrief);
+  return suggestedCharacterName({
+    ...input,
+    voiceGender: requiredGender ?? input.voiceGender,
+  });
 }
 
 export function alignVoiceDescription(description: string, voiceGender: VoiceGender) {

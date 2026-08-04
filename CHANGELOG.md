@@ -1,5 +1,11 @@
 # Chaplin Changelog
 
+## v0.3.42 - 2026-08-04 - Stop reference poses from propagating
+
+- Treat historical reference images as identity evidence only, preventing a
+  prior pose, gesture, hand placement, eyeline, camera angle, or background
+  from being copied into a new first frame.
+
 ## v0.3.41 - 2026-08-04 - Stop recurring finger-sign poses
 
 - Remove Dimitri Volkov's two-finger temple tap from his live identity canon

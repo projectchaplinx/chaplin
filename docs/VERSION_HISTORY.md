@@ -346,3 +346,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.38 | `afec94c` | 2026-08-04T17:49:59+05:30 | v0.3.38: feat(v0.3.38): gate Seedance 2.5 on verified capability |
 | v0.3.39 | `dd54a5d` | 2026-08-04T17:59:51+05:30 | v0.3.39: fix(v0.3.39): freeze approved Spark scripts at render |
 | v0.3.40 | `af957a5` | 2026-08-04T18:29:25+05:30 | v0.3.40: fix(v0.3.40): make one-shot Punch continuous |
+| v0.3.41 | `53f19aa` | 2026-08-04T18:50:22+05:30 | v0.3.41: fix(v0.3.41): stop recurring finger-sign poses |

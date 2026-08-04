@@ -98,6 +98,7 @@ test("image and video prompts cannot repeat a numbered-finger identity gesture",
     assert.match(prompt, /No isolated numbered-finger pose/i);
     assert.match(prompt, /no .*raised middle finger/i);
   }
+  assert.match(buildShotImagePrompt(unsafeInput), /identity evidence only: never copy its pose, gesture, hand placement/i);
 });
 
 test("four takes of one standoff are rejected even when the wording differs", () => {

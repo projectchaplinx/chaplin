@@ -91,12 +91,12 @@ function castingComposition(actors: ShotActor[]) {
 function actorLock(actors: ShotActor[]) {
   if (actors.length === 1) {
     const identity = generationSafePerformanceText(actors[0].identity, "");
-    return `ACTOR LOCK: ${actors[0].name}. Match the supplied identity reference exactly. ${identity}`.trim();
+    return `ACTOR LOCK: ${actors[0].name}. Match the supplied reference's face, hair, apparent age, body proportions, skin detail, and wardrobe exactly. The reference is identity evidence only: never copy its pose, gesture, hand placement, eyeline, camera angle, or background. ${identity}`.trim();
   }
   const locks = actors.map((actor, index) => (
     `${actor.name} matches reference image ${index + 1}${actor.identity ? ` — ${generationSafePerformanceText(actor.identity, "")}` : ""}`
   ));
-  return `ACTOR LOCK: Each actor is bound to their own reference, in order: ${locks.join("; ")}. Preserve each face, skin tone, hair, age, and wardrobe independently.`;
+  return `ACTOR LOCK: Each actor is bound to their own reference, in order: ${locks.join("; ")}. Preserve each face, skin tone, hair, age, and wardrobe independently. References are identity evidence only: never copy their poses, gestures, hand placement, eyelines, camera angles, or backgrounds.`;
 }
 
 export type ShotSequenceValidation = {

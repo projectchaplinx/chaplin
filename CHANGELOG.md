@@ -1,5 +1,14 @@
 # Chaplin Changelog
 
+## v0.3.33 - 2026-08-04 - Keep actor writing progress alive
+
+- Show bounded, explicitly estimated startup progress while the writing model
+  is preparing its first complete streamed field.
+- Replace the misleading frozen 0% state with clear request, shaping, and
+  first-field status copy without inventing actor details.
+- Switch automatically to exact field-based milestones as soon as real actor
+  data begins streaming.
+
 ## v0.3.32 - 2026-08-04 - Show a single-take Punch as one output
 
 - Keep the four authored story beats internal to the native 15-second prompt

@@ -12,7 +12,7 @@ import { ARCHETYPES } from "@/data/seed";
 import type { Archetype, CharacterProductionBible, LicenseType, VoiceGender } from "@/lib/types";
 import { ARCHETYPE_HUE, ARCHETYPE_LABEL } from "@/lib/format";
 import { alignVoiceDescription, explicitVoiceGender } from "@/lib/character-coherence";
-import { completedJsonValue } from "@/lib/character-stream";
+import { characterBuildProgress, completedJsonValue } from "@/lib/character-stream";
 import { buildProductionBible } from "@/lib/production-prompting";
 
 const VOICE_PRESETS = [
@@ -183,9 +183,9 @@ type CharacterBuilderDraft = {
 
 const IDENTITY_BUILD_STAGES = [
   {
-    shortLabel: "Waiting",
-    label: "Waiting for the first model output",
-    detail: "No character fields are filled until the live response provides them.",
+    shortLabel: "Starting",
+    label: "Preparing the actor brief",
+    detail: "The request is active. Actor fields appear only when the model returns a complete value.",
   },
   {
     shortLabel: "Role",
@@ -214,17 +214,26 @@ function CharacterBuildPopup({
   progress,
   buildStage,
   elapsedSeconds,
+  progressEstimated,
+  streamedFieldCount,
   preview,
 }: {
   target: SuggestionTarget | null;
   progress: number;
   buildStage: number;
   elapsedSeconds: number;
+  progressEstimated: boolean;
+  streamedFieldCount: number;
   preview: CharacterStreamPreview;
 }) {
   if (!target) return null;
   const buildingAll = target === "all";
   const stage = IDENTITY_BUILD_STAGES[buildStage];
+  const startupLabel = elapsedSeconds < 5
+    ? "Sending the actor brief"
+    : elapsedSeconds < 12
+      ? "The model is shaping the identity"
+      : "Waiting for the first complete field";
   const roleLabels = preview.archetypes?.map((item) => ARCHETYPE_LABEL[item]).join(" + ");
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4 backdrop-blur-[5px]">
@@ -247,15 +256,17 @@ function CharacterBuildPopup({
                   Chaplin is writing
                 </p>
                 <h2 className="mt-1 text-lg font-semibold text-ink">
-                  {buildingAll ? stage.label : `Writing ${target}`}
+                  {buildingAll && streamedFieldCount === 0 ? startupLabel : buildingAll ? stage.label : `Writing ${target}`}
                 </h2>
               </div>
             </div>
             <div className="text-right">
               <span className="block font-mono text-2xl font-bold leading-none text-accent">
-                {buildingAll ? `${progress}%` : "LIVE"}
+                {buildingAll ? `${progressEstimated ? "~" : ""}${progress}%` : "LIVE"}
               </span>
-              <span className="mt-1.5 block text-[9px] tabular-nums text-grey">{elapsedSeconds}s elapsed</span>
+              <span className="mt-1.5 block text-[9px] tabular-nums text-grey">
+                {progressEstimated ? "startup estimate · " : ""}{elapsedSeconds}s elapsed
+              </span>
             </div>
           </div>
 
@@ -383,7 +394,8 @@ export default function NewCharacterPage() {
   const [recoverableDraft, setRecoverableDraft] = useState<Partial<CharacterBuilderDraft> | null>(null);
   const restoredDraftKey = useRef<string | null>(null);
   const draftStorageKey = `chaplin-character-builder:${currentUserId}`;
-  const progress = suggestingTarget === "all" ? streamedFieldCount * 20 : 0;
+  const buildProgress = characterBuildProgress(elapsedSeconds, streamedFieldCount);
+  const progress = suggestingTarget === "all" ? buildProgress.percent : 0;
   const buildStage = Math.min(streamedFieldCount, IDENTITY_BUILD_STAGES.length - 1);
 
   useEffect(() => {
@@ -939,6 +951,8 @@ export default function NewCharacterPage() {
         progress={progress}
         buildStage={buildStage}
         elapsedSeconds={elapsedSeconds}
+        progressEstimated={suggestingTarget === "all" && buildProgress.estimated}
+        streamedFieldCount={streamedFieldCount}
         preview={streamPreview}
       />
       <div

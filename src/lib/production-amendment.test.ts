@@ -65,6 +65,14 @@ test("motion grammar requires camera, event, and no frozen figures with split se
   assert.deepEqual(motionGrammarIssues(prompt), []);
 });
 
+test("Seedance 2.5 gets a larger prompt budget without changing legacy output", () => {
+  const prompt = Array.from({ length: 140 }, (_, index) => `motion${index}`).join(" ");
+  const legacy = budgetVideoPrompt(prompt, "image_to_video", true, "dreamina-seedance-2-0-260128");
+  const next = budgetVideoPrompt(prompt, "image_to_video", true, "dreamina-seedance-2-5-260628");
+  assert.equal(legacy.finalWords, 80);
+  assert.equal(next.finalWords, 140);
+});
+
 test("composite sheets are blocked while cropped panels become character references", () => {
   const sheet = characterSheetSchema.parse({
     id: "sheet-rhea-v2",

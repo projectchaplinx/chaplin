@@ -1,105 +1,56 @@
 # Seedance capability probe
 
-Probe date: 2026-07-29
+Latest probe: 2026-08-04
+
 Region: ModelArk `ap-southeast`
-Decision: keep production on the Seedance 2.0 adapter. Do not enable the
-proposed Seedance 2.5 multi-shot transport until the authenticated model list
-exposes a real 2.5 model ID and its request contract is verified.
 
-## Account probe
+Production decision: keep the default on `dreamina-seedance-2-0-260128`.
 
-The configured `SEEDANCE_API_KEY` was tested read-only against ModelArk.
-Credentials and response bodies containing account data were not persisted.
+## Authenticated account result
 
-| Probe | Result |
+`GET /api/v3/models` now lists `dreamina-seedance-2-5-260628`. Its catalogue
+record declares text, image, video, and audio input; video output; and the task
+types `MultimodalToVideo`, `VideoExtension`, and `VideoEditing`.
+
+A minimal four-second 480p creation control was then submitted. ModelArk
+returned HTTP 404 `ModelNotOpen`: the account has not activated the 2.5 model.
+No task was created and no generation cost was incurred. A catalogue listing is
+therefore discovery, not proof that a model is callable.
+
+## Verified request surface
+
+| Capability | Chaplin decision |
 | --- | --- |
-| `GET /api/v3/models` | HTTP 200 |
-| Seedance models exposed | `seedance-1-0-lite-i2v-250428` (retiring), `seedance-1-0-lite-t2v-250428` (retiring), `seedance-1-0-pro-250528`, `seedance-1-0-pro-fast-251015`, `seedance-1-5-pro-251215`, `dreamina-seedance-2-0-260128`, `dreamina-seedance-2-0-fast-260128`, `dreamina-seedance-2-0-mini-260615` |
-| Seedance 2.5 exposed | **No** |
-| Configured primary | `dreamina-seedance-2-0-260128` |
-| Model-reported input modalities | image, video, audio, text |
-| Model-reported output modalities | video |
-| Model-reported tasks | multimodal-to-video, video editing, video extension |
-| `GET /contents/generations/tasks?page_num=1&page_size=100` | HTTP 200; 82 total tasks |
-| Models observed in account tasks | `seedance-1-5-pro-251215`, `dreamina-seedance-2-0-260128` |
+| Multimodal generation | Declared for 2.5; task creation blocked until activation |
+| Video extension | Declared task type; exact 4-30 second/pass and 60-second ceiling unverified |
+| Video editing | Declared task type; generic only, with no verified swap/BGM-strip schema |
+| Output duration | 2.0 verified at 4-15 seconds; 2.5 30/180-second claims unverified |
+| References | Public API verifies 2.0 budgets of 1-9 images, 0-3 videos, 0-3 audio; 2.5 30/10/10 claims unverified |
+| Structured shots | No `shots` or storyboard array exists. Timed beats are prompt text |
+| Timestamp adherence | Prompt-level direction, not an API guarantee |
+| Native clip joining | No verified structured parameter |
+| Green screen | Prompt/compositing technique, not a verified API control |
+| Storyboard grid | May be supplied as an image reference; panels are not structured shots |
+| Language/on-screen text | No verified per-language control field |
+| Audio-only | Rejected by the public contract: a video/image input is required for multimodal reference generation |
 
-Probe request IDs:
+Chaplin's capability object records per-medium budgets and separates
+`promptTimedMultiBeat` from `structuredShotsField`. The latter is always false.
+No duration or reference limit is inferred from the `2.5` name.
 
-- models: `02178526932427099a3f43520201fc0164769d66e52699f88e7bb`
-- tasks: `02178526932436799a3f43520201fc0164769d66e52699f378755`
+## Activation gate
 
-## Verified Seedance 2.0 transport
+1. Activate `dreamina-seedance-2-5-260628` in the ModelArk console.
+2. Repeat the four-second transport control.
+3. Run matched identity A/B jobs, a prompt-length A/B, a 30-second duration
+   control, one extension, and one reference-audio job.
+4. Record task IDs, provider usage, output assets, and blinded verdicts.
+5. Only then set `apiAvailable: true`, raise verified ceilings, enable locked
+   audio, or change the production default.
 
-| Capability | Verified contract |
-| --- | --- |
-| Output duration | Integer 4–15 seconds, or `-1` for model-selected duration |
-| Output resolution | 480p, 720p, 1080p, and 4K where the 2.0 model/ratio supports it |
-| Structured shots per job | No `shots` or storyboard array exists in the task API |
-| Multi-cut direction | Prompt-level time ranges and transitions are supported; the provider does not return or enforce a structured per-shot contract |
-| Reference images | 1–9 in multimodal-reference mode |
-| Reference videos | 0–3; each 2–15 seconds; combined reference-video duration at most 15 seconds |
-| Reference audio | 0–3 WAV/MP3 files; each 2–15 seconds; combined reference-audio duration at most 15 seconds |
-| Mixed references | image, video, and audio may be combined with text |
-| Character/product/style/motion types | Not transport-level roles. ModelArk exposes `reference_image`, `reference_video`, and `reference_audio`; Chaplin must express semantic labels in prompt text |
-| Native audio | `generate_audio: true` produces synchronized audio |
-| Lip sync | Reference audio plus an explicit visible-speaker prompt is supported; there is no separate structured `lip_sync` field |
-| Timecodes | Supported as prompt language, not as an API field |
-| Exact frames plus references | Exact `first_frame`/`last_frame` mode and multimodal-reference mode are mutually exclusive |
-| Request body | At most 64 MB |
+Official ModelArk sources:
 
-Official sources:
-
-- [Create a video generation task](https://docs.byteplus.com/en/docs/modelark/1520757)
-- [Dreamina Seedance 2.0 series tutorial](https://docs.byteplus.com/en/docs/ModelArk/2291680)
-- [Dreamina Seedance 2.0 prompt guide](https://docs.byteplus.com/api/docs/ModelArk/2222480)
-- [Model releases](https://docs.byteplus.com/en/docs/modelark/1159178)
-
-## What is not verified
-
-The supplied target claims—Seedance 2.5, 30-second output, 50 mixed references,
-a structured multi-shot storyboard request, and a provider-enforced shot count—
-are not available in this account or the current ModelArk API contract. Chaplin
-must not invent a model ID, submit undocumented fields, or claim those limits.
-
-## Adapter policy
-
-1. `seedance-1.x` and `dreamina-seedance-2-0-*` continue to use the existing
-   single-output transport. Existing first-frame, first/last-frame, reference,
-   audio, polling, and fallback behavior remains production-safe.
-2. Chaplin may build and lint a provider-neutral `ShotJob` now. It may compile
-   that contract to prompt-level timecoded direction for 2.0, but it must not
-   claim provider-enforced per-shot fields.
-3. A multi-shot transport is enabled only when an authenticated capability
-   probe returns a recognized future model and a verified adapter defines its
-   maximum output duration, structured shot limit, reference limits, and
-   request shape.
-4. Boards longer than the active adapter's maximum duration split at a seam.
-   For the present 2.0 adapter, 15,000 ms is the hard output ceiling.
-
-## Seedance 2.5 — profile dated 2026-08-02
-
-Source: official Dreamina prompt guide
-(`https://dreamina.capcut.com/seedance/seedance-2-5-prompt`), read 2026-08-02.
-Per the Director Brain AI-production contract, provider claims are hypotheses
-until reproduced in a controlled Chaplin generation test.
-
-| Claim | Value | Status |
-|---|---|---|
-| Continuous duration | up to 30 s | recorded, unvalidated |
-| Multimodal references | up to 50, inline `@Image1`-style tags | recorded, unvalidated |
-| Reference roles | portraits, product, storyboard frames, style, video, audio | recorded |
-| Shot declaration | beat-by-beat timecode intervals, 6–8 s per beat | recorded |
-| Camera grammar | shot size (CU/MCU/WS) + movement verb | recorded |
-| Native audio | "voice or sound references", audio sync | **hypothesis — gates dialogue routing; validate before flipping `audio_reference_input`** |
-| Aspect ratios | 9:16, 16:9, 1:1 | recorded |
-
-Provider-stated best practices adopted into `buildNativeMultiShotPrompt` v2:
-lock identity early with 2–3 tagged portrait stills per lead; repeat wardrobe,
-props, and time of day at each beat; one lens feel and palette declared once;
-concrete motion over adjectives; name cuts intentionally; avoid stitching short
-clips for long pieces.
-
-Code: `SEEDANCE_AUDIO_CAPABILITIES["seedance-2.5"]` (audio reference OFF until
-validated), `seedanceCapabilities()` 2.5 branch (30 000 ms, 50 refs,
-`structuredMultiShot: true`, still subject to the account probe), and
-`buildNativeMultiShotPrompt` in `src/lib/punch-generation.ts`.
+- https://docs.byteplus.com/en/docs/modelark/1520757
+- https://docs.byteplus.com/en/docs/modelark/1159178
+- https://docs.byteplus.com/api/docs/ModelArk/2291680
+- https://docs.byteplus.com/api/docs/ModelArk/2191775

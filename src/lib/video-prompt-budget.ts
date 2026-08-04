@@ -76,9 +76,15 @@ export function budgetVideoPrompt(
   prompt: string,
   mode: VideoPromptMode,
   production = process.env.NODE_ENV === "production",
+  model = "",
 ): VideoPromptBudgetResult {
   const originalWords = countPromptWords(prompt);
-  const maximum = mode === "image_to_video" ? 80 : mode === "native_multishot" ? 1000 : 280;
+  // 80 was a pre-2.5 heuristic, not an API limit. 2.5 receives a larger but
+  // still bounded motion budget so role-bound references, end states, sound,
+  // and continuity are not truncated. Older models retain the known-safe cap.
+  const maximum = mode === "image_to_video"
+    ? /seedance-2-5|seedance-2\.5/i.test(model) ? 220 : 80
+    : mode === "native_multishot" ? 1000 : 280;
   if (mode !== "image_to_video" || originalWords <= maximum) {
     return { original: prompt, prompt, originalWords, finalWords: originalWords, trimmed: false, dropped: [] };
   }
@@ -92,7 +98,7 @@ export function budgetVideoPrompt(
   }
   if (countPromptWords(next) > maximum) {
     if (!production) {
-      throw new Error(`Image-to-video prompt is ${originalWords} words; hard cap is 80.`);
+      throw new Error(`Image-to-video prompt is ${originalWords} words; hard cap for this model is ${maximum}.`);
     }
     next = trimToWords(next, maximum);
   }

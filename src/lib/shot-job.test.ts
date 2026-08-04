@@ -3,7 +3,7 @@ import test from "node:test";
 import { DEFAULT_AUDIO_PLAN } from "@/lib/audio-plan";
 import { performanceReferencePrompt } from "@/lib/performance-reference";
 import { BANNED_WORDS, VIDEO_PROMPT_ENDING } from "@/lib/prompt-standards";
-import { adaptShotJobForSeedance, partitionShotJob } from "@/lib/seedance-shot-adapter";
+import { adaptShotJobForSeedance, buildSeedanceExtensionPrompt, partitionShotJob, seedanceCapabilities, seedanceSpecializedEditStatus } from "@/lib/seedance-shot-adapter";
 import { buildShotJob, compileShotJobPrompt, durationFromPerformance } from "@/lib/shot-job";
 import { warDropShotJob } from "@/lib/shot-job-fixtures";
 
@@ -57,21 +57,39 @@ test("current 2.0 account stays on single-shot transport; probed future capabili
   assert.ok(current.every((submission) => submission.transport === "single-shot-2.0"));
   assert.ok(current.every((submission) => submission.references.some((reference) => reference.kind === "character")));
   const future = adaptShotJobForSeedance(job, {
+    family: "2.5",
+    apiAvailable: true,
     maxDurationMs: 30_000,
-    maxReferences: 50,
+    maxReferenceImages: 30,
+    maxReferenceVideos: 10,
+    maxReferenceAudio: 10,
     acceptsReferenceImages: true,
     acceptsReferenceVideo: true,
     acceptsReferenceAudio: true,
-    structuredMultiShot: true,
+    promptTimedMultiBeat: true,
+    structuredShotsField: false,
+    videoExtension: true,
+    videoEditing: true,
+    nativeClipJoining: false,
   });
   assert.equal(future.length, 1);
-  assert.equal(future[0].transport, "multi-shot");
+  assert.equal(future[0].transport, "prompt-timed-multi-beat");
   assert.equal(partitionShotJob(job, 8_000).length, 2);
 });
 
 test("duration is VO-first or beat-driven, never a four-second default", () => {
   assert.equal(durationFromPerformance({ measuredVoMs: 2_200, beatCount: 4, modelMaxDurationMs: 15_000 }), 2_700);
   assert.equal(durationFromPerformance({ beatCount: 3, modelMaxDurationMs: 15_000 }), 9_000);
+});
+
+test("catalogue-only 2.5 stays gated and does not imply undocumented fields", () => {
+  const capability = seedanceCapabilities("dreamina-seedance-2-5-260628");
+  assert.equal(capability.apiAvailable, false);
+  assert.equal(capability.structuredShotsField, false);
+  assert.equal(capability.nativeClipJoining, false);
+  assert.equal(adaptShotJobForSeedance(warDropShotJob("dreamina-seedance-2-5-260628")).length, 4);
+  assert.match(buildSeedanceExtensionPrompt("Continue the walk into the wind."), /nothing appears out of thin air/);
+  assert.equal(seedanceSpecializedEditStatus("bgm-strip").available, false);
 });
 
 test("audition prompts carry the selected performance recipe and video ending", () => {

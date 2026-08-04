@@ -92,6 +92,7 @@ export function buildNativeMultiShotPrompt(input: {
       index < scenes.length - 1
         ? `TRANSITION: ${scene.transitionOut || "hard cut motivated by the action"}.`
         : "LANDING: hold the final image; no fade unless stated.",
+      `END STATE: ${scene.action || "the actor completes one clear physical action"}. Arrive naturally; do not rush to this state.`,
     ].join(" ");
   });
 
@@ -101,13 +102,12 @@ export function buildNativeMultiShotPrompt(input: {
     input.creativeDirection ? `CREATIVE DIRECTION: ${input.creativeDirection}.` : "",
     ...input.references.map((reference) => `${reference.tag} — ${reference.role}: ${reference.description}.`),
     anchor,
-    `IDENTITY CANON: ${input.actorIdentity}. The actor matches ${identityTags[0] ?? "the supplied reference"} exactly in every beat; never blend, duplicate, beautify, age-shift, or substitute the face.`,
+    `IDENTITY CANON: ${input.actorIdentity}. The actor matches ${identityTags[0] ?? "the supplied reference"} exactly in every beat; never blend, duplicate, beautify, age-shift, or substitute the face. Same face, same hairstyle, same outfit, same body type for the entire video.`,
     `LOOK CONTRACT: ${input.lookContract} Hold this one lens feel and palette across every beat.`,
     "TIMED BEAT PLAN:",
     ...beats,
     "MOTION RULES: Concrete, physically plausible motion only. Name no more than one moving subject per beat. No frozen figures.",
-    "AUDIO: Generate location-true ambience, footsteps, cloth, and handled objects only. No spoken words, no narration, no singing, and no lip movement implying speech: dialogue is performed by the locked voice and mixed separately.",
-    input.themeDirection ? `MUSIC DIRECTION: ${input.themeDirection}.` : "MUSIC DIRECTION: one restrained motif under the ambience; never louder than the environment.",
+    "[SOUND] Strictly only naturally occurring sound and foley, no music allowed. Generate location-true ambience, footsteps, cloth, and handled objects only. No spoken words, no narration, no singing, and no lip movement implying speech: dialogue is performed by the locked voice and mixed separately.",
     "OUTPUT: one continuous vertical-safe video, no captions, no readable background text, no logo, no watermark.",
   ].filter(Boolean).join("\n");
 }

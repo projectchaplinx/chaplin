@@ -20,7 +20,7 @@ export type GenerationBilling = {
   costUsd: number;
   usdToInrRate: number;
   costInr: number;
-  costMethod: "provider" | "rate-card-estimate" | "no-charge";
+  costMethod: "provider" | "rate-card-estimate" | "unknown-rate" | "no-charge";
   pricingNote: string;
 };
 
@@ -41,7 +41,12 @@ const OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS = Number(
 const OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS = Number(
   process.env.OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS ?? "15"
 );
-const SEEDANCE_USD_PER_SECOND = Number(process.env.SEEDANCE_USD_PER_SECOND ?? "0.10");
+const SEEDANCE_2_0_USD_PER_SECOND = Number(
+  process.env.SEEDANCE_2_0_USD_PER_SECOND ?? process.env.SEEDANCE_USD_PER_SECOND ?? "0.10"
+);
+const SEEDANCE_2_5_USD_PER_SECOND = process.env.SEEDANCE_2_5_USD_PER_SECOND == null
+  ? null
+  : Number(process.env.SEEDANCE_2_5_USD_PER_SECOND);
 const ANTHROPIC_INPUT_USD_PER_MILLION_TOKENS = Number(
   process.env.ANTHROPIC_INPUT_USD_PER_MILLION_TOKENS ?? "2"
 );
@@ -124,8 +129,16 @@ export async function calculateGenerationBilling(input: {
       pricingNote = `Seedream estimate at $${SEEDREAM_USD_PER_IMAGE}/image; override with SEEDREAM_USD_PER_IMAGE when your ModelArk contract differs.`;
     }
   } else if (input.kind === "video") {
-    costUsd = (usage.durationSeconds ?? 0) * SEEDANCE_USD_PER_SECOND;
-    pricingNote = `Seedance estimate at $${SEEDANCE_USD_PER_SECOND}/second; override with SEEDANCE_USD_PER_SECOND when your ModelArk contract differs.`;
+    const is25 = /seedance-2-5|seedance-2\.5/i.test(input.model ?? "");
+    const rate = is25 ? SEEDANCE_2_5_USD_PER_SECOND : SEEDANCE_2_0_USD_PER_SECOND;
+    if (rate == null || !Number.isFinite(rate)) {
+      costMethod = "unknown-rate";
+      costUsd = 0;
+      pricingNote = "Seedance 2.5 usage has no verified dollar rate. Configure SEEDANCE_2_5_USD_PER_SECOND from the actual ModelArk contract; no 1.8x estimate was invented.";
+    } else {
+      costUsd = (usage.durationSeconds ?? 0) * rate;
+      pricingNote = `Seedance ${is25 ? "2.5" : "2.0/legacy"} estimate at $${rate}/second; use the model-specific rate environment variable when the ModelArk contract differs.`;
+    }
   } else if (input.kind === "openai-prompt") {
     costUsd = ((usage.inputTokens ?? 0) / 1_000_000) * OPENAI_TERRA_INPUT_USD_PER_MILLION_TOKENS
       + ((usage.outputTokens ?? 0) / 1_000_000) * OPENAI_TERRA_OUTPUT_USD_PER_MILLION_TOKENS;

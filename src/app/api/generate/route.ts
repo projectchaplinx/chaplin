@@ -2061,6 +2061,7 @@ export async function POST(request: Request) {
         styledVideoPrompt,
         reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
         true,
+        videoConfig.model,
       );
       const prompt = stripBannedPromptWords(promptBudget.prompt);
       if (resolvedAudioPlan && boardSlot) {
@@ -2327,6 +2328,7 @@ export async function POST(request: Request) {
               : standardizedAttemptPrompt,
             reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
             true,
+            attempt.model,
           ).prompt;
           const attemptReferenceAudio = attemptPlan
             ? attemptPlan.dialogue.owner === "native" ? boardSlot?.dialogue_url ?? "" : ""

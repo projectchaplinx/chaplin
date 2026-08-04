@@ -84,7 +84,10 @@ it.
 
 ## Video prompt budget and motion grammar
 
-Image-to-video prompts have an 80-word hard cap. Builder compaction drops
+Image-to-video prompts on verified 1.x/2.0 paths have an 80-word hard cap.
+Seedance 2.5 uses a 220-word cap after activation because role-bound
+references, described end states, and continuity/sound contracts must survive.
+Builder compaction drops
 world/atmosphere prose, biography, then lighting adjectives, preserving the
 camera move, visible event, identity/reference language, style contract, and
 terminal audio negative. Development lint hard-fails overflow; production
@@ -141,11 +144,11 @@ reuse `STANDARD_PORTRAIT_NEGATIVES`.
 
 ## Provider gate
 
-The configured account currently exposes Seedance 2.0, not a verified 2.5
-structured multi-shot API. The internal contract therefore compiles to current
-single-shot submissions on the 2.0 branch. A single multi-shot submission is
-enabled only when an authenticated capability probe explicitly reports
-`structuredMultiShot: true`; model naming alone never activates it. See
+The configured account lists Seedance 2.5 but returns `ModelNotOpen` when a
+task is created. The internal contract therefore stays on the verified 2.0
+path. ModelArk has no structured shots field: a single job may carry
+prompt-timed beats only after an authenticated probe reports `apiAvailable`.
+Model naming alone never activates it. See
 `docs/SEEDANCE_CAPABILITY.md`.
 
 The war-drop regression fixture is a single internal 15000 ms job with four

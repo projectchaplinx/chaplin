@@ -17,11 +17,9 @@ export const SEEDANCE_AUDIO_CAPABILITIES = {
   /*
     Seedance 2.5 — profile dated 2026-08-02, from the official Dreamina prompt
     guide (dreamina.capcut.com/seedance/seedance-2-5-prompt): up to 30 seconds
-    continuous, up to 50 @-tagged multimodal references, native audio with
-    "voice or sound references" and audio sync. The reference-audio claim has
-    NOT been reproduced in a controlled Chaplin test, so it stays false here:
-    flipping it would route locked-voice dialogue through an unvalidated
-    transport. Flip after the GPSC Phase 1.5 validation passes.
+    ModelArk declares audio input, but this account returns ModelNotOpen on
+    task creation. The locked-voice path stays false until activation and a
+    reference-audio control both pass; modality is not proof of lip sync.
   */
   "seedance-2.5": {
     audio_reference_input: false,
@@ -50,6 +48,8 @@ function withoutSilentPlateDirection(prompt: string) {
 }
 
 export function seedanceSupportsAudioReference(model: string) {
+  // 2.5 declares audio input in the authenticated catalogue, but the model is
+  // not activated on this account, so the locked-voice route remains gated.
   return /dreamina-seedance-2-0/i.test(model);
 }
 

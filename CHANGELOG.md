@@ -1,5 +1,24 @@
 # Chaplin Changelog
 
+## v0.3.38 - 2026-08-04 - Gate Seedance 2.5 on verified capability
+
+- Probe the authenticated ModelArk catalogue and confirm that Seedance 2.5 is
+  listed for multimodal generation, extension, and editing, while recording
+  the live `ModelNotOpen` task-creation result that prevents a production
+  switch until the service is activated.
+- Replace the fictional structured-multi-shot flag with evidence-level
+  capabilities, per-medium reference budgets, prompt-timed beats, explicit
+  activation, and guarded extension/editing features while preserving 1.x and
+  2.0 behavior.
+- Bind every reference to a role and exclusion, add non-rushed described end
+  states, identity and crowd-continuity rules, and the strict natural-sound
+  directive without supplying destination frames or unsupported API fields.
+- Make prompt budgets model-aware and provider cost estimates model-specific;
+  unknown 2.5 pricing now remains explicitly unknown rather than silently
+  applying an unverified 1.8x multiplier.
+- Add the complete claim-by-claim Seedance 2.5 decision record and activation
+  test gate.
+
 ## v0.3.37 - 2026-08-04 - Give every Spark a voice
 
 - Write a compact identity-revealing line specifically for the five-second

@@ -33,6 +33,7 @@ export const BYTEPLUS_IMAGE_MODELS: PipelineModelOption[] = [
 ];
 
 export const BYTEPLUS_VIDEO_MODELS: PipelineModelOption[] = [
+  { value: "dreamina-seedance-2-5-260628", label: "Dreamina Seedance 2.5 (activation required)" },
   { value: "dreamina-seedance-2-0-260128", label: "Dreamina Seedance 2.0" },
   { value: "dreamina-seedance-2-0-fast-260128", label: "Dreamina Seedance 2.0 Fast" },
   { value: "dreamina-seedance-2-0-mini-260615", label: "Dreamina Seedance 2.0 Mini" },

@@ -33,6 +33,8 @@ export const referenceSchema = z.object({
   asset_id: assetIdSchema,
   label: z.string().trim().regex(/^@(image|video|audio)\d+$/, "Use a provider address such as @image1, @video1, or @audio1."),
   character_reference_role: z.enum(["canonical", "panel", "composite"]).optional(),
+  defines: z.string().trim().min(2).optional(),
+  excludes: z.string().trim().min(2).optional(),
 }).strict();
 
 export const seamSchema = z.enum([
@@ -54,6 +56,7 @@ export const shotSchema = z.object({
     }
   }),
   beats: z.array(beatSchema).min(1),
+  end_state: z.string().trim().min(2).optional(),
   subject_refs: z.array(z.string().trim().min(1)).max(8),
   start_frame_asset: assetIdSchema.optional(),
   end_frame_asset: assetIdSchema.optional(),
@@ -198,9 +201,11 @@ function timecode(milliseconds: number) {
 
 export function compileShotJobPrompt(rawJob: ShotJob, skinVisible = true) {
   const job = shotJobSchema.parse(rawJob);
-  const references = job.references.map((reference) =>
-    `${reference.label} = ${reference.kind} reference "${reference.id}" (${reference.asset_id})`,
-  );
+  const references = job.references.map((reference) => {
+    const defines = reference.defines ?? `${reference.kind} continuity only`;
+    const excludes = reference.excludes ?? "Do not use its background, framing, lighting, or unrelated objects";
+    return `${reference.label} defines ${defines}. ${excludes}. Asset: ${reference.asset_id}.`;
+  });
   let offset = 0;
   const shots = job.shots.map((shot) => {
     const refs = shot.subject_refs
@@ -215,13 +220,14 @@ export function compileShotJobPrompt(rawJob: ShotJob, skinVisible = true) {
       `Framing: ${shot.framing}. Camera: ${shot.camera_move}.`,
       refs ? `Tracked subjects: ${refs}. Re-establish screen position and facing after the cut; keep the camera on one side of the action line.` : "",
       `Visible beats: ${beats}.`,
+      `END STATE: ${shot.end_state ?? shot.beats.at(-1)?.action}. Treat the time range as a performance budget; arrive naturally without rushing.`,
       `Seam: ${shot.seam_to_next}.`,
-      "Unnamed extras remain generic, non-readable, and carry no identity assertion.",
+      "Unnamed extras vary in clothing, hairstyle, features, and movement timing; they remain generic and carry no identity assertion.",
     ].filter(Boolean).join(" ");
     offset += shot.duration_ms;
     return block;
   });
-  return finalizeVideoPrompt(`${references.join("\n")}\n${shots.join("\n")}`, skinVisible);
+  return finalizeVideoPrompt(`${references.join("\n")}\n${shots.join("\n")}\nCONSISTENCY: same face, same hairstyle, same outfit, same body type for the entire video.\n[SOUND] Strictly only naturally occurring sound and foley, no music allowed.`, skinVisible);
 }
 
 export function referencesForShot(job: ShotJob, shot: Shot): Reference[] {

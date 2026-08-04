@@ -18,7 +18,9 @@ import {
 } from "@/lib/server/openai-responses";
 import type { Archetype, CharacterProductionBible, VoiceGender } from "@/lib/types";
 import {
+  normalizePunchGenerationMode,
   normalizeProductionFormat,
+  punchAuthoredSceneCount,
   productionDuration,
   productionShotCount,
   type ProductionFormat,
@@ -385,6 +387,7 @@ export async function POST(request: Request) {
     const requestedFormat = normalizeProductionFormat(clean(body.format, 20), "punch");
     const format = FORMATS.has(requestedFormat) ? requestedFormat : "punch";
     const durationSeconds = productionDuration(format, Number(body.durationSeconds));
+    const punchGenerationMode = normalizePunchGenerationMode(body.punchGenerationMode);
     const characters = parseCharacters(body.characters);
     if (characters.length === 0) {
       return Response.json({ error: "At least one available AI actor is required." }, { status: 400 });
@@ -396,9 +399,11 @@ export async function POST(request: Request) {
     const input = {
       format,
       durationSeconds,
-      sceneDurationSeconds: 4,
-      requiredSceneCount: explicitShotCountFromBrief(clean(body.brief, 4000))
-        ?? productionShotCount(format, durationSeconds),
+      sceneDurationSeconds: format === "punch" && punchGenerationMode === "single-take" ? 15 : 4,
+      requiredSceneCount: format === "punch"
+        ? punchAuthoredSceneCount(punchGenerationMode)
+        : explicitShotCountFromBrief(clean(body.brief, 4000))
+          ?? productionShotCount(format, durationSeconds),
       brief: clean(body.brief, 4000),
       title: clean(body.title, 200),
       logline: clean(body.logline, 700),
@@ -484,6 +489,10 @@ export async function POST(request: Request) {
       durationSeconds,
       targetDurationMs: durationSeconds * 1000,
       requiredSceneCount: input.requiredSceneCount,
+      punchGenerationMode: format === "punch" ? punchGenerationMode : null,
+      generationContract: format === "punch" && punchGenerationMode === "single-take"
+        ? "Exactly one continuous 15-second scene in one location. No cuts, inserts, montage, location changes, or pose resets. Give the shot a physical beginning, escalation, and visibly changed ending."
+        : "Author each requested scene as an independently renderable clip.",
       arcTemplate: DIRECTION_ARC_TEMPLATE,
       sceneProps: [],
       brief: input.brief || "Invent a strong concept suited to the selected cast.",
@@ -535,6 +544,7 @@ export async function POST(request: Request) {
         creditBilling: "included",
         format,
         durationSeconds,
+        punchGenerationMode: format === "punch" ? punchGenerationMode : undefined,
         castIds: selectedCharacters.map((character) => character.id),
         directorBrainVersion: directorTrace.version,
         directorPatternIds: directorTrace.patternIds,
@@ -647,6 +657,7 @@ ${buildDirectorPromptBlock(directorTrace)}`,
       {
         format,
         durationSeconds,
+        punchGenerationMode: format === "punch" ? punchGenerationMode : undefined,
         title: directedDraft.title,
         castIds: directedDraft.castIds,
         directorBrainVersion: directorTrace.version,

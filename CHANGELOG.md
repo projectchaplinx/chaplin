@@ -1,5 +1,16 @@
 # Chaplin Changelog
 
+## v0.3.40 - 2026-08-04 - Make 15-second one-shot truly one shot
+
+- Carry the creator's Punch generation choice into Magic Writer so one-shot
+  mode authors one continuous 15-second scene instead of four scene cards.
+- Keep one-shot mode as one scene, one production package, one progress state,
+  one asset-rail card, and one Seedance request throughout the Studio.
+- Replace the four-location internal-cut prompt with an uninterrupted
+  beginning-to-consequence performance contract that forbids cuts and resets.
+- Stop classifying native audiovisual generation as an 80-word image-to-video
+  prompt and stop shortening a requested 15-second take to 12 seconds.
+
 ## v0.3.39 - 2026-08-04 - Freeze approved Spark scripts at render
 
 - Stop “Generate dialogue” from secretly rewriting the visible actor line

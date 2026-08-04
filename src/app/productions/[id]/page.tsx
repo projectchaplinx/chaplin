@@ -236,6 +236,7 @@ export function ProductionWorkspace({
   selectedSceneIndex,
   onSelectedSceneChange,
   onFrameUrlsChange,
+  onPunchGenerationModeChange,
 }: {
   storyId: string;
   embedded?: boolean;
@@ -245,6 +246,7 @@ export function ProductionWorkspace({
   selectedSceneIndex?: number;
   onSelectedSceneChange?: (index: number) => void;
   onFrameUrlsChange?: (urls: string[]) => void;
+  onPunchGenerationModeChange?: (mode: "scene-clips" | "single-take") => void;
 }) {
   const id = storyId;
   const world = useChaplinStore((state) => state);
@@ -438,9 +440,11 @@ export function ProductionWorkspace({
       format,
       definition,
       duration,
-      shotCount: format === "punch" && story.scenes.length
-        ? story.scenes.length
-        : productionShotCount(format, duration),
+      shotCount: format === "punch" && punchGenerationMode === "single-take"
+        ? 1
+        : format === "punch" && story.scenes.length
+          ? story.scenes.length
+          : productionShotCount(format, duration),
       scopeType,
       scopeId,
       punchGenerationMode,
@@ -463,7 +467,7 @@ export function ProductionWorkspace({
           ? "Complete 15-second take"
           : scene?.setting?.trim() || `Scene ${index + 1}`,
         objective: contract.punchGenerationMode === "single-take"
-          ? `${story.scenes.length} authored beats delivered as one native audiovisual generation.`
+          ? "One continuous scene delivered as one native audiovisual generation."
           : scene?.objective?.trim() || scene?.action?.trim() || "Shot direction is ready.",
         durationSeconds: contract.punchGenerationMode === "single-take"
           ? contract.duration
@@ -630,7 +634,7 @@ export function ProductionWorkspace({
             productImageUrl: story.productImageUrl ?? null,
             productImageName: story.productImageName ?? null,
             directorTrace: story.directorTrace ?? null,
-            script: story.scenes.map((scene, index) => ({
+            script: story.scenes.slice(0, contract.shotCount).map((scene, index) => ({
               beat: index + 1,
               slotId: scene.slotId ?? String(index + 1),
               sourceSlotId: scene.sourceSlotId ?? String(index + 1),
@@ -1097,10 +1101,10 @@ export function ProductionWorkspace({
       setError("Approve or attach one actor identity frame before rendering the Punch.");
       return;
     }
-    const authoredScenes = story.scenes.slice(0, 4);
-    const sequenceValidation = validateShotSequence(authoredScenes, 4);
+    const authoredScenes = story.scenes.slice(0, 1);
+    const sequenceValidation = validateShotSequence(authoredScenes, 1);
     if (!sequenceValidation.valid) {
-      setError(sequenceValidation.error ?? "The four-scene storyboard is incomplete.");
+      setError(sequenceValidation.error ?? "The continuous 15-second scene is incomplete.");
       return;
     }
 
@@ -1113,7 +1117,7 @@ export function ProductionWorkspace({
     setRenderProgress("Preparing one native 15-second audiovisual take");
     setRenderFrameUrl(lockedReference);
     selectShot(0);
-    setRenderShots(Array.from({ length: 4 }, () => ({ status: "queued" })));
+    setRenderShots([{ status: "queued" }]);
     let activeRun = run;
     let activePipelineStepKey = "";
     try {
@@ -1934,6 +1938,11 @@ export function ProductionWorkspace({
     if (urls.some(Boolean)) onFrameUrlsChange(urls);
   }, [onFrameUrlsChange, persistedFrameUrls, renderShots]);
 
+  useEffect(() => {
+    if (!contract || contract.format !== "punch") return;
+    onPunchGenerationModeChange?.(contract.punchGenerationMode);
+  }, [contract, onPunchGenerationModeChange]);
+
   if (!hydrated) {
     return <main className={embedded ? "studio-embedded-production p-6 text-sm text-grey" : "mx-auto max-w-5xl px-6 py-16 text-sm text-grey"}>Opening production...</main>;
   }
@@ -1982,14 +1991,14 @@ export function ProductionWorkspace({
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Generate here</p>
               <span className="rounded-full border border-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                {contract.punchGenerationMode === "single-take" ? "One complete prompt" : "Four scene clips"}
+                {contract.punchGenerationMode === "single-take" ? "One continuous shot" : "Four scene clips"}
               </span>
             </div>
             <p className="mt-1 text-xs text-grey">
               {busy
                 ? renderProgress || "The Studio is preparing the production."
                 : contract.punchGenerationMode === "single-take"
-                  ? "Generate one native 15-second, four-shot take with synchronized dialogue, ambience, effects, and score."
+                  ? "Generate one uninterrupted 15-second scene with synchronized dialogue, ambience, effects, and score."
                   : "Generate all four scenes together, then trim and assemble the exact 15-second master here."}
             </p>
           </div>
@@ -2169,7 +2178,7 @@ export function ProductionWorkspace({
                 </p>
                 <p className="mt-0.5 text-[9px] text-grey">
                   {contract.punchGenerationMode === "single-take"
-                    ? "The four authored beats are combined into one prompt and one generated audiovisual asset."
+                    ? "The one authored scene becomes one continuous prompt and one generated audiovisual asset."
                     : "These are the exact authored frames Seedance will animate. Select one to inspect its frame or clip."}
                 </p>
               </div>
@@ -2781,7 +2790,7 @@ export function ProductionWorkspace({
                   </p>
                   <p className="basis-full text-[9px] leading-4 text-white/50">
                     {contract.punchGenerationMode === "single-take"
-                      ? "One complete prompt: judge lip sync, identity stability, cut timing, and whether the story lands by 15 seconds."
+                      ? "One continuous shot: judge lip sync, identity stability, physical progression, and whether the story lands by 15 seconds."
                       : "Four scene clips: judge shot continuity, edit rhythm, dialogue joins, and whether any single scene needs replacing."}
                   </p>
                   <a
@@ -3172,6 +3181,9 @@ export default function ProductionDetailPage() {
   );
   const [frameUrls, setFrameUrls] = useState<string[]>([]);
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
+  const [resolvedPunchMode, setResolvedPunchMode] = useState<"scene-clips" | "single-take">(
+    story?.punchGenerationMode === "single-take" ? "single-take" : "scene-clips",
+  );
   const handleFrameUrls = useCallback((urls: string[]) => {
     setFrameUrls((current) => (
       current.length === urls.length && current.every((url, index) => url === urls[index])
@@ -3182,7 +3194,8 @@ export default function ProductionDetailPage() {
   const format = normalizeProductionFormat(story?.format);
   const definition = PRODUCTION_FORMATS[format];
   const durationSeconds = story?.durationSeconds ?? definition.durationSeconds;
-  const sceneCount = story?.scenes.length ?? productionShotCount(format, durationSeconds);
+  const oneContinuousShot = format === "punch" && resolvedPunchMode === "single-take";
+  const sceneCount = oneContinuousShot ? 1 : story?.scenes.length ?? productionShotCount(format, durationSeconds);
   const sceneStages: SceneStage[] = [
     {
       id: 1,
@@ -3206,7 +3219,8 @@ export default function ProductionDetailPage() {
       detail: "Open in center canvas",
     },
   ];
-  const assets = (story?.scenes ?? []).map((scene, index) => ({
+  const sourceScenes = oneContinuousShot ? (story?.scenes ?? []).slice(0, 1) : (story?.scenes ?? []);
+  const assets = sourceScenes.map((scene, index) => ({
     index,
     setting: scene.setting,
     action: scene.action ?? "",
@@ -3252,6 +3266,7 @@ export default function ProductionDetailPage() {
                 selectedSceneIndex={selectedSceneIndex}
                 onSelectedSceneChange={setSelectedSceneIndex}
                 onFrameUrlsChange={handleFrameUrls}
+                onPunchGenerationModeChange={setResolvedPunchMode}
               />
             </div>
             <SceneStudioAssets

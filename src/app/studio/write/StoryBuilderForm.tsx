@@ -26,6 +26,7 @@ import {
   defaultFormatForRole,
   formatsForRole,
   normalizeProductionFormat,
+  punchAuthoredSceneCount,
   productionDuration,
   productionShotCount,
   type PunchGenerationMode,
@@ -323,11 +324,11 @@ function PunchGenerationModeChooser({
   }> = [
     {
       mode: "single-take",
-      title: "One complete 15-second prompt",
+      title: "One continuous 15-second shot",
       source: "1 × 15s take",
-      description: "One prompt asks for picture, cuts, dialogue, ambience, effects, and score as a finished audiovisual take.",
-      bestFor: "Best chance of natural audio flow and continuity across the whole performance.",
-      compare: "Watch lip sync, identity stability, cut timing, and whether the story lands by 15s.",
+      description: "One prompt asks for one unbroken scene, dialogue, ambience, effects, and score as a finished audiovisual take.",
+      bestFor: "Best for a continuous performance that stays in one world and evolves without cuts.",
+      compare: "Watch lip sync, identity stability, physical progression, and whether the story lands by 15s.",
     },
     {
       mode: "scene-clips",
@@ -851,6 +852,7 @@ export default function StoryBuilderForm() {
         body: JSON.stringify({
           format,
           durationSeconds,
+          punchGenerationMode: format === "punch" ? effectivePunchGenerationMode : undefined,
           brief,
           title,
           logline,
@@ -1019,6 +1021,7 @@ export default function StoryBuilderForm() {
         body: JSON.stringify({
           format,
           durationSeconds,
+          punchGenerationMode: format === "punch" ? effectivePunchGenerationMode : undefined,
           brief: sceneBrief,
           title,
           logline,
@@ -1275,8 +1278,9 @@ export default function StoryBuilderForm() {
       setStep(3);
       return;
     }
-    const expectedSceneCount = explicitShotCountFromBrief(brief)
-      ?? productionShotCount(format, durationSeconds);
+    const expectedSceneCount = format === "punch"
+      ? punchAuthoredSceneCount(effectivePunchGenerationMode)
+      : explicitShotCountFromBrief(brief) ?? productionShotCount(format, durationSeconds);
     const authoredSourceCount = new Set(validScenes.map((scene, index) => scene.sourceSlotId || String(index + 1))).size;
     if (authoredSourceCount !== expectedSceneCount) {
       setError(`This production needs exactly ${expectedSceneCount} authored beats before safety splits. It currently has ${authoredSourceCount}.`);
@@ -1442,7 +1446,7 @@ export default function StoryBuilderForm() {
         index: 0,
         label: "15s take",
         setting: "One complete audiovisual take",
-        action: `${scenes.length} authored beats are delivered through one native 15-second generation.`,
+        action: "One continuous authored scene is delivered through one native 15-second generation.",
         previewImageUrl: scenes.find((scene) => scene.previewImageUrl)?.previewImageUrl,
         lineCount: scenes.reduce((total, scene) => total + scene.lines.filter((line) => line.text.trim()).length, 0),
         authored: scenes.some((scene) => Boolean(scene.setting.trim() || scene.action.trim())),
@@ -1811,9 +1815,9 @@ export default function StoryBuilderForm() {
                 <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent">15-second generation method</p>
-                    <h3 className="mt-1 text-base font-semibold">One complete prompt or four scene clips?</h3>
+                    <h3 className="mt-1 text-base font-semibold">One continuous shot or four scene clips?</h3>
                     <p className="mt-1 text-[10px] leading-4 text-grey">
-                      Both use the same concept and cast. Choose the render method you want to judge first.
+                      Choose one uninterrupted 15-second scene, or four separately generated scenes assembled into a cut.
                     </p>
                   </div>
                   <span className="rounded-full border border-white/10 px-3 py-1 text-[9px] text-white/55">Editable until production starts</span>
@@ -1825,7 +1829,7 @@ export default function StoryBuilderForm() {
                   className="magic-action mt-3 flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold"
                   data-confirm-punch-mode
                 >
-                  <span>Continue with {effectivePunchGenerationMode === "single-take" ? "one complete prompt" : "four scene clips"}</span>
+                  <span>Continue with {effectivePunchGenerationMode === "single-take" ? "one continuous 15-second shot" : "four scene clips"}</span>
                   <span aria-hidden="true">→</span>
                 </button>
               </div>
@@ -2247,7 +2251,7 @@ export default function StoryBuilderForm() {
               <div className="mb-3">
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-accent">Generation method</p>
                 <h2 id="punch-generation-heading" className="mt-1 text-base font-semibold">How should Chaplin make this 15-second Punch?</h2>
-                <p className="mt-1 text-[10px] leading-4 text-grey">The script keeps the same four authored beats. This choice changes how Seedance renders them.</p>
+                <p className="mt-1 text-[10px] leading-4 text-grey">This changes the script contract too: one continuous scene, or four independently rendered scenes.</p>
               </div>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 <button
@@ -2282,11 +2286,11 @@ export default function StoryBuilderForm() {
                   data-generation-mode="single-take"
                 >
                   <span className="flex items-center justify-between gap-3">
-                    <strong className="text-sm">One complete take</strong>
+                    <strong className="text-sm">One continuous shot</strong>
                     <span className="font-mono text-[10px] text-accent">1 × 15s</span>
                   </span>
                   <span className="mt-2 block text-[10px] leading-4 text-grey">
-                    Ask Seedance for one four-shot video with synchronized dialogue, background noise, physical effects, ambience, and score.
+                    Ask Seedance for one uninterrupted 15-second scene in one location, with synchronized dialogue, ambience, effects, and score.
                   </span>
                   {punchDialoguePresent ? (
                     <span className="mt-3 block text-[9px] leading-4 text-amber-200/90">Uses native audiovisual dialogue; the locked ElevenLabs voice is not injected.</span>

@@ -14,7 +14,7 @@ export type PunchPromptScene = {
 };
 
 const PUNCH_WINDOWS = [
-  [0, 4],
+  [0, 15],
   [4, 8],
   [8, 12],
   [12, 15],
@@ -120,9 +120,9 @@ export function buildPunchSingleTakePrompt(input: {
   themeDirection?: string;
   scenes: PunchPromptScene[];
 }) {
-  const scenes = input.scenes.slice(0, 4);
-  if (scenes.length !== 4) {
-    throw new Error("A 15-second single take needs exactly four authored beats.");
+  const scenes = input.scenes.slice(0, 1);
+  if (scenes.length !== 1) {
+    throw new Error("A 15-second single take needs exactly one authored scene.");
   }
   const timeline = scenes.map((scene, index) => {
     const [start, end] = PUNCH_WINDOWS[index];
@@ -141,16 +141,16 @@ export function buildPunchSingleTakePrompt(input: {
 
   return [
     `Create one finished 15-second audiovisual Punch titled "${input.title}".`,
-    "This is one Seedance generation containing four clearly different internal shots and three motivated cuts. Do not return four files.",
+    "This is one continuous shot in one location and one unbroken moment. No cuts, inserts, montage, flashbacks, angle resets, location changes, or returns to the opening pose.",
     `STORY PROMISE: ${input.logline}.`,
     input.creativeDirection ? `CREATIVE DIRECTION: ${input.creativeDirection}.` : "",
-    `IDENTITY CANON: ${input.actorIdentity}. Keep every named actor visually stable across all four shots; never blend, duplicate, age-shift, or replace a face.`,
-    "TIMED SHOT PLAN:",
+    `IDENTITY CANON: ${input.actorIdentity}. Keep every named actor visually stable throughout; never blend, duplicate, age-shift, or replace a face.`,
+    "CONTINUOUS 15-SECOND SHOT PLAN:",
     ...timeline,
-    "EDIT RHYTHM: Cut only at 4s, 8s, and 12s. Preserve screen direction, wardrobe, props, geography, and cause-and-effect across each cut. The final image must visibly land the story promise by 15s.",
+    "PERFORMANCE RHYTHM: 0-4s establishes pressure, 4-11s develops one cause-and-effect action, and 11-15s lands its consequence in the same uninterrupted shot. Begin from the supplied first frame, evolve continuously, and finish in a visibly different story state without resetting.",
     "FINISHED AUDIO: Generate synchronized production audio inside this video. Include the exact quoted dialogue with visible lip sync, location-specific room tone and background noise, physically motivated foreground effects, footsteps, cloth and handled objects, plus a restrained background score that supports rather than masks speech.",
     input.themeDirection ? `MUSIC DIRECTION: ${input.themeDirection}.` : "MUSIC DIRECTION: one restrained cinematic motif; no trailer boom and no wall-to-wall loud score.",
-    "AUDIO RULES: Keep dialogue intelligible and centered. Use no narration, no additional lines, no singing, and no sounds that lack a visible or environmental source. Let ambience and score continue naturally across cuts.",
+    "AUDIO RULES: Keep dialogue intelligible and centered. Use no narration, no additional lines, no singing, and no sounds that lack a visible or environmental source. Let ambience and score evolve continuously without an edit.",
     "OUTPUT: One continuous 15-second 16:9 video with synchronized audio, no captions, no readable background text, no logo, and no watermark.",
   ].filter(Boolean).join("\n");
 }

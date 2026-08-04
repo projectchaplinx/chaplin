@@ -1933,7 +1933,7 @@ export async function POST(request: Request) {
       const durationSeconds = boardSlot
         ? boardSlot.duration_ms / 1000
         : Number.isFinite(Number(input.durationSeconds))
-          ? Math.min(12, Math.max(1, Number(input.durationSeconds)))
+          ? Math.min(15, Math.max(1, Number(input.durationSeconds)))
           : settingNumber(videoConfig, "durationSeconds", 5);
       const card = readCharacterCardV2(requestCharacter?.cardV2);
       const voiceSlot = card ? (card.voice_slots.primary ?? Object.values(card.voice_slots)[0]) : undefined;
@@ -2059,7 +2059,7 @@ export async function POST(request: Request) {
       }
       const promptBudget = budgetVideoPrompt(
         styledVideoPrompt,
-        reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
+        wantsCompleteNativeAudio ? "native_multishot" : reference ? "image_to_video" : "text_to_video",
         true,
         videoConfig.model,
       );
@@ -2326,7 +2326,7 @@ export async function POST(request: Request) {
             wantsCompleteNativeAudio
               ? standardizedAttemptPrompt.replace(/\bNo music\.\s*/gi, "").trim()
               : standardizedAttemptPrompt,
-            reference ? "image_to_video" : wantsCompleteNativeAudio ? "native_multishot" : "text_to_video",
+            wantsCompleteNativeAudio ? "native_multishot" : reference ? "image_to_video" : "text_to_video",
             true,
             attempt.model,
           ).prompt;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildNativeMultiShotPrompt, buildPunchSingleTakePrompt, providerDurationSeconds } from "@/lib/punch-generation";
+import { punchAuthoredSceneCount } from "@/lib/production-formats";
 import { budgetVideoPrompt } from "@/lib/video-prompt-budget";
 
 test("scene clips use whole provider-safe durations while preserving a separate edit duration", () => {
@@ -8,31 +9,35 @@ test("scene clips use whole provider-safe durations while preserving a separate 
   assert.equal(providerDurationSeconds("scene-clips", 3_250), 4);
   assert.equal(providerDurationSeconds("scene-clips", 4_100), 5);
   assert.equal(providerDurationSeconds("single-take", 3_000), 15);
+  assert.equal(punchAuthoredSceneCount("single-take"), 1);
+  assert.equal(punchAuthoredSceneCount("scene-clips"), 4);
 });
 
-test("single-take prompt carries four timed shots and finished audio direction", () => {
+test("single-take prompt carries one uninterrupted 15-second scene and finished audio direction", () => {
   const prompt = buildPunchSingleTakePrompt({
     title: "Paris Morning",
     logline: "Nova makes one immaculate choice under pressure",
     actorIdentity: "Nova keeps her canonical face and white suit.",
     themeDirection: "light Parisian percussion under a warm bass pulse",
-    scenes: Array.from({ length: 4 }, (_, index) => ({
-      setting: `Location ${index + 1}`,
-      objective: `Change ${index + 1}`,
-      action: `Action ${index + 1}`,
+    scenes: [{
+      setting: "ISS observation module",
+      objective: "Nova must stop the failing orbit correction",
+      action: "Nova crosses to the console, braces against the roll, and completes the manual correction",
       camera: "a restrained push in",
-      lines: index === 1 ? [{ speaker: "Nova", text: "Watch closely." }] : [],
-    })),
+      lines: [{ speaker: "Nova", text: "Watch closely." }],
+    }],
   });
 
-  assert.match(prompt, /0-4s — SHOT 1/);
-  assert.match(prompt, /12-15s — SHOT 4/);
+  assert.match(prompt, /0-15s — SHOT 1/);
+  assert.match(prompt, /one continuous shot in one location/i);
+  assert.match(prompt, /No cuts, inserts, montage/i);
+  assert.doesNotMatch(prompt, /SHOT 2|SHOT 3|SHOT 4/);
   assert.match(prompt, /Nova says exactly: "Watch closely\."/);
   assert.match(prompt, /Generate synchronized production audio inside this video/);
   assert.match(prompt, /One continuous 15-second 16:9 video/);
   const budgeted = budgetVideoPrompt(prompt, "native_multishot", true);
   assert.equal(budgeted.trimmed, false);
-  assert.match(budgeted.prompt, /12-15s — SHOT 4/);
+  assert.match(budgeted.prompt, /0-15s — SHOT 1/);
 });
 
 test("native multi-shot v2 follows the 2.5 contract: tags, timed beats, repeated constants, no speech", () => {

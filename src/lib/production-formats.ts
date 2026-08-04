@@ -8,6 +8,11 @@ export function normalizePunchGenerationMode(value: unknown): PunchGenerationMod
   return value === "single-take" ? "single-take" : "scene-clips";
 }
 
+/** A single take is one authored continuous scene, not four hidden scenes. */
+export function punchAuthoredSceneCount(mode: PunchGenerationMode) {
+  return mode === "single-take" ? 1 : 4;
+}
+
 export type ProductionFormatDefinition = {
   type: ProductionFormat;
   label: string;

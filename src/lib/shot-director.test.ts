@@ -81,6 +81,25 @@ test("video prompt animates the exact first frame for the scene's authoritative 
   assert.doesNotMatch(prompt, /OFFERING ANCHOR/i);
 });
 
+test("image and video prompts cannot repeat a numbered-finger identity gesture", () => {
+  const unsafeInput = {
+    ...basePromptInput,
+    scene: {
+      ...basePromptInput.scene,
+      action: "Dimitri secures the wrench; he pauses, two fingers tapping his temple, then checks the readout.",
+      behaviorTell: { characterId: "dimitri", tell: "Taps two fingers against his temple before every checklist." },
+    },
+    actorName: "Dimitri Volkov",
+    actorIdentity: "Scar, beard, blue flight suit; two fingers tapping his temple before every checklist.",
+  };
+
+  for (const prompt of [buildShotImagePrompt(unsafeInput), buildShotVideoPrompt(unsafeInput)]) {
+    assert.doesNotMatch(prompt, /two fingers tapping|Taps two fingers/i);
+    assert.match(prompt, /No isolated numbered-finger pose/i);
+    assert.match(prompt, /no .*raised middle finger/i);
+  }
+});
+
 test("four takes of one standoff are rejected even when the wording differs", () => {
   // The real failure: one location, one beat, reworded just enough to differ
   // byte for byte, so exact-signature matching passed all four.

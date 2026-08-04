@@ -1,5 +1,17 @@
 # Chaplin Changelog
 
+## v0.3.41 - 2026-08-04 - Stop recurring finger-sign poses
+
+- Remove Dimitri Volkov's two-finger temple tap from his live identity canon
+  and replace it with a safe, task-focused performance behavior.
+- Keep recognition locks limited to static face, hair, wardrobe, and prop
+  invariants instead of transient gestures, expressions, or poses.
+- Strip numbered-finger and hand-sign instructions from both first-frame and
+  video prompts, including older saved scenes, and explicitly prohibit raised
+  middle fingers and camera-facing hand signs.
+- Stop Magic Writer and character media prompts from automatically turning an
+  unsafe signature gesture into every scene's required performance beat.
+
 ## v0.3.40 - 2026-08-04 - Make 15-second one-shot truly one shot
 
 - Carry the creator's Punch generation choice into Magic Writer so one-shot

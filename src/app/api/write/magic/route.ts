@@ -17,6 +17,7 @@ import {
   type OpenAIInputContent,
 } from "@/lib/server/openai-responses";
 import type { Archetype, CharacterProductionBible, VoiceGender } from "@/lib/types";
+import { safeSignatureGesture } from "@/lib/performance-safety";
 import {
   normalizePunchGenerationMode,
   normalizeProductionFormat,
@@ -250,7 +251,7 @@ function fallbackDraft(input: {
         {
           setting: actorWorld,
           objective: `Hook attention in the first two seconds: ${storyEngine?.hookPattern ?? "show a visible problem or surprise"}.`,
-          action: `${leadName} begins in their established resting behavior, registers the specific problem in ${subject.toLowerCase()}, and makes one readable choice through ${performance?.signatureGesture ?? "a restrained physical gesture"}.`,
+          action: `${leadName} begins in their established resting behavior, registers the specific problem in ${subject.toLowerCase()}, and makes one readable choice through ${safeSignatureGesture(performance?.signatureGesture, performance?.underPressure || performance?.movementStyle)}.`,
           lines: [{ characterId: leadId, text: leadLine }],
         },
         {
@@ -284,7 +285,7 @@ function fallbackDraft(input: {
       {
         setting: `${actorWorld} — OPENING`,
         objective: `Establish the external want (${lead?.productionBible.dramatic.externalWant ?? "a concrete urgent goal"}) through visible behavior inside the actor's own world.`,
-        action: `${leadName} enters in their established movement style, reads the consequence of ${subject.toLowerCase()}, and begins ${performance?.signatureGesture ?? "one restrained signature action"} without explaining it.`,
+        action: `${leadName} enters in their established movement style, reads the consequence of ${subject.toLowerCase()}, and begins ${safeSignatureGesture(performance?.signatureGesture, performance?.underPressure || performance?.movementStyle)} without explaining it.`,
         lines: [{ characterId: leadId, text: leadLine }],
       },
       {

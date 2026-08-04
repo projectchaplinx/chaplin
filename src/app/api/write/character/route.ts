@@ -5,6 +5,7 @@ import {
   composeVoiceDesignPrompt,
 } from "@/lib/production-prompting";
 import type { Archetype, CharacterProductionBible, VoiceGender } from "@/lib/types";
+import { safeSignatureGesture, staticRecognitionLocks } from "@/lib/performance-safety";
 import {
   alignVoiceDescription,
   coherentGeneratedCharacterName,
@@ -171,7 +172,8 @@ function enforceModernAudioDirection(
 const STYLE_MEDIUM = /\b(manga|anime|illustration|illustrated|cel[- ]?shad(?:ed|ing)|screentone|ink(?:ed|work)?|graphic novel|comic(?: book)?|watercolou?r|gouache|oil painting|stop[- ]motion|claymation|pixel art|2d animation|3d animation)\b/i;
 
 function enforceVisualIdentity(suggestion: CharacterSuggestion, appearanceBrief: string, worldBrief: string) {
-  const visual = suggestion.productionBible.visual;
+  const bible = suggestion.productionBible;
+  const visual = bible.visual;
   const requestedDirection = `${appearanceBrief} ${worldBrief}`.trim();
   const requestedMedium = requestedDirection
     .split(/[.\n]/)
@@ -179,13 +181,13 @@ function enforceVisualIdentity(suggestion: CharacterSuggestion, appearanceBrief:
     .find((value) => STYLE_MEDIUM.test(value));
   const medium = clean(requestedMedium, 180) || clean(visual.medium, 180) ||
     "live-action cinematic photograph with natural human texture and physically motivated light";
-  const candidates = [
+  const candidates = staticRecognitionLocks([
     ...(visual.recognitionLocks ?? []),
     ...visual.faceAnchors,
     visual.hair,
     visual.wardrobe,
     ...visual.continuityRules,
-  ].map((value) => clean(value, 90)).filter(Boolean);
+  ]).map((value) => clean(value, 90)).filter(Boolean);
   const seen = new Set<string>();
   const recognitionLocks = candidates.filter((value) => {
     const key = value.toLocaleLowerCase();
@@ -207,6 +209,13 @@ function enforceVisualIdentity(suggestion: CharacterSuggestion, appearanceBrief:
     ...suggestion,
     productionBible: {
       ...suggestion.productionBible,
+      performance: {
+        ...bible.performance,
+        signatureGesture: safeSignatureGesture(
+          bible.performance.signatureGesture,
+          bible.performance.underPressure || bible.performance.movementStyle,
+        ),
+      },
       visual: { ...visual, medium, recognitionLocks },
     },
   };

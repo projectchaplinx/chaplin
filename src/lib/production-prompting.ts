@@ -30,6 +30,11 @@ import {
   voiceAgeDescriptor,
 } from "@/lib/voice-direction-template";
 import { finalizeVideoPrompt, withStandingInjections } from "@/lib/prompt-standards";
+import {
+  generationSafePerformanceText,
+  safeSignatureGesture,
+  staticRecognitionLocks,
+} from "@/lib/performance-safety";
 
 export type CharacterIdentityInput = Pick<Character, "name" | "archetype" | "tagline" | "personality" | "voiceGender"> &
   Partial<Pick<Character, "voiceDesc" | "sfxDesc" | "themeDesc" | "productionBible" | "cardV2" | "brollLine" | "brollScene">> & {
@@ -439,7 +444,9 @@ function visibleIdentity(character: CharacterIdentityInput, bible: CharacterProd
     const clauses = character.appearanceBrief
       .split(/[.\n]/)
       .map((value) => value.trim())
-      .filter((value) => value && !STYLIZED_MEDIUM.test(value));
+      .filter((value) => value && !STYLIZED_MEDIUM.test(value))
+      .map((value) => generationSafePerformanceText(value, ""))
+      .filter(Boolean);
     return concise(clauses.join(". "), 520);
   }
   return concise([
@@ -450,14 +457,14 @@ function visibleIdentity(character: CharacterIdentityInput, bible: CharacterProd
   ].filter(Boolean).join(". "), 520);
 }
 function recognitionLocks(bible: CharacterProductionBible, appearance?: string) {
-  const supplied = bible.visual.recognitionLocks?.map((value) => concise(value, 90)).filter(Boolean) ?? [];
-  const fallback = [
+  const supplied = staticRecognitionLocks(bible.visual.recognitionLocks ?? []).map((value) => concise(value, 90)).filter(Boolean);
+  const fallback = staticRecognitionLocks([
     ...appearanceRecognitionLocks(appearance || bible.visual.faceAnchors.join(". ")),
     ...bible.visual.faceAnchors,
     bible.visual.hair,
     bible.visual.wardrobe,
     ...bible.visual.continuityRules,
-  ].map((value) => concise(value, 90)).filter(Boolean);
+  ]).map((value) => concise(value, 90)).filter(Boolean);
   const unique = [...new Set([...supplied, ...fallback])].slice(0, 4);
   const generic = [
     "same face geometry and distinctive asymmetry",
@@ -679,7 +686,7 @@ export function composeCharacterMasterPrompt(character: Character) {
     "## Performance and voice behavior",
     `At rest: ${bible.performance.restingExpression}`,
     `Under pressure: ${bible.performance.underPressure}`,
-    `Signature gesture: ${bible.performance.signatureGesture}`,
+    `Signature behavior: ${safeSignatureGesture(bible.performance.signatureGesture, bible.performance.underPressure || bible.performance.movementStyle)}`,
     `Movement: ${bible.performance.movementStyle}`,
     `Eyeline: ${bible.performance.eyeline}`,
     `Tempo: ${bible.performance.tempo}`,
@@ -1256,7 +1263,7 @@ export function composeLegacyImagePrompt(character: CharacterIdentityInput, shot
   return [
     "CINEMATIC PRODUCTION STILL — 16:9.",
     `SUBJECT AND IDENTITY: ${character.name}, one original fictional actor. ${bible.visual.perceivedAge}. Preserve these recognition anchors exactly: ${bible.visual.faceAnchors.join("; ")}. Hair: ${bible.visual.hair}. Wardrobe: ${bible.visual.wardrobe}. Silhouette: ${bible.visual.silhouette}.`,
-    `PERFORMANCE LOGIC: Their personality is ${compact(character.personality)} The visible contradiction is ${bible.dramatic.contradiction}. At rest: ${bible.performance.restingExpression}. Under pressure: ${bible.performance.underPressure}. Use the signature behavior—${bible.performance.signatureGesture}—instead of a generic pose.`,
+    `PERFORMANCE LOGIC: Their personality is ${compact(character.personality)} The visible contradiction is ${bible.dramatic.contradiction}. At rest: ${bible.performance.restingExpression}. Under pressure: ${bible.performance.underPressure}. Use the safe signature behavior—${safeSignatureGesture(bible.performance.signatureGesture, bible.performance.underPressure || bible.performance.movementStyle)}—instead of a generic pose.`,
     `DRAMATIC MOMENT: ${shot.dramaticBeat}. Start pose: ${shot.subjectStart}. Facial beat: ${shot.facialBeat}. The decision must be readable through the eyes, mouth tension, hands, weight distribution, and eyeline in this single frozen frame.`,
     `SET: ${shot.setting}. World texture: ${bible.cinematography.worldTexture}. Palette: ${bible.visual.palette.join(", ")}.`,
     `CAMERA: ${shot.framing}; ${shot.cameraAngle}; ${shot.lens}. Composition preserves a clean direction of movement and useful negative space.`,
@@ -1293,7 +1300,7 @@ export function composeLegacyIdentityImagePrompt(character: CharacterIdentityInp
   return [
     "IDENTITY HERO IMAGE — visually striking live-action cinematic photograph, 16:9, one real human only. Preserve natural facial asymmetry, pores, fine hair, believable hands, tactile fabric, grounded body weight, optical depth, physically plausible light, and restrained film grain. Never use cartoon, anime, illustration, digital painting, 3D render, CGI, doll, or wax-figure aesthetics unless the user explicitly requests that medium. This is the definitive visual identity used to recognize and cast the actor, not a poster and not a plot summary.",
     `ACTOR: ${character.name}, an original fictional ${character.archetype.replace("-", " ")}. ${bible.visual.perceivedAge}. The face must feel singular, lived-in, and repeatable rather than generically attractive. Lock these recognition anchors: ${bible.visual.faceAnchors.join("; ")}. Hair: ${bible.visual.hair}. Natural skin texture, facial asymmetry, believable hands and body proportions.`,
-    `VISIBLE PERSONALITY: Translate this personality into behavior, not symbols or text: ${compact(character.personality)} The central contradiction is ${bible.dramatic.contradiction}. Show ${bible.performance.restingExpression}; let a trace of ${bible.dramatic.vulnerability} remain visible beneath it. The actor performs ${bible.performance.signatureGesture} with grounded ${bible.performance.movementStyle}. No smile or heroic pose unless those behaviors specifically require it.`,
+    `VISIBLE PERSONALITY: Translate this personality into behavior, not symbols or text: ${compact(character.personality)} The central contradiction is ${bible.dramatic.contradiction}. Show ${bible.performance.restingExpression}; let a trace of ${bible.dramatic.vulnerability} remain visible beneath it. The actor performs ${safeSignatureGesture(bible.performance.signatureGesture, bible.performance.underPressure || bible.performance.movementStyle)} with grounded ${bible.performance.movementStyle}. No smile or heroic pose unless those behaviors specifically require it.`,
     `SIGNATURE LOOK: ${bible.visual.wardrobe}. Build the silhouette around ${bible.visual.silhouette}. Materials must show weight, stitching, wear, and practical function. Palette: ${bible.visual.palette.join(", ")}. Include only one restrained story-world detail—${motif}—as evidence of a life, never as costume decoration.`,
     `WORLD: Place the actor in ${identityWorld}. Choose one uncluttered, believable area of that world that tells us what pressure they live under while keeping the face dominant. Separate foreground, actor, and background into readable depth; no crowd and no unrelated spectacle.`,
     `CAMERA AND COMPOSITION: ${bible.cinematography.heroFraming}; ${bible.cinematography.cameraHeight}; ${bible.cinematography.lens}. Eyes remain the visual priority. Keep enough environmental context to cast the actor, with intentional negative space on the side implied by the eyeline. The image should feel like the first frame before a consequential choice, not a fashion shoot.`,
@@ -1631,7 +1638,7 @@ function characterIntroBlueprint(character: CharacterIdentityInput): ShotBluepri
     subjectStart: `already at work in the environment, physically engaged with ${motif}; never seated for a neutral portrait and never posing for camera`,
     actionTimeline: [
       `The actor performs one precise task tied to ${motif} while tracking a change elsewhere in the space`,
-      `${bible.performance.underPressure}; the signature behavior becomes visible: ${bible.performance.signatureGesture}`,
+      `${bible.performance.underPressure}; the safe signature behavior becomes visible: ${safeSignatureGesture(bible.performance.signatureGesture, bible.performance.underPressure || bible.performance.movementStyle)}`,
       `The task changes the state of the environment and the actor commits to ${bible.dramatic.externalWant}`,
     ],
     facialBeat: `${bible.performance.restingExpression}, interrupted by ${bible.dramatic.vulnerability}`,

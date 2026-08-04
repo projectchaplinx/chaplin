@@ -5,6 +5,10 @@ import {
 } from "@/lib/camera-movements";
 import { buildSceneHandAnatomyDirection } from "@/lib/image-anatomy";
 import {
+  generationSafePerformanceText,
+  HAND_GESTURE_SAFETY,
+} from "@/lib/performance-safety";
+import {
   safeCameraForEnergy,
   type EnergyState,
   type FramingConstraint,
@@ -86,10 +90,11 @@ function castingComposition(actors: ShotActor[]) {
 
 function actorLock(actors: ShotActor[]) {
   if (actors.length === 1) {
-    return `ACTOR LOCK: ${actors[0].name}. Match the supplied identity reference exactly. ${actors[0].identity ?? ""}`.trim();
+    const identity = generationSafePerformanceText(actors[0].identity, "");
+    return `ACTOR LOCK: ${actors[0].name}. Match the supplied identity reference exactly. ${identity}`.trim();
   }
   const locks = actors.map((actor, index) => (
-    `${actor.name} matches reference image ${index + 1}${actor.identity ? ` — ${actor.identity}` : ""}`
+    `${actor.name} matches reference image ${index + 1}${actor.identity ? ` — ${generationSafePerformanceText(actor.identity, "")}` : ""}`
   ));
   return `ACTOR LOCK: Each actor is bound to their own reference, in order: ${locks.join("; ")}. Preserve each face, skin tone, hair, age, and wardrobe independently.`;
 }
@@ -309,15 +314,22 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
   // A two-hander's physical contact is the point of the shot, so it must be
   // directed rather than flagged as a risk to simplify away.
   const risks = auditShotScene(input.scene).filter((risk) => !(ensemble && risk.code === "complex-contact"));
+  const safeAction = generationSafePerformanceText(
+    input.scene.action,
+    `${actors[0].name} begins one concise, camera-readable action with relaxed natural hands.`,
+  );
+  const safeBehaviorTell = input.scene.behaviorTell
+    ? generationSafePerformanceText(input.scene.behaviorTell.tell, "")
+    : "";
   return [
     `PURPOSE: Binding first frame for scene ${input.sceneIndex + 1} of ${input.sceneCount} in "${input.productionTitle}".`,
     "SHOT UNIT: This image is the exact visual start of one four-second clip. It is not a portrait, poster, montage, or finished edit.",
     `STORY PROMISE: ${input.productionLogline || "Make the scene's visible change clear without explanatory text."}`,
     `SETTING: ${input.scene.setting || "A specific location grounded in the locked production."}`,
     `DRAMATIC OBJECTIVE: ${input.scene.objective || "Create one visible situation change."}`,
-    `FIRST-FRAME ACTION: Compose the instant immediately before ${input.scene.action || `${actors[0].name} begins one concise, camera-readable action.`}`,
+    `FIRST-FRAME ACTION: Compose the instant immediately before ${safeAction}`,
     input.scene.energyState ? `ENERGY STATE: ${input.scene.energyState}. Identity budget is already resolved for this frame.` : "",
-    input.scene.behaviorTell ? `CARD BEHAVIOR TELL: ${input.scene.behaviorTell.tell}. Make this visible without explaining it.` : "",
+    safeBehaviorTell ? `CARD BEHAVIOR TELL: ${safeBehaviorTell}. Make this visible without explaining it.` : "",
     input.scene.dressing ? `HUMAN DRESSING: ${input.scene.dressing}` : "",
     input.scene.framingConstraint === "non_readable" ? "FRAMING CONSTRAINT: NON-READABLE. Use silhouette, partial framing, off-frame action, or reaction-only coverage." : "",
     input.scene.referencedProps?.length ? `CLOSED PROP SET: ${input.scene.referencedProps.join(", ")}. Add no other prop or weapon.` : "CLOSED PROP SET: no new props or weapons.",
@@ -338,8 +350,9 @@ export function buildShotImagePrompt(input: ShotPromptInput): string {
     "COMPOSITION: Show the actor's face, hands, important object or product, and environment in one coherent depth structure. Keep foreground occlusion intentional and preserve a clean direction of travel.",
     buildSceneHandAnatomyDirection({
       actorNames: actors.map((actor) => actor.name),
-      action: input.scene.action,
+      action: safeAction,
     }),
+    HAND_GESTURE_SAFETY,
     "LIGHT: Use motivated cinematic light from visible or plausible sources. Natural skin, tactile materials, controlled contrast, and no bright studio-light contamination unless the scene explicitly requires a studio.",
     `CONTINUITY: ${input.continuityNote || "Preserve identity, wardrobe, props, product, screen direction, background geography, palette, and time of day across adjacent shots."}`,
     input.visualMedium?.trim()
@@ -399,20 +412,27 @@ export function buildShotVideoPrompt(input: ShotPromptInput): string {
     ? "none; the camera is completely locked"
     : `${camera.movementName} only; no unplanned drift`;
   const risks = auditShotScene(input.scene);
+  const safeAction = generationSafePerformanceText(
+    input.scene.action,
+    `${movingSubject} completes one concise, physically plausible action with relaxed natural hands.`,
+  );
+  const safeBehaviorTell = input.scene.behaviorTell
+    ? generationSafePerformanceText(input.scene.behaviorTell.tell, "")
+    : "";
   return [
     `Animate slot ${input.scene.slotId ?? input.sceneIndex + 1} of ${input.sceneCount} for "${input.productionTitle}" as one continuous ${durationMs}ms silent source clip.`,
     `STORY PROMISE: ${input.productionLogline || input.scene.objective || "One visible action creates one visible change."}`,
     "SOURCE FRAME: The supplied image is the exact first frame and complete art direction. Do not redesign, recompose, or invent a second angle.",
     `SCENE BEAT: ${input.scene.setting || "The established location"}; ${input.scene.objective || "one visible situation change"}.`,
     `0.0-${establishEnd.toFixed(2)}s - ESTABLISH: Read the locked subject, location, important object, and starting body position.`,
-    `${establishEnd.toFixed(2)}-${performEnd.toFixed(2)}s - PERFORM: ${input.scene.action || `${movingSubject} completes one concise, physically plausible action.`}`,
+    `${establishEnd.toFixed(2)}-${performEnd.toFixed(2)}s - PERFORM: ${safeAction}`,
     `${performEnd.toFixed(2)}-${durationSeconds.toFixed(2)}s - LAND: Finish the action, settle body and camera motion, and hold the changed situation.`,
     `CONTROLLED MOTION: Exactly one named moving subject: ${movingSubject}. Every other person and all dressing remain explicitly still except for passive physical inertia. Camera drift: ${cameraDrift}.`,
     input.scene.energyState ? `ENERGY STATE: ${input.scene.energyState}. Do not exceed its camera or identity budget.` : "",
     `MOTION MODE: ${input.scene.motionMode ?? "forward"}${input.scene.motionMode === "chain" && input.scene.motionFromSlotId ? ` from rendered slot ${input.scene.motionFromSlotId}` : ""}.`,
     `CAMERA PATH - ${camera.movementName}: ${camera.movementPrompt}`,
     `CAMERA LOCK: Preserve ${camera.angle}, ${camera.lens}, source-image axis, horizon, lens character, subject scale, and screen direction. No second move and no cut.`,
-    input.scene.behaviorTell ? `CARD BEHAVIOR TELL: ${input.scene.behaviorTell.tell}.` : "",
+    safeBehaviorTell ? `CARD BEHAVIOR TELL: ${safeBehaviorTell}.` : "",
     `IDENTITY ANCHOR: Keep only ${actors.map((actor) => actor.name).join(" and ")} readable and identity-locked. Never blend, duplicate, beautify, age-shift, or substitute them.`,
     input.scene.dressing ? `HUMAN DRESSING: ${input.scene.dressing}` : "",
     input.scene.framingConstraint === "non_readable"
@@ -425,6 +445,7 @@ export function buildShotVideoPrompt(input: ShotPromptInput): string {
       ? `CLOSED PROP SET: ${input.scene.referencedProps.join(", ")}. No new prop or weapon may appear.`
       : "CLOSED PROP SET: no new props or weapons.",
     "PHYSICS: Natural blink, breath, grounded weight, cloth inertia, plausible contact, and forward-time momentum. Every moving object has one explicit owner or support.",
+    HAND_GESTURE_SAFETY,
     `CONTINUITY: ${input.continuityNote || "Do not reverse travel direction, swap positions, rebuild the background, add people, or change object count."}`,
     ...(risks.length ? [`SIMPLIFY BEFORE RENDER: ${risks.map((risk) => risk.message).join(" ")}`] : []),
     `NEGATIVE: ${[...SHOT_KNOWLEDGE_BASE.negative, ...(input.scene.sensitiveNegatives ?? [])].join(" ")}`,

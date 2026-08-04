@@ -16,7 +16,7 @@ import {
   type ScenePackage,
   type ShotBlueprint,
 } from "@/lib/production-prompting";
-import { dialogueForEditor } from "@/lib/dialogue-performance";
+import { dialogueForEditor, dialogueForSpeech } from "@/lib/dialogue-performance";
 import { pipelineModelLabel } from "@/lib/pipeline-config";
 import {
   buildThemePlan,
@@ -148,6 +148,7 @@ type QuickWriteField =
   | "voice-description"
   | "voice-preview"
   | "dialogue"
+  | "intro-dialogue"
   | "sfx"
   | "theme"
   | "identity-image"
@@ -296,6 +297,7 @@ const QUICK_WRITE_TO_STEP: Record<string, number> = {
   "voice-description": 1,
   "voice-preview": 1,
   dialogue: 2,
+  "intro-dialogue": 2,
   sfx: 5,
   theme: 5,
   "identity-image": 3,
@@ -1081,9 +1083,12 @@ export default function CharacterProductionStudio({
       return;
     }
     void run("speech", async () => {
-      setSpeechUrl(await audioAction("speech", { speechText }));
+      const dialogueResult = await writeField("intro-dialogue", speechText);
+      const introLine = (dialogueResult.text ?? speechText).trim();
+      setSpeechText(introLine);
+      setSpeechUrl(await audioAction("speech", { speechText: introLine, dialoguePurpose: "character-intro-v3-dialogue" }));
       await refreshHistory();
-      setMessage("Dialogue generated from the server-verified locked voice in continuity mode.");
+      setMessage("The actor's spoken introduction is locked and ready to perform inside the five-second scene.");
       advanceAfterCompletion(3);
     });
   }
@@ -1308,13 +1313,19 @@ export default function CharacterProductionStudio({
       if (!videoReferenceImage) {
         throw new Error("Create and choose a playable scene frame first. A neutral identity portrait cannot become a character introduction.");
       }
+      if (!characterIntroDialogueReady || !speechText.trim()) {
+        throw new Error("Create the actor's spoken introduction in Dialogue before rendering the video.");
+      }
       const grounded = await writeField("video", scenePrompt, videoReferenceImage);
       const groundedPrompt = grounded.text ?? scenePrompt;
       setScenePrompt(groundedPrompt);
       const data = (await jsonAction("video", {
         prompt: groundedPrompt,
         referenceImage: videoReferenceImage,
-        grammarVersion: "character-intro-v2",
+        referenceAudio: speechUrl,
+        dialogueText: speechText,
+        audioPlan: { ambience: character.brollScene || character.productionBible || character.tagline, sfxMoments: [] },
+        grammarVersion: "character-intro-v3-dialogue",
       })) as { url: string };
       setGeneratedVideo(data.url);
       setCharacterVideo(character.id, data.url);
@@ -1407,6 +1418,12 @@ export default function CharacterProductionStudio({
   ].filter((label): label is string => Boolean(label));
   const imageGenerationReady = readyImageProviderLabels.length > 0;
   const imageProviderRunLabel = readyImageProviderLabels.join(" + ");
+  const characterIntroDialogueReady = Boolean(speechUrl && assetHistory.some((asset) =>
+    asset.kind === "dialogue"
+    && asset.url === speechUrl
+    && asset.metadata?.dialoguePurpose === "character-intro-v3-dialogue"
+    && asset.metadata?.performanceText === dialogueForSpeech(speechText)
+  ));
   const imageUnavailableReason = !status
       ? "Checking image providers…"
     : !imageGenerationReady
@@ -1422,6 +1439,8 @@ export default function CharacterProductionStudio({
       ? "Seedance is not ready. Check the Video stage in Super Admin, then refresh this page."
       : !videoReferenceImage
         ? "Choose or generate a still first. Seedance needs an exact first frame before it can animate the actor."
+        : !characterIntroDialogueReady || !speechText.trim()
+          ? "Create the actor's spoken introduction in Dialogue first. The finished five-second intro includes that locked performance."
         : null;
   const elevenReady = status?.elevenLabs ?? false;
   const dialogueUnavailableReason = !status
@@ -1442,11 +1461,11 @@ export default function CharacterProductionStudio({
   const characterIntroVideoReady = Boolean(generatedVideo && assetHistory.some((asset) =>
     asset.kind === "video"
     && asset.url === generatedVideo
-    && asset.metadata?.visualGrammarVersion === "character-intro-v2"
+    && asset.metadata?.visualGrammarVersion === "character-intro-v3-dialogue"
   ));
   const completedSteps = new Set<number>([
     ...(lockedVoiceId ? [1] : []),
-    ...(speechUrl ? [2] : []),
+    ...(characterIntroDialogueReady ? [2] : []),
     ...(videoReferenceImage ? [3] : []),
     ...(characterIntroVideoReady ? [4] : []),
     ...(soundtrackReady ? [5] : []),
@@ -1490,6 +1509,8 @@ export default function CharacterProductionStudio({
     // Automatic production must create or reuse a dedicated scene frame before
     // asking Seedance to animate it.
     let automaticFrame = videoReferenceImage;
+    let automaticSpeechUrl = speechUrl;
+    let automaticDialogueText = speechText;
 
     const runVoiceAndDialogue = async () => {
       let automaticVoiceId = lockedVoiceId;
@@ -1534,19 +1555,24 @@ export default function CharacterProductionStudio({
         updateAutoStudioStep(1, "complete", "Existing locked voice reused");
       }
 
-      if (speechUrl) {
+      if (characterIntroDialogueReady && characterIntroVideoReady) {
         updateAutoStudioStep(2, "complete", "Existing dialogue reused");
         return;
       }
 
       updateAutoStudioStep(2, "writing", "Writing dialogue for the locked voice");
       try {
-        const dialogueResult = await writeField("dialogue", speechText);
+        const dialogueResult = await writeField("intro-dialogue", speechText);
         const writtenDialogue = (dialogueResult.text ?? speechText).trim();
+        automaticDialogueText = writtenDialogue;
         setSpeechText(writtenDialogue);
         updateAutoStudioStep(2, "generating", "Performing dialogue");
-        const automaticSpeechUrl = await audioAction("speech", { speechText: writtenDialogue });
-        setSpeechUrl(automaticSpeechUrl);
+        const generatedSpeechUrl = await audioAction("speech", {
+          speechText: writtenDialogue,
+          dialoguePurpose: "character-intro-v3-dialogue",
+        });
+        automaticSpeechUrl = generatedSpeechUrl;
+        setSpeechUrl(generatedSpeechUrl);
         await refreshHistory();
         updateAutoStudioStep(2, "complete", "Dialogue ready");
       } catch (error) {
@@ -1708,7 +1734,10 @@ export default function CharacterProductionStudio({
           const videoData = await jsonAction("video", {
             prompt: writtenVideoPrompt,
             referenceImage: automaticFrame,
-            grammarVersion: "character-intro-v2",
+            referenceAudio: automaticSpeechUrl,
+            dialogueText: automaticDialogueText,
+            audioPlan: { ambience: character.brollScene || character.productionBible || character.tagline, sfxMoments: [] },
+            grammarVersion: "character-intro-v3-dialogue",
           }) as { url?: string };
           if (!videoData.url) throw new Error("Seedance returned no playable video.");
           setGeneratedVideo(videoData.url);
@@ -2506,10 +2535,10 @@ export default function CharacterProductionStudio({
             <div className="flex items-center justify-between gap-2">
               <h3 className="font-semibold text-sm">2. Dialogue in the locked voice</h3>
               <QuickWriteButton
-                field="dialogue"
+                field="intro-dialogue"
                 busy={Boolean(busy) || Boolean(quickWriting)}
-                writing={quickWriting === "dialogue"}
-                onClick={() => void quickWrite("dialogue", speechText, setSpeechText)}
+                writing={quickWriting === "intro-dialogue"}
+                onClick={() => void quickWrite("intro-dialogue", speechText, setSpeechText)}
               />
             </div>
             <textarea aria-label={`${character.name} spoken dialogue`} data-scene-field="dialogue" value={speechText} onChange={(event) => setSpeechText(event.target.value)} rows={5} className="bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
@@ -2872,7 +2901,11 @@ export default function CharacterProductionStudio({
               />
             </div>
             <textarea data-scene-field="video" value={scenePrompt} onChange={(event) => setScenePrompt(event.target.value)} rows={8} className="min-h-32 bg-paper border border-line rounded-sm p-3 text-xs resize-none focus:outline-none focus:border-accent" />
-            <button onClick={generateVideo} disabled={!seedModelsReady || !videoReferenceImage || Boolean(busy)} className="magic-action rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-40" data-intelligence-action aria-busy={busy === "video"}>
+            <div className="rounded-sm border border-teal-400/25 bg-teal-400/[0.04] px-3 py-2">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-teal-300">Spoken introduction</span>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink">{speechText || "Create the actor's line in Dialogue first."}</p>
+            </div>
+            <button onClick={generateVideo} disabled={!seedModelsReady || !videoReferenceImage || !characterIntroDialogueReady || !speechText.trim() || Boolean(busy)} className="magic-action rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-40" data-intelligence-action aria-busy={busy === "video"}>
               {seedanceAccountPaused ? "Seedance paused by BytePlus" : busy === "video" ? "Seedance is rendering..." : "Generate 5-second video"}
             </button>
             {videoUnavailableReason && (

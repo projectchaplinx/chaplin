@@ -53,7 +53,7 @@ import {
   withThemeDurationDirection,
 } from "@/lib/production-prompting";
 import { assembleSignatureSfx } from "@/lib/server/signature-sfx";
-import { measureStoredAudioMs } from "@/lib/server/ad-board-media";
+import { measureStoredAudioMs, muxVideoWithStoredDialogue } from "@/lib/server/ad-board-media";
 import { enforceThemeDuration } from "@/lib/server/audio-postprocess";
 import {
   prepareSeedanceAudioPrompt,
@@ -1192,6 +1192,7 @@ export async function POST(request: Request) {
         seed,
         voiceSettings,
         performanceText,
+        dialoguePurpose: typeof input.dialoguePurpose === "string" ? input.dialoguePurpose.trim().slice(0, 80) : null,
       };
       const asset = await saveMediaAsset({
         characterId,
@@ -2236,6 +2237,7 @@ export async function POST(request: Request) {
           taskId,
           usage: task.usage as Record<string, unknown> | undefined,
           requestId: createdResponse.requestId,
+          lipSyncApplied: lipSync && Boolean(taskReferenceAudio),
         };
       };
 
@@ -2279,6 +2281,7 @@ export async function POST(request: Request) {
       let videoProviderUsed: "byteplus" | "replicate" = "byteplus";
       let videoUsage: Record<string, unknown> | undefined;
       let videoRequestId: string | null | undefined;
+      let dialogueIntegrated = false;
       let audioPlanUsed: AudioPlan | null = resolvedAudioPlan;
       let nativeAudioRequested = Boolean(resolvedAudioPlan && audioPlanUsesNative(resolvedAudioPlan));
       const rejectedModels: string[] = [];
@@ -2395,6 +2398,7 @@ export async function POST(request: Request) {
           taskId = result.taskId;
           videoUsage = result.usage;
           videoRequestId = result.requestId;
+          dialogueIntegrated = "lipSyncApplied" in result && result.lipSyncApplied === true;
           videoModelUsed = attempt.model;
           videoProviderUsed = attempt.provider;
           audioPlanUsed = attemptPlan ?? resolvedAudioPlan;
@@ -2412,24 +2416,20 @@ export async function POST(request: Request) {
         rendered instruction is byte-identical to control — is detectable
         without storing two copies of the text.
       */
-      const voicePathUsed = audioPlanUsed?.dialogue.owner === "native" && referenceAudio
+      const voicePathUsed = dialogueIntegrated
         ? "A-native-reference"
         : dialogueText
           ? "B-post-mix"
           : null;
       const promptHash = createHash("sha256").update(prompt).digest("hex");
-      const asset = await saveRemoteMediaAsset({
-        characterId,
-        kind: "video",
-        provider: videoProviderUsed,
-        remoteUrl: videoUrl,
-        prompt,
-        durationSeconds,
-        metadata: {
+      const assetMetadata = {
           taskId,
           videoModel: videoModelUsed,
           videoProvider: videoProviderUsed,
           voicePath: voicePathUsed,
+          dialogueIntegrated,
+          dialogueText: dialogueText || null,
+          visualGrammarVersion,
           promptHash,
           ...(rejectedModels.length ? { safetyRejectedModels: rejectedModels } : {}),
           ...(audioPlanUsed
@@ -2442,8 +2442,34 @@ export async function POST(request: Request) {
             : {}),
           ...referenceMetadata,
           ...(consistencyWarnings.length ? { characterCardConsistencyWarnings: consistencyWarnings } : {}),
-        },
-      });
+        };
+      let asset;
+      if (dialogueText && referenceAudio && !dialogueIntegrated) {
+        asset = await muxVideoWithStoredDialogue({
+          characterId,
+          videoUrl,
+          dialogueUrl: referenceAudio,
+          durationSeconds,
+          prompt,
+          metadata: {
+            ...assetMetadata,
+            dialogueText,
+            visualGrammarVersion,
+            promptHash,
+          },
+        });
+        dialogueIntegrated = true;
+      } else {
+        asset = await saveRemoteMediaAsset({
+          characterId,
+          kind: "video",
+          provider: videoProviderUsed,
+          remoteUrl: videoUrl,
+          prompt,
+          durationSeconds,
+          metadata: assetMetadata,
+        });
+      }
       const providerUsage = videoUsage;
       await completeGeneration(
         jobId,
@@ -2452,6 +2478,9 @@ export async function POST(request: Request) {
           taskId,
           videoModel: videoModelUsed,
           videoProvider: videoProviderUsed,
+          dialogueIntegrated,
+          dialogueText: dialogueText || null,
+          visualGrammarVersion,
           ...(rejectedModels.length ? { safetyRejectedModels: rejectedModels } : {}),
           ...(audioPlanUsed
             ? {
@@ -2489,6 +2518,7 @@ export async function POST(request: Request) {
         model: videoModelUsed,
         nativeAudioRequested,
         voicePath: voicePathUsed,
+        dialogueIntegrated,
       });
     }
 

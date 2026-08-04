@@ -89,6 +89,57 @@ export async function measureStoredAudioMs(url: string) {
   }
 }
 
+/** Create the final playable intro when the video model cannot ingest the locked voice. */
+export async function muxVideoWithStoredDialogue(input: {
+  characterId: string;
+  videoUrl: string;
+  dialogueUrl: string;
+  durationSeconds: number;
+  prompt?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const workDirectory = await mkdtemp(path.join(tmpdir(), "chaplin-intro-dialogue-"));
+  const videoPath = path.join(workDirectory, "motion.mp4");
+  const dialoguePath = path.join(workDirectory, "dialogue.mp3");
+  const outputPath = path.join(workDirectory, "character-intro.mp4");
+  try {
+    const downloadVideo = async () => {
+      const parsed = new URL(input.videoUrl);
+      if (parsed.protocol !== "https:") throw new Error("Character-introduction video must use HTTPS.");
+      const storageHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).hostname : "";
+      if (parsed.hostname === storageHost) return downloadChaplinAsset(input.videoUrl, videoPath);
+      const response = await fetch(parsed, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Download generated introduction: ${response.status}.`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.byteLength > 200 * 1024 * 1024) throw new Error("Generated introduction exceeded the 200 MB mix limit.");
+      await writeFile(videoPath, bytes);
+    };
+    await Promise.all([
+      downloadVideo(),
+      downloadChaplinAsset(input.dialogueUrl, dialoguePath),
+    ]);
+    await execute(ffmpegExecutable(), [
+      "-y", "-i", videoPath, "-i", dialoguePath,
+      "-filter_complex", `[1:a]adelay=250|250,apad,atrim=0:${input.durationSeconds},loudnorm=I=-16:TP=-1.5:LRA=11[dialogue]`,
+      "-map", "0:v:0", "-map", "[dialogue]", "-t", String(input.durationSeconds),
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", outputPath,
+    ], { maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: 300_000 });
+    const bytes = await readFile(outputPath);
+    return saveMediaAsset({
+      characterId: input.characterId,
+      kind: "video",
+      provider: "ffmpeg",
+      bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      contentType: "video/mp4",
+      durationSeconds: input.durationSeconds,
+      prompt: input.prompt,
+      metadata: { dialogueIntegrated: true, voicePath: "B-post-mix", ...input.metadata },
+    });
+  } finally {
+    await rm(workDirectory, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 /**
  * Extracts the real terminal image from a rendered source clip. The frame is
  * persisted as an ordinary reference media_asset so downstream image/video

@@ -1,5 +1,16 @@
 # Chaplin Changelog
 
+## v0.3.37 - 2026-08-04 - Give every Spark a voice
+
+- Write a compact identity-revealing line specifically for the five-second
+  character introduction instead of reusing long general dialogue.
+- Bind the actor's locked ElevenLabs performance to the world-specific action
+  and motion prompt so the Spark plays as one authored beat.
+- Use native Seedance lip sync when supported and automatically mux the exact
+  locked take into the final video when a fallback model cannot accept audio.
+- Reject older silent-motion Sparks as incomplete and make the spoken line
+  visible beside the video controls before a creator renders.
+
 ## v0.3.36 - 2026-08-04 - Use every actor's derived world
 
 - Apply the character-introduction contract to every actor with a specific

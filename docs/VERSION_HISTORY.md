@@ -341,3 +341,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.33 | `cdf2b03` | 2026-08-04T15:19:52+05:30 | v0.3.33: keep actor writing progress alive |
 | v0.3.34 | `fe07f20` | 2026-08-04T15:57:06+05:30 | v0.3.34: build scene-aware soundtracks |
 | v0.3.35 | `ad83e94` | 2026-08-04T16:48:45+05:30 | v0.3.35: make Sparks prove the character |
+| v0.3.36 | `b180dc9` | 2026-08-04T16:53:37+05:30 | v0.3.36: use every actor's derived world |

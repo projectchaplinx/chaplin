@@ -4,6 +4,7 @@ import Image from "next/image";
 
 export type SceneAsset = {
   index: number;
+  label?: string;
   setting: string;
   action: string;
   previewImageUrl?: string;
@@ -99,7 +100,7 @@ export default function SceneStudioAssets({
                     <span className="asset-canvas-shimmer absolute inset-0" aria-hidden="true" />
                   )}
                   <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white/85">
-                    Scene {asset.index + 1}
+                    {asset.label ?? `Scene ${asset.index + 1}`}
                   </span>
                   <span
                     className={`absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${

@@ -449,7 +449,8 @@ export function ProductionWorkspace({
 
   const shotTimeline = useMemo(() => {
     if (!contract || !story) return [];
-    return Array.from({ length: contract.shotCount }, (_, index) => {
+    const outputCount = contract.punchGenerationMode === "single-take" ? 1 : contract.shotCount;
+    return Array.from({ length: outputCount }, (_, index) => {
       const scene = story.scenes[index];
       const liveShot = renderShots[index];
       const videoUrl = liveShot?.videoUrl ?? persistedShotUrls[index];
@@ -458,9 +459,15 @@ export function ProductionWorkspace({
         ?? (videoUrl ? "ready" : frameUrl ? "frame_ready" : "queued");
       return {
         index,
-        title: scene?.setting?.trim() || `Scene ${index + 1}`,
-        objective: scene?.objective?.trim() || scene?.action?.trim() || "Shot direction is ready.",
-        durationSeconds: scene?.durationMs
+        title: contract.punchGenerationMode === "single-take"
+          ? "Complete 15-second take"
+          : scene?.setting?.trim() || `Scene ${index + 1}`,
+        objective: contract.punchGenerationMode === "single-take"
+          ? `${story.scenes.length} authored beats delivered as one native audiovisual generation.`
+          : scene?.objective?.trim() || scene?.action?.trim() || "Shot direction is ready.",
+        durationSeconds: contract.punchGenerationMode === "single-take"
+          ? contract.duration
+          : scene?.durationMs
           ? scene.durationMs / 1000
           : scene?.durationSeconds ?? (contract.format === "punch" ? 4 : 5),
         frameUrl,
@@ -508,7 +515,9 @@ export function ProductionWorkspace({
   const activityFramesReadyCount = renderShots.filter((shot) => Boolean(shot.frameUrl)).length;
   const activityClipsReadyCount = renderShots.filter((shot) => Boolean(shot.videoUrl) || shot.status === "ready").length;
   const soundtrackReadyCount = renderShots.filter((shot) => Boolean(shot.sfxUrl)).length;
-  const renderSceneCount = Math.max(1, contract?.shotCount ?? renderShots.length);
+  const renderSceneCount = contract?.punchGenerationMode === "single-take"
+    ? 1
+    : Math.max(1, contract?.shotCount ?? renderShots.length);
   const estimatePhaseRemaining = (targetSeconds: number, completed: number, total: number) => {
     const timeBound = Math.max(0, targetSeconds - phaseElapsedSeconds);
     if (completed <= 0 || total <= 0) return timeBound;
@@ -2154,10 +2163,14 @@ export function ProductionWorkspace({
             <div className="mb-2.5 flex items-center justify-between gap-3">
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-accent-secondary">
-                  Four starting frames · {framesReadyCount}/{shotTimeline.length || contract.shotCount} ready
+                  {contract.punchGenerationMode === "single-take"
+                    ? `One native 15-second take · ${framesReadyCount}/${shotTimeline.length || 1} reference ready`
+                    : `Four starting frames · ${framesReadyCount}/${shotTimeline.length || contract.shotCount} ready`}
                 </p>
                 <p className="mt-0.5 text-[9px] text-grey">
-                  These are the exact authored frames Seedance will animate. Select one to inspect its frame or clip.
+                  {contract.punchGenerationMode === "single-take"
+                    ? "The four authored beats are combined into one prompt and one generated audiovisual asset."
+                    : "These are the exact authored frames Seedance will animate. Select one to inspect its frame or clip."}
                 </p>
               </div>
               {finalVideoUrl && (
@@ -2309,7 +2322,7 @@ export function ProductionWorkspace({
                     <p className="mt-0.5 font-mono text-sm text-white">~{timerLabel(estimatedRemainingSeconds)}</p>
                   </div>
                   <div className="rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2">
-                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">Scenes complete</p>
+                    <p className="text-[8px] uppercase tracking-[0.15em] text-white/45">{contract.punchGenerationMode === "single-take" ? "Take complete" : "Scenes complete"}</p>
                     <p className="mt-0.5 font-mono text-sm text-white">{activityClipsReadyCount}/{renderSceneCount}</p>
                   </div>
                 </div>
@@ -2329,7 +2342,7 @@ export function ProductionWorkspace({
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/55">Scene {shot.index + 1}</span>
+                        <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/55">{contract.punchGenerationMode === "single-take" ? "15s take" : `Scene ${shot.index + 1}`}</span>
                         <span className={`h-1.5 w-1.5 rounded-full ${
                           shot.status === "ready"
                             ? "bg-emerald-400"

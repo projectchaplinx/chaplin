@@ -1,5 +1,12 @@
 # Chaplin Changelog
 
+## v0.3.32 - 2026-08-04 - Show a single-take Punch as one output
+
+- Keep the four authored story beats internal to the native 15-second prompt
+  while showing one take, one output asset, and one live render state.
+- Replace the misleading four-frame and four-scene progress language in Render
+  Studio when the production contract is `single-take`.
+
 ## v0.3.31 - 2026-08-04 - Honor the selected Punch render method
 
 - Stop silently converting a selected native 15-second take into four scene

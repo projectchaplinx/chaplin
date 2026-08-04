@@ -1437,6 +1437,17 @@ export default function StoryBuilderForm() {
     lineCount: scene.lines.filter((line) => line.text.trim()).length,
     authored: Boolean(scene.setting.trim() || scene.action.trim()),
   }));
+  const productionAssets: SceneAsset[] = effectivePunchGenerationMode === "single-take"
+    ? [{
+        index: 0,
+        label: "15s take",
+        setting: "One complete audiovisual take",
+        action: `${scenes.length} authored beats are delivered through one native 15-second generation.`,
+        previewImageUrl: scenes.find((scene) => scene.previewImageUrl)?.previewImageUrl,
+        lineCount: scenes.reduce((total, scene) => total + scene.lines.filter((line) => line.text.trim()).length, 0),
+        authored: scenes.some((scene) => Boolean(scene.setting.trim() || scene.action.trim())),
+      }]
+    : sceneAssets;
   const handleProductionFrames = useCallback((urls: string[]) => {
     setScenes((current) => {
       let changed = false;
@@ -1490,7 +1501,7 @@ export default function StoryBuilderForm() {
               />
             </div>
             <SceneStudioAssets
-              assets={sceneAssets}
+              assets={productionAssets}
               busyIndex={null}
               onSelect={() => undefined}
               onGenerateAll={() => undefined}

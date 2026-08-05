@@ -348,3 +348,4 @@ Chaplin by one version ordinal. Patch and minor counters roll after 99.
 | v0.3.40 | `af957a5` | 2026-08-04T18:29:25+05:30 | v0.3.40: fix(v0.3.40): make one-shot Punch continuous |
 | v0.3.41 | `53f19aa` | 2026-08-04T18:50:22+05:30 | v0.3.41: fix(v0.3.41): stop recurring finger-sign poses |
 | v0.3.42 | `9ce8e45` | 2026-08-04T18:55:45+05:30 | v0.3.42: fix(v0.3.42): stop reference poses from propagating |
+| v0.3.43 | `08bf875` | 2026-08-04T19:09:33+05:30 | v0.3.43: fix(v0.3.43): enforce one dialogue authority |

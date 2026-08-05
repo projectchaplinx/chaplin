@@ -726,7 +726,12 @@ export default function StoryBuilderForm() {
 
   function toggleCast(id: string) {
     setCastIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      const oneShot = format === "punch" && effectivePunchGenerationMode === "single-take";
+      const next = prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : oneShot
+          ? [id]
+          : [...prev, id];
       if (next.length === prev.length) return prev;
       // Every existing preview was framed around the previous cast, so it no
       // longer depicts this scene. Drop the stale stills and say so, rather than
@@ -907,7 +912,11 @@ export default function StoryBuilderForm() {
           discarded. The model only picks when nothing is cast yet.
         */
         const suggestedCastIds = draft.castIds.filter((id) => world.characters.some((character) => character.id === id));
-        const nextCastIds = castIds.length ? castIds : suggestedCastIds;
+        const nextCastIds = format === "punch" && effectivePunchGenerationMode === "single-take"
+          ? suggestedCastIds.slice(0, 1)
+          : castIds.length
+            ? castIds
+            : suggestedCastIds;
         setCastIds(nextCastIds);
         const lead = world.characters.find((character) => character.id === nextCastIds[0]) ?? castCharacters[0];
         const nextScenes = (draft.scenes.length ? draft.scenes : [{

@@ -1,5 +1,16 @@
 # Chaplin Changelog
 
+## v0.3.44 - 2026-08-05 - Keep single-take writing on one lead
+
+- Prevent a 15-second single-take Punch from silently expanding a chosen lead
+  into an impossible three-actor direction board after Magic Write.
+- Keep model-suggested dialogue and identity locks on the retained lead while
+  leaving warbands, crowds, and other figures as anonymous scene dressing.
+- Make the Studio cast picker replace the lead in single-take mode; four-scene
+  Punches and longer productions continue to support ensemble casts.
+- Add cast-contract coverage and expire the orphaned writing job left behind by
+  the earlier timed-out Viking-scene request.
+
 ## v0.3.43 - 2026-08-04 - Make ElevenLabs the only dialogue authority
 
 - Rebuild every fallback-model prompt from the silent visual direction instead

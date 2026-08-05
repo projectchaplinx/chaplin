@@ -20,6 +20,7 @@ import type { Archetype, CharacterProductionBible, VoiceGender } from "@/lib/typ
 import { safeSignatureGesture } from "@/lib/performance-safety";
 import {
   normalizePunchGenerationMode,
+  normalizeProductionCastIds,
   normalizeProductionFormat,
   punchAuthoredSceneCount,
   productionDuration,
@@ -394,9 +395,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "At least one available AI actor is required." }, { status: 400 });
     }
     const validIds = new Set(characters.map((character) => character.id));
-    const castIds = Array.isArray(body.castIds)
-      ? body.castIds.filter((id): id is string => typeof id === "string" && validIds.has(id)).slice(0, 6)
-      : [];
+    const castIds = normalizeProductionCastIds(
+      Array.isArray(body.castIds)
+        ? body.castIds.filter((id): id is string => typeof id === "string" && validIds.has(id))
+        : [],
+      format,
+      punchGenerationMode,
+    );
     const input = {
       format,
       durationSeconds,
@@ -643,8 +648,21 @@ ${buildDirectorPromptBlock(directorTrace)}`,
       draft.scenes = draft.scenes.slice(0, requiredSceneCount);
     }
     const speakingCastIds = draft.scenes.flatMap((scene) => scene.lines.map((line) => line.characterId));
-    draft.castIds = [...new Set([...draft.castIds, ...speakingCastIds])]
-      .filter((id) => allowedIds.has(id));
+    draft.castIds = normalizeProductionCastIds(
+      [...castIds, ...draft.castIds, ...speakingCastIds].filter((id) => allowedIds.has(id)),
+      format,
+      punchGenerationMode,
+    );
+    // Once a one-shot lead is chosen, dialogue from discarded model-suggested
+    // cast must not survive as a hidden second identity in the same take.
+    if (format === "punch" && punchGenerationMode === "single-take") {
+      const productionCast = new Set(draft.castIds);
+      draft.scenes = draft.scenes.map((scene) => ({
+        ...scene,
+        lines: scene.lines.filter((line) => productionCast.has(line.characterId)),
+        lockedCharacterIds: scene.lockedCharacterIds?.filter((id) => productionCast.has(id)),
+      }));
+    }
     const directedDraft = finalizeDirectionDraft(draft, input);
     const usage = {
       inputTokens: Number(data.usage?.input_tokens ?? 0),

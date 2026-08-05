@@ -13,6 +13,27 @@ export function punchAuthoredSceneCount(mode: PunchGenerationMode) {
   return mode === "single-take" ? 1 : 4;
 }
 
+/**
+ * A single-take Punch has one identity-bearing performance lane. Extra people
+ * may appear as anonymous dressing, but silently carrying several selected
+ * actors into that one lane makes the direction contract impossible: one
+ * scene cannot give every selected actor an independently locked behavior
+ * tell. Keep the creator's first choice as the lead instead.
+ */
+export function productionCastLimit(format: ProductionFormat, punchMode?: PunchGenerationMode) {
+  if (format === "spark") return 1;
+  if (format === "punch" && punchMode === "single-take") return 1;
+  return 6;
+}
+
+export function normalizeProductionCastIds(
+  ids: string[],
+  format: ProductionFormat,
+  punchMode?: PunchGenerationMode,
+) {
+  return [...new Set(ids)].slice(0, productionCastLimit(format, punchMode));
+}
+
 export type ProductionFormatDefinition = {
   type: ProductionFormat;
   label: string;
